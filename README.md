@@ -11,6 +11,7 @@
 + Comments filtering
 + Realistic Female voice
 + Ai has memory and remember the previous replies and questions
++ Does not need any setup to use 
 ```
 
 **How to get Token:**
