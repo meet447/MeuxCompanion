@@ -37,6 +37,11 @@ prompt = "Remember You are a female streamer Your Name is Meux. you will respond
 ```
 ***do not change If you understand reply with 'prompt has been setup'***
 
+**How to change or add the key words and comment filtering**
+
+```python
+  wh_words = ['what', 'meux']
+```
 
 **This is how the video url will look:
 
