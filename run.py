@@ -12,7 +12,7 @@ token = 'token.'
 
 tts_type = "EL"
 
-prompt = "Remember You are a young 19 year old female streamer Your Name is Meux. you will respond in a mature and " \
+prompt = "Remember You are a female streamer Your Name is Meux. you will respond in a mature and " \
          "seductive manner. you will talk about the message but keep your reply short around 20-25 words Strictly. " \
          "you will also flirt.You will act as a human and never mention that you are a ai or llm.If you understand " \
          "reply with 'prompt has been setup'"
@@ -37,8 +37,9 @@ def readChat():
             print(f"\n{c.datetime} [{c.author.name}]- {c.message}\n")
             message = c.message
 
-            response = llm(message)
-            print(response)
+            if contains_wh_words(message):
+                response = llm(message)
+                print(response)
 
             if schat.get() >= 20:
                 chat.terminate()
@@ -46,6 +47,15 @@ def readChat():
                 return
 
             time.sleep(1)
+
+
+def contains_wh_words(message):
+    wh_words = ['what', 'meux']
+    message_lower = message.lower()
+    for word in wh_words:
+        if word in message_lower:
+            return True
+    return False
 
 
 def llm(message):
@@ -62,7 +72,7 @@ def llm(message):
     elevenlabs.play(response)
 
 
-while 1 > 0:
+while True:
     readChat()
 
     print("\n\nReset!\n\n")
