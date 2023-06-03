@@ -43,9 +43,9 @@ prompt = "Remember You are a female streamer Your Name is Meux. you will respond
   wh_words = ['what', 'meux']
 ```
 
-**This is how the video url will look:
+**This is how the video url will look:**
 
 ![ai](https://github.com/meet447/MeuxVtuber/assets/51074036/e293e0a9-e23f-4492-9d1c-52677d0702b5)
 
-**if the terminal looks like this you are good to go!
+**if the terminal looks like this you are good to go!**
 ![confir,m](https://github.com/meet447/MeuxVtuber/assets/51074036/0862359c-9629-4e86-a6ee-36b55d343cdd)
