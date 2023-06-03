@@ -1,5 +1,18 @@
 **Super light weight python yt ai vtuber with zero api keys requirements and free of cost!**
 
+**Features: **
+
+```
++ Super light weight can run on low end pc
++ Quick Replies
++ No api key required
++ Customize Prompt
++ View All question and replies history on bard website
++ Comments filtering
++ Realistic Female voice
++ Ai has memory and remember the previous replies and questions
+```
+
 **How to get Token:**
 
 Go to https://bard.google.com/
@@ -30,5 +43,3 @@ prompt = "Remember You are a young 19 year old female streamer Your Name is Meux
 
 **if the terminal looks like this you are good to go!
 ![confir,m](https://github.com/meet447/MeuxVtuber/assets/51074036/0862359c-9629-4e86-a6ee-36b55d343cdd)
-
-***will be adding a option using which the ai will only pick comments which contains certain words like questions or user defined words and other comments will be ignored!
