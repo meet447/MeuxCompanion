@@ -1,6 +1,6 @@
 **Super light weight python yt ai vtuber with zero api keys requirements and free of cost!**
 
-**Features: **
+**Features:**
 
 ```
 + Super light weight can run on low end pc
