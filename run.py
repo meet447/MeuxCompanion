@@ -8,7 +8,7 @@ video_int = input("Enter the video url: ")
 
 video_id = video_int
 
-token = 'XAhAHXk25fWRwVV5ktD1MHsgYgIDfMmpkiHdZzAFnqCkbgJckCF4MD2lDCG8m28HVz4_Hg.'
+token = 'token.'
 
 tts_type = "EL"
 
