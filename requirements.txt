@@ -1,0 +1,4 @@
+pytchat
+elevenlabs
+GoogleBard
+requests
