@@ -1,4 +1,4 @@
-**Super light weight python yt ai vtuber with zero api keys requirements and free of cost!
+**Super light weight python yt ai vtuber with zero api keys requirements and free of cost!**
 
 **How to get Token:**
 
