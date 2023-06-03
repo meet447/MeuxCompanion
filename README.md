@@ -13,7 +13,7 @@ Session: Go to Application → Cookies → __Secure-1PSID. Copy the value of tha
 
 **credites to https://github.com/acheong08**
 
-**How to change AIs personality
+**How to change AIs personality**
 
 ```python
 prompt = "Remember You are a young 19 year old female streamer Your Name is Meux. you will respond in a mature and " \
@@ -21,7 +21,7 @@ prompt = "Remember You are a young 19 year old female streamer Your Name is Meux
          "you will also flirt.You will act as a human and never mention that you are a ai or llm.If you understand " \
          "reply with 'prompt has been setup'"
 ```
-***do not change If you understand reply with 'prompt has been setup'
+***do not change If you understand reply with 'prompt has been setup'***
 
 
 **This is how the video url will look:
