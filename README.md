@@ -2,7 +2,8 @@
 
 This repository contains the code for an AI YouTube VTuber, a virtual content creator that interacts with viewers using automated responses and voice generation. The VTuber is powered by various AI models and technologies. Below is an overview of the main components and how to set up and use this project.
 
-Uses my Rika api based on rika web i created check rika web out rika-web.meetsonawane.repl.co
+Uses my Rika api based on rika web i created check rika web out [Rika Web](rika-web.meetsonawane.repl.co)
+to create your custom vtuber create a new character at rika web!
 
 ## Components
 
@@ -56,7 +57,7 @@ Feel free to contribute to this project by opening pull requests or suggesting i
 
 ## Contact
 
-For questions or feedback, you can reach out to the project maintainer at [your-email@example.com](mailto:meet.sonawane2015@gmail.com).
+For questions or feedback, you can reach out to the project maintainer at [meet.sonawane2015@gmail.com](mailto:meet.sonawane2015@gmail.com).
 
 ---
 
