@@ -1,51 +1,73 @@
-**Super light weight python yt ai vtuber with zero api keys requirements and free of cost!**
+Creating a README.md file for your AI YouTube VTuber project can help users understand how to use your code and what it does. Here's a template for your README.md file:
 
-**Features:**
+```markdown
+# AI YouTube VTuber
 
+This project is a YouTube VTuber (Virtual YouTuber) powered by AI. It utilizes various AI technologies to interact with users and provide spoken responses.
+
+## Getting Started
+
+### Prerequisites
+
+To run this project, you'll need the following dependencies installed:
+
+- Python 3.x
+- Required Python libraries (install using `pip`):
+  - [requests](https://pypi.org/project/requests/)
+  - [json](https://docs.python.org/3/library/json.html)
+  - [gtts](https://pypi.org/project/gTTS/)
+  - [pyttsx3](https://pypi.org/project/pyttsx3/)
+  - [playsound](https://pypi.org/project/playsound/)
+  - [pydub](https://pypi.org/project/pydub/)
+
+### Running the VTuber
+
+1. Clone this repository to your local machine.
+
+2. Navigate to the project directory in your terminal.
+
+3. Run the `main.py` script using the following command:
+
+   ```shell
+   python main.py
+   ```
+
+   This script will continuously read YouTube chat and respond using various AI voices.
+
+## Code Structure
+
+- `main.py`: The main script that reads YouTube chat and interacts with users.
+- `llm.py`: Contains functions for interacting with an AI model hosted on rika-web.meetsonawane.repl.co.
+- `tts.py`: Contains functions for text-to-speech (TTS) using different TTS engines.
+- `chat.py`: Reusable functions for interacting with the Eleven Labs API and Google TTS.
+
+## Usage
+
+You can modify the behavior of the VTuber by editing the functions in `main.py` and using different TTS engines provided in `tts.py`. Customize the responses and AI interactions according to your requirements.
+
+## Contributing
+
+If you'd like to contribute to this project, feel free to open an issue or submit a pull request. We welcome improvements, bug fixes, and new features.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+## Acknowledgments
+
+- [Eleven Labs Text-to-Speech API](https://elevenlabs.io/)
+- [gTTS - Google Text-to-Speech](https://pypi.org/project/gTTS/)
+- [pyttsx3](https://pypi.org/project/pyttsx3/)
+- [playsound](https://pypi.org/project/playsound/)
+- [pydub](https://pypi.org/project/pydub/)
+
+## Contact
+
+For any questions or inquiries, please contact [Your Name](mailto:your.email@example.com).
+
+Happy VTubing!
 ```
-+ Super light weight can run on low end pc
-+ Quick Replies
-+ No api key required
-+ Customize Prompt
-+ View All question and replies history on bard website
-+ Comments filtering
-+ Realistic Female voice
-+ Ai has memory and remember the previous replies and questions
-+ Does not need any setup to use 
-```
 
-**How to get Token:**
+Replace `[Your Name]` and `[your.email@example.com]` with your contact information. Also, make sure to provide any additional acknowledgments or references as needed.
 
-Go to https://bard.google.com/
-
-```
-F12 for console
-Copy the values
-Session: Go to Application → Cookies → __Secure-1PSID. Copy the value of that cookie.
-```
-![Screenshot 2023-06-03 144134](https://github.com/meet447/MeuxChat/assets/51074036/2f188556-fd26-440a-acc6-de01fae48925)
-
-**credites to https://github.com/acheong08**
-
-**How to change AIs personality**
-
-```python
-prompt = "Remember You are a female streamer Your Name is Meux. you will respond in a mature and " \
-         "seductive manner. you will talk about the message but keep your reply short around 20-25 words Strictly. " \
-         "you will also flirt.You will act as a human and never mention that you are a ai or llm.If you understand " \
-         "reply with 'prompt has been setup'"
-```
-***do not change If you understand reply with 'prompt has been setup'***
-
-**How to change or add the key words and comment filtering**
-
-```python
-  wh_words = ['what', 'meux']
-```
-
-**This is how the video url will look:**
-
-![ai](https://github.com/meet447/MeuxVtuber/assets/51074036/e293e0a9-e23f-4492-9d1c-52677d0702b5)
-
-**if the terminal looks like this you are good to go!**
-![confir,m](https://github.com/meet447/MeuxVtuber/assets/51074036/0862359c-9629-4e86-a6ee-36b55d343cdd)
+Remember to include a license file (`LICENSE`) if you haven't already and ensure that your project adheres to any relevant licensing requirements.
