@@ -2,10 +2,9 @@ import elevenlabs
 from gtts import gTTS
 import os
 import pyttsx3
-from playsound import playsound
+import time
 import requests
-from pydub import AudioSegment
-from pydub.playback import play 
+from audio import play_audio
 
 def Eleven(message):
     # Define the URL and request headers
@@ -30,12 +29,12 @@ def Eleven(message):
     if response.status_code == 200:
         # If the response content type is audio/mpeg, you can save it to a file
         if response.headers.get("Content-Type") == "audio/mpeg":
-            with open("voice.mp3", "wb") as audio_file:
+            with open("audio.mp3", "wb") as audio_file:
                 audio_file.write(response.content)
-                song = AudioSegment.from_mp3("voice.mp3")
-                play(song)
-                # Delete the temporary audio file
-                os.remove("voice.mp3")
+                print("mp3 done")
+                audio = "audio.mp3"
+                play_audio(audio=audio)
+                
         else:
             print("Unexpected response content type:", response.headers.get("Content-Type"))
     else:
@@ -56,7 +55,7 @@ def gtts(message):
     
     myobj.save("voice.mp3")
 
-    playsound("voice.mp3")
+    play_audio("voice.mp3")
     
     os.remove("voice.mp3")
 
