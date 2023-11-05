@@ -1,23 +1,20 @@
 import requests
 import json
+from config import char_id  # Make sure you have char_id defined in your config file
 
-url = "https://rika-web.meetsonawane.repl.co/api/rikav2"
+url = "https://chipling-web-1.meetsonawane.repl.co/api/rikav2"  # Remove extra slashes in the URL
 
 def rika(query):
-	data = {
-		'text': query,
-		'id': '480a68e03f5b11ee84544133defb16e1'
-	}
+    data = {
+        'text': query,
+        'id': char_id
+    }
 
-	# Convert the data to JSON format
-	data_json = json.dumps(data)
+    response = requests.post(url, json=data)
 
-	# Set the Content-Type header to application/json
-	headers = {'Content-Type': 'application/json'}
+    # Check the response
+    result = response.json()
+    print("API Response:", result)
 
-	# Send the POST request
-	response = requests.post(url, data=data_json, headers=headers)
-
-	# Print the response
-	return response.json()['results']
- 
+    # Print the response
+    return result['results']
