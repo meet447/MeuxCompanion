@@ -1,21 +1,30 @@
 import requests
 
-# URL of the API endpoint
-url = "https://your-api-url-here.com/api/rikav2"
+url = "https://api.aichatos.cloud/api/generateStream"
 
-# Data to be sent in the request
-data = {
-    "text": "Your text goes here",
-    "id": "Your ID goes here"
+headers = {
+    "Content-Type": "application/json",
+    "Referer": "https://dev.yqcloud.top/",
+    "Origin": "https://dev.yqcloud.top",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "cross-site",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
 }
 
-# Send a POST request to the API endpoint
-response = requests.post(url, json=data)
+data = {
+    "prompt": "write me code for making avisual novel engine",
+    "userId": "#/chat/1699182167232",
+    "network": True,
+    "system": "",
+    "withoutContext": False,
+    "stream": False
+}
 
-# Check the response
+response = requests.post(url, headers=headers, json=data)
+
 if response.status_code == 200:
-    result = response.json()
-    print("API Response:", result)
+    print("Request was successful")
+    print(response.text)
 else:
     print(f"Request failed with status code {response.status_code}")
-    print("Response content:", response.text)

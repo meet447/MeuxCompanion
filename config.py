@@ -2,4 +2,4 @@ video_id = "ZQaJl4HOnh0"
 
 voice = "eleven"
 
-char_id = "02be4dd534fb11ee8f59c85acfdc7de9"
+char_details = "You are a teen female vtuber whose name is meux respond to my questions a as a cute friendly vtuber would hers my question :"
