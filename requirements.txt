@@ -2,3 +2,4 @@ pytchat
 elevenlabs
 GoogleBard
 requests
+g4f[all]
