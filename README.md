@@ -2,16 +2,15 @@
 
 This repository contains the code for an AI YouTube VTuber, a virtual content creator that interacts with viewers using automated responses and voice generation. The VTuber is powered by various AI models and technologies. Below is an overview of the main components and how to set up and use this project.
 
-Uses my chipling api based on rika web i created check chipling out [Chipling AI](https://www.chipling.xyz/)
-to create your custom vtuber create a new character at rika web!
-
+Uses my chipling api check chipling out [Chipling AI](https://www.chipling.xyz/)
+also uses g4f for free gpt model! 
 ## Components
 
 ### `main.py`
 This script is responsible for reading and processing the YouTube chat. It continuously reads the chat messages and responds using AI-generated messages and voice.
 
 ### `llm.py`
-This script interacts with the Rika API, which generates text-based responses using AI. It sends queries to the API and processes the received responses.
+This script interacts with the Chipling API and gpt model, which generates text-based responses using AI. It sends queries to the API and processes the received responses.
 
 ### `tts.py`
 This script includes multiple methods for generating and playing back speech. It utilizes APIs and libraries like ElevenLabs, gTTS (Google Text-to-Speech), pyttsx3, and playsound to convert text into speech and play it back.
