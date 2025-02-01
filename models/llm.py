@@ -55,24 +55,7 @@ def rika(query):
                 break
 
     else:
-        client = Client(
-        provider=g4f.Provider.RetryProvider([
-            g4f.Provider.Acytoo,
-            g4f.Provider.You,
-            g4f.Provider.Vercel,
-            g4f.Provider.PerplexityLabs,
-            g4f.Provider.H2o,
-            g4f.Provider.HuggingChat,
-            g4f.Provider.HuggingFace,
-            g4f.Provider.AiChatOnline,
-            g4f.Provider.DeepInfra,
-            g4f.Provider.Llama,
-            g4f.Provider.Liaobots,
-            g4f.Provider.MetaAI,
-            g4f.Provider.Hashnode,
-            g4f.Provider.ChatgptFree,
-        ])
-    )
+        client = Client()
 
     chat_completion = client.chat.completions.create(
         model=g4f.models.default,
