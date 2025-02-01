@@ -2,7 +2,7 @@ from pytchat import LiveChat, SpeedCalculator
 import pytchat
 import time
 from models.llm import rika
-from models.tts import tts, gtts, pyttsx3, Eleven
+from models.tts import tts
 from config import video_id, voice
 
 def readChat():
@@ -16,15 +16,8 @@ def readChat():
             
             response = rika(message)
             print(response)
-            
-            if voice == "pyttsx3":
-                pyttsx3(response)
-            elif voice == "gtts":
-                gtts(response)
-            elif voice == "tts":
-                tts(response)
-            elif voice == "eleven":
-                Eleven(response)
+        
+            tts(text=response, voice='jp_001')
     
             if schat.get() >= 20:
                 chat.terminate()
