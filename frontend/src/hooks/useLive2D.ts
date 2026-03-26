@@ -29,6 +29,15 @@ export interface DebugInfo {
   lastError: string;
 }
 
+// Easing functions
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const appRef = useRef<PIXI.Application | null>(null);
   const modelRef = useRef<any>(null);
@@ -46,13 +55,19 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     availableMotionGroups: [],
     lastError: "",
   });
+
+  // Animation state refs
   const lipSyncActiveRef = useRef(false);
   const lipSyncHandlerRef = useRef<(() => void) | null>(null);
   const idleHandlerRef = useRef<(() => void) | null>(null);
+  const speakingHandlerRef = useRef<(() => void) | null>(null);
   const mouthValueRef = useRef(0);
   const mouthTargetRef = useRef(0);
   const lastToggleRef = useRef(0);
   const breathPhaseRef = useRef(0);
+  const breathSpeedRef = useRef(0.03); // Adjustable per emotion
+  const audioLevelsGetterRef = useRef<(() => AudioLevels) | null>(null);
+  const typingReactionRef = useRef<(() => void) | null>(null);
 
   const getParams = useCallback(() => {
     return mappingRef.current?.params || DEFAULT_PARAMS;
@@ -72,6 +87,196 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     };
   }, []);
 
+  // ========================================
+  // IDLE ANIMATION SYSTEM
+  // ========================================
+  const startIdleAnimations = useCallback((model: any) => {
+    if (idleHandlerRef.current) {
+      model.internalModel.off("beforeModelUpdate", idleHandlerRef.current);
+    }
+
+    // Blink state
+    let lastBlinkTime = Date.now();
+    let nextBlinkDelay = 2000 + Math.random() * 4000;
+    let blinkPhase = 0;
+    let doubleBlink = false;
+    const BLINK_DURATION = 150;
+
+    // Eye saccade state — subtle micro eye movements
+    let saccadeX = 0;
+    let saccadeY = 0;
+    let saccadeTargetX = 0;
+    let saccadeTargetY = 0;
+    let lastSaccadeTime = Date.now();
+    let nextSaccadeDelay = 500 + Math.random() * 2000;
+
+    // Random idle motion state
+    let lastIdleMotionTime = Date.now();
+    let nextIdleMotionDelay = 8000 + Math.random() * 15000; // 8-23 seconds
+
+    // Body micro-movement
+    let bodyTargetX = 0;
+    let bodyCurrentX = 0;
+    let bodyTargetY = 0;
+    let bodyCurrentY = 0;
+    let lastBodyShiftTime = Date.now();
+    let nextBodyShiftDelay = 3000 + Math.random() * 5000;
+
+    const handler = () => {
+      const now = Date.now();
+      const coreModel = model.internalModel.coreModel;
+      const params = getParams();
+
+      // --- Breathing (speed varies by emotion) ---
+      breathPhaseRef.current += breathSpeedRef.current;
+      try {
+        const breathVal = Math.sin(breathPhaseRef.current) * 0.5 + 0.5;
+        coreModel.setParameterValueById(params.breath, breathVal);
+      } catch {}
+
+      // --- Body sway (breathing-linked + random shifts) ---
+      if (now - lastBodyShiftTime > nextBodyShiftDelay) {
+        lastBodyShiftTime = now;
+        nextBodyShiftDelay = 3000 + Math.random() * 5000;
+        bodyTargetX = (Math.random() - 0.5) * 4; // -2 to 2 degrees
+        bodyTargetY = (Math.random() - 0.5) * 3;
+      }
+      bodyCurrentX = lerp(bodyCurrentX, bodyTargetX, 0.02);
+      bodyCurrentY = lerp(bodyCurrentY, bodyTargetY, 0.02);
+
+      try {
+        const breathSway = Math.sin(breathPhaseRef.current * 0.7) * 1.5;
+        coreModel.setParameterValueById(params.bodyAngleX, bodyCurrentX + breathSway);
+        coreModel.setParameterValueById("ParamBodyAngleY", bodyCurrentY);
+        coreModel.setParameterValueById("ParamBodyAngleZ", Math.sin(breathPhaseRef.current * 0.3) * 0.5);
+      } catch {}
+
+      // --- Eye saccades (micro eye movements when not tracking cursor) ---
+      if (now - lastSaccadeTime > nextSaccadeDelay) {
+        lastSaccadeTime = now;
+        nextSaccadeDelay = 300 + Math.random() * 2000;
+
+        // Small random eye movements
+        const intensity = Math.random() < 0.3 ? 0.4 : 0.15; // Occasional bigger glance
+        saccadeTargetX = (Math.random() - 0.5) * intensity;
+        saccadeTargetY = (Math.random() - 0.5) * intensity * 0.5;
+      }
+      saccadeX = lerp(saccadeX, saccadeTargetX, 0.15);
+      saccadeY = lerp(saccadeY, saccadeTargetY, 0.15);
+
+      try {
+        coreModel.addParameterValueById("ParamEyeBallX", saccadeX);
+        coreModel.addParameterValueById("ParamEyeBallY", saccadeY);
+      } catch {}
+
+      // --- Random blinking with occasional double blinks ---
+      if (blinkPhase === 0) {
+        if (now - lastBlinkTime > nextBlinkDelay) {
+          blinkPhase = 1;
+          lastBlinkTime = now;
+          // 20% chance of double blink
+          doubleBlink = Math.random() < 0.2;
+          nextBlinkDelay = doubleBlink ? 300 : (2000 + Math.random() * 4000);
+        }
+      } else {
+        const blinkProgress = (now - lastBlinkTime) / BLINK_DURATION;
+        let eyeOpen: number;
+
+        if (blinkProgress < 0.3) {
+          eyeOpen = 1.0 - easeOutCubic(blinkProgress / 0.3);
+        } else if (blinkProgress < 0.5) {
+          eyeOpen = 0;
+        } else if (blinkProgress < 1.0) {
+          eyeOpen = easeOutCubic((blinkProgress - 0.5) / 0.5);
+        } else {
+          eyeOpen = 1.0;
+          blinkPhase = 0;
+
+          if (doubleBlink) {
+            // Queue second blink quickly
+            doubleBlink = false;
+            nextBlinkDelay = 150 + Math.random() * 100;
+          } else {
+            nextBlinkDelay = 2000 + Math.random() * 4000;
+          }
+          lastBlinkTime = now;
+        }
+
+        try {
+          coreModel.setParameterValueById(params.eyeLeftOpen, eyeOpen);
+          coreModel.setParameterValueById(params.eyeRightOpen, eyeOpen);
+        } catch {}
+      }
+
+      // --- Random idle motions (occasional pose shifts) ---
+      if (now - lastIdleMotionTime > nextIdleMotionDelay) {
+        lastIdleMotionTime = now;
+        nextIdleMotionDelay = 10000 + Math.random() * 20000; // 10-30 seconds
+
+        try {
+          // Try to play a random idle or tap motion
+          const hasIdle = model.internalModel.motionManager.definitions?.Idle;
+          const hasTap = model.internalModel.motionManager.definitions?.TapBody;
+
+          if (hasTap && Math.random() < 0.3) {
+            const idx = Math.floor(Math.random() * hasTap.length);
+            model.motion("TapBody", idx, 1); // IDLE priority so it doesn't override expressions
+          } else if (hasIdle && hasIdle.length > 1) {
+            const idx = Math.floor(Math.random() * hasIdle.length);
+            model.motion("Idle", idx, 1);
+          }
+        } catch {}
+      }
+    };
+
+    idleHandlerRef.current = handler;
+    model.internalModel.on("beforeModelUpdate", handler);
+  }, [getParams]);
+
+  // ========================================
+  // SPEAKING BODY ANIMATION
+  // ========================================
+  const startSpeakingAnimation = useCallback(() => {
+    const model = modelRef.current;
+    if (!model) return;
+
+    if (speakingHandlerRef.current) {
+      model.internalModel.off("beforeModelUpdate", speakingHandlerRef.current);
+    }
+
+    const startTime = Date.now();
+
+    const handler = () => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const coreModel = model.internalModel.coreModel;
+
+      try {
+        // Subtle head nod while speaking — varies speed to look natural
+        const nodX = Math.sin(elapsed * 1.8) * 2 + Math.sin(elapsed * 3.1) * 1;
+        const nodY = Math.sin(elapsed * 2.3) * 1.5 + Math.cos(elapsed * 1.5) * 0.8;
+        const nodZ = Math.sin(elapsed * 1.2) * 1.5;
+
+        coreModel.addParameterValueById("ParamAngleX", nodX);
+        coreModel.addParameterValueById("ParamAngleY", nodY);
+        coreModel.addParameterValueById("ParamAngleZ", nodZ);
+      } catch {}
+    };
+
+    speakingHandlerRef.current = handler;
+    model.internalModel.on("beforeModelUpdate", handler);
+  }, []);
+
+  const stopSpeakingAnimation = useCallback(() => {
+    const model = modelRef.current;
+    if (!model || !speakingHandlerRef.current) return;
+
+    model.internalModel.off("beforeModelUpdate", speakingHandlerRef.current);
+    speakingHandlerRef.current = null;
+  }, []);
+
+  // ========================================
+  // MODEL LOADING
+  // ========================================
   const loadModel = useCallback(
     async (modelPath: string, mapping?: ModelMapping) => {
       if (!canvasRef.current) return;
@@ -81,14 +286,12 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
         debugRef.current.mappingEmotions = Object.keys(mapping.emotions || {});
       }
 
-      // Clean up previous model but keep the PIXI Application
+      // Clean up previous model
       if (modelRef.current) {
         const oldModel = modelRef.current;
-        // Remove mousemove listener
         if ((oldModel as any)._onMouseMove && (oldModel as any)._canvas) {
           (oldModel as any)._canvas.removeEventListener("mousemove", (oldModel as any)._onMouseMove);
         }
-        // Remove handlers before destroying
         if (idleHandlerRef.current) {
           oldModel.internalModel.off("beforeModelUpdate", idleHandlerRef.current);
           idleHandlerRef.current = null;
@@ -97,6 +300,10 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
           oldModel.internalModel.off("beforeModelUpdate", lipSyncHandlerRef.current);
           lipSyncHandlerRef.current = null;
           lipSyncActiveRef.current = false;
+        }
+        if (speakingHandlerRef.current) {
+          oldModel.internalModel.off("beforeModelUpdate", speakingHandlerRef.current);
+          speakingHandlerRef.current = null;
         }
         if (typingReactionRef.current) {
           oldModel.internalModel.off("beforeModelUpdate", typingReactionRef.current);
@@ -109,7 +316,6 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
         modelRef.current = null;
       }
 
-      // Create PIXI Application only once
       let app = appRef.current;
       if (!app) {
         app = new PIXI.Application({
@@ -124,7 +330,6 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
       }
 
       try {
-        // Cache-bust to ensure patched model3.json is loaded
         const cacheBust = `${modelPath}${modelPath.includes("?") ? "&" : "?"}t=${Date.now()}`;
         const model = await Live2DModel.from(cacheBust, {
           motionPreload: "ALL" as any,
@@ -132,7 +337,6 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
 
         modelRef.current = model;
 
-        // Scale to fit canvas
         const scaleX = app.screen.width / model.width;
         const scaleY = app.screen.height / model.height;
         baseScaleRef.current = Math.min(scaleX, scaleY);
@@ -142,82 +346,44 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
         model.x = app.screen.width / 2;
         model.y = app.screen.height / 2;
 
-        // Make model interactive for click
         model.interactive = true;
         model.buttonMode = true;
 
         app.stage.addChild(model);
 
-        // Populate debug info
+        // Debug info
         debugRef.current.modelLoaded = true;
-
-        // Deep probe the model internals to find expressions & motions
         const im = model.internalModel;
-        console.log("[Live2D Debug] Model loaded:", modelPath);
-        console.log("[Live2D Debug] internalModel keys:", Object.keys(im));
-        console.log("[Live2D Debug] motionManager:", im.motionManager);
-        console.log("[Live2D Debug] motionManager keys:", im.motionManager ? Object.keys(im.motionManager) : "none");
 
-        // Try multiple paths to find expressions
         const exprPaths = [
           im.motionManager?.expressionManager?.definitions,
           (im.motionManager?.expressionManager as any)?._definitions,
           (im as any).settings?.expressions,
-          (im as any).settings?.fileReferences?.expressions,
         ];
         let exprDefs: any[] = [];
         for (const p of exprPaths) {
-          if (Array.isArray(p) && p.length > 0) {
-            exprDefs = p;
-            break;
-          }
+          if (Array.isArray(p) && p.length > 0) { exprDefs = p; break; }
         }
         debugRef.current.availableExpressions = exprDefs.map(
           (d: any) => d.Name || d.name || d.File || d.file || "unnamed"
         );
 
-        // Try multiple paths to find motions
         const motionPaths = [
           im.motionManager?.definitions,
           (im.motionManager as any)?._definitions,
           (im as any).settings?.motions,
-          (im as any).settings?.fileReferences?.motions,
         ];
         let motionDefs: Record<string, any> | null = null;
         for (const p of motionPaths) {
-          if (p && typeof p === "object" && Object.keys(p).length > 0) {
-            motionDefs = p;
-            break;
-          }
+          if (p && typeof p === "object" && Object.keys(p).length > 0) { motionDefs = p; break; }
         }
-        debugRef.current.availableMotionGroups = motionDefs
-          ? Object.keys(motionDefs)
-          : [];
+        debugRef.current.availableMotionGroups = motionDefs ? Object.keys(motionDefs) : [];
 
-        // Also dump the expression manager fully
-        const em = im.motionManager?.expressionManager;
-        if (em) {
-          console.log("[Live2D Debug] expressionManager:", em);
-          console.log("[Live2D Debug] expressionManager keys:", Object.keys(em));
-          console.log("[Live2D Debug] expressionManager.definitions:", em.definitions);
-          console.log("[Live2D Debug] expressionManager._definitions:", (em as any)._definitions);
-        } else {
-          console.log("[Live2D Debug] No expressionManager found");
-        }
+        console.log("[Live2D] Model loaded:", modelPath);
+        console.log("[Live2D] Expressions:", debugRef.current.availableExpressions);
+        console.log("[Live2D] Motion groups:", debugRef.current.availableMotionGroups);
 
-        // Dump settings
-        const settings = (im as any).settings;
-        if (settings) {
-          console.log("[Live2D Debug] settings keys:", Object.keys(settings));
-          console.log("[Live2D Debug] settings.expressions:", settings.expressions);
-          console.log("[Live2D Debug] settings.fileReferences:", settings.fileReferences);
-        }
-
-        console.log("[Live2D Debug] Available expressions:", debugRef.current.availableExpressions);
-        console.log("[Live2D Debug] Available motion groups:", debugRef.current.availableMotionGroups);
-        console.log("[Live2D Debug] Mapping emotions:", debugRef.current.mappingEmotions);
-
-        // Cursor tracking — guarded against destroyed model
+        // Cursor tracking
         const canvas = canvasRef.current;
         const onMouseMove = (e: MouseEvent) => {
           if (!modelRef.current || !canvas) return;
@@ -227,92 +393,34 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
           } catch {}
         };
         canvas.addEventListener("mousemove", onMouseMove);
-        // Store for cleanup
         (model as any)._onMouseMove = onMouseMove;
         (model as any)._canvas = canvas;
 
-        // Click interaction — play a random TapBody motion
+        // Click interaction
         model.on("hit", (hitAreas: string[]) => {
-          if (hitAreas.includes("Body") || hitAreas.length > 0) {
-            const idx = Math.floor(Math.random() * 5);
+          if (hitAreas.length > 0) {
             try {
-              model.motion("TapBody", idx, 3);
-            } catch {
-              // motion may not exist
-            }
+              const defs = model.internalModel.motionManager.definitions;
+              if (defs?.TapBody) {
+                const idx = Math.floor(Math.random() * defs.TapBody.length);
+                model.motion("TapBody", idx, 3);
+              }
+            } catch {}
           }
         });
 
-        // Idle animations
+        // Start idle system
         startIdleAnimations(model);
       } catch (err) {
         console.error("Failed to load Live2D model:", err);
       }
     },
-    [canvasRef]
+    [canvasRef, startIdleAnimations]
   );
 
-  const startIdleAnimations = useCallback((model: any) => {
-    if (idleHandlerRef.current) {
-      model.internalModel.off("beforeModelUpdate", idleHandlerRef.current);
-    }
-
-    let lastBlinkTime = Date.now();
-    let nextBlinkDelay = 2000 + Math.random() * 4000;
-    let blinkPhase = 0;
-    const BLINK_DURATION = 150;
-
-    const handler = () => {
-      const now = Date.now();
-      const coreModel = model.internalModel.coreModel;
-      const params = getParams();
-
-      // Breathing
-      breathPhaseRef.current += 0.03;
-      try {
-        const breathVal = Math.sin(breathPhaseRef.current) * 0.5 + 0.5;
-        coreModel.setParameterValueById(params.breath, breathVal);
-      } catch {}
-
-      // Subtle body sway
-      try {
-        const swayVal = Math.sin(breathPhaseRef.current * 0.7) * 2;
-        coreModel.setParameterValueById(params.bodyAngleX, swayVal);
-      } catch {}
-
-      // Random blinking
-      if (blinkPhase === 0) {
-        if (now - lastBlinkTime > nextBlinkDelay) {
-          blinkPhase = 1;
-          lastBlinkTime = now;
-          nextBlinkDelay = 2000 + Math.random() * 4000;
-        }
-      } else {
-        const blinkProgress = (now - lastBlinkTime) / BLINK_DURATION;
-        let eyeOpen: number;
-
-        if (blinkProgress < 0.3) {
-          eyeOpen = 1.0 - blinkProgress / 0.3;
-        } else if (blinkProgress < 0.5) {
-          eyeOpen = 0;
-        } else if (blinkProgress < 1.0) {
-          eyeOpen = (blinkProgress - 0.5) / 0.5;
-        } else {
-          eyeOpen = 1.0;
-          blinkPhase = 0;
-        }
-
-        try {
-          coreModel.setParameterValueById(params.eyeLeftOpen, eyeOpen);
-          coreModel.setParameterValueById(params.eyeRightOpen, eyeOpen);
-        } catch {}
-      }
-    };
-
-    idleHandlerRef.current = handler;
-    model.internalModel.on("beforeModelUpdate", handler);
-  }, [getParams]);
-
+  // ========================================
+  // EXPRESSION + EMOTION-DRIVEN ANIMATION
+  // ========================================
   const setExpression = useCallback((expressionName: string) => {
     const model = modelRef.current;
     if (!model) return;
@@ -320,21 +428,57 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     debugRef.current.currentEmotion = expressionName;
     debugRef.current.expressionId = expressionName;
 
-    // Pass the expression name directly to the model — the LLM already picked
-    // from the available expressions, so no mapping needed
+    // Adjust breathing speed based on emotion intensity
+    const fastEmotions = ["excited", "angry", "surprised", "生气"];
+    const slowEmotions = ["sad", "thinking", "伤心"];
+    const name = expressionName.toLowerCase();
+
+    if (fastEmotions.some(e => name.includes(e))) {
+      breathSpeedRef.current = 0.06; // Fast breathing
+    } else if (slowEmotions.some(e => name.includes(e))) {
+      breathSpeedRef.current = 0.02; // Slow, deep breathing
+    } else {
+      breathSpeedRef.current = 0.03; // Normal
+    }
+
+    // Set the expression
     try {
       model.expression(expressionName);
-      console.log(`[Live2D Debug] Expression set: "${expressionName}"`);
+      console.log(`[Live2D] Expression: "${expressionName}"`);
     } catch (e) {
       debugRef.current.lastError = `Expression "${expressionName}" failed: ${e}`;
-      console.warn(`[Live2D Debug] Expression "${expressionName}" FAILED:`, e);
-      // Try by index 0 as fallback
       try { model.expression(0); } catch {}
     }
+
+    // Emotion-driven body reaction (brief)
+    try {
+      const coreModel = model.internalModel.coreModel;
+      if (fastEmotions.some(e => name.includes(e))) {
+        // Quick body jolt for surprise/excitement
+        coreModel.addParameterValueById("ParamAngleX", (Math.random() - 0.5) * 8);
+        coreModel.addParameterValueById("ParamAngleY", 5);
+      } else if (slowEmotions.some(e => name.includes(e))) {
+        // Slight head drop for sad/thinking
+        coreModel.addParameterValueById("ParamAngleY", -3);
+      }
+    } catch {}
+
+    // Eyebrow reaction
+    try {
+      const coreModel = model.internalModel.coreModel;
+      if (fastEmotions.some(e => name.includes(e))) {
+        coreModel.setParameterValueById("ParamBrowLY", 0.5);
+        coreModel.setParameterValueById("ParamBrowRY", 0.5);
+      } else if (slowEmotions.some(e => name.includes(e))) {
+        coreModel.setParameterValueById("ParamBrowLY", -0.5);
+        coreModel.setParameterValueById("ParamBrowRY", -0.5);
+      }
+    } catch {}
   }, []);
 
-  const audioLevelsGetterRef = useRef<(() => AudioLevels) | null>(null);
-
+  // ========================================
+  // LIP SYNC (audio-driven or fallback)
+  // ========================================
   const startLipSync = useCallback((getAudioLevels?: () => AudioLevels) => {
     const model = modelRef.current;
     if (!model) return;
@@ -352,6 +496,9 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
       audioLevelsGetterRef.current = getAudioLevels;
     }
 
+    // Also start speaking body animation
+    startSpeakingAnimation();
+
     const handler = () => {
       if (!lipSyncActiveRef.current) return;
 
@@ -359,12 +506,8 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
       const getter = audioLevelsGetterRef.current;
 
       if (getter) {
-        // Audio-driven lip sync
         const levels = getter();
-
-        // Smooth interpolation for natural movement
         mouthValueRef.current += (levels.mouthOpen - mouthValueRef.current) * 0.4;
-
         debugRef.current.mouthValue = Math.round(mouthValueRef.current * 100) / 100;
 
         try {
@@ -373,7 +516,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
           coreModel.setParameterValueById(params.mouthForm, levels.mouthForm * 0.5);
         } catch {}
       } else {
-        // Fallback: random lip sync if no audio analyser available
+        // Fallback random lip sync
         const now = Date.now();
         if (now - lastToggleRef.current > 80 + Math.random() * 80) {
           lastToggleRef.current = now;
@@ -382,7 +525,6 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
           else if (r < 0.5) mouthTargetRef.current = 0.3 + Math.random() * 0.3;
           else mouthTargetRef.current = 0.6 + Math.random() * 0.4;
         }
-
         mouthValueRef.current += (mouthTargetRef.current - mouthValueRef.current) * 0.35;
         debugRef.current.mouthValue = Math.round(mouthValueRef.current * 100) / 100;
 
@@ -395,7 +537,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
 
     lipSyncHandlerRef.current = handler;
     model.internalModel.on("beforeModelUpdate", handler);
-  }, [getParams]);
+  }, [getParams, startSpeakingAnimation]);
 
   const stopLipSync = useCallback(() => {
     lipSyncActiveRef.current = false;
@@ -404,6 +546,8 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     mouthValueRef.current = 0;
     mouthTargetRef.current = 0;
     audioLevelsGetterRef.current = null;
+
+    stopSpeakingAnimation();
 
     const model = modelRef.current;
     if (!model) return;
@@ -419,36 +563,31 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
       coreModel.setParameterValueById(params.mouthOpen, 0);
       coreModel.setParameterValueById(params.mouthForm, 0);
     } catch {}
-  }, [getParams]);
+  }, [getParams, stopSpeakingAnimation]);
 
+  // ========================================
+  // OTHER CONTROLS
+  // ========================================
   const triggerMotion = useCallback((group: string, index?: number) => {
     const model = modelRef.current;
     if (!model) return;
-
     try {
-      if (index !== undefined) {
-        model.motion(group, index, 3);
-      } else {
-        model.motion(group);
-      }
+      if (index !== undefined) model.motion(group, index, 3);
+      else model.motion(group);
     } catch {}
   }, []);
 
   const setZoom = useCallback((zoom: number) => {
     const model = modelRef.current;
     if (!model) return;
-
     model.scale.set(baseScaleRef.current * zoom);
   }, []);
 
-  // Typing awareness — subtle head tilt when user is typing
-  const typingReactionRef = useRef<(() => void) | null>(null);
-
+  // Typing awareness
   const setTypingReaction = useCallback((isTyping: boolean) => {
     const model = modelRef.current;
     if (!model) return;
 
-    // Remove previous handler
     if (typingReactionRef.current) {
       model.internalModel.off("beforeModelUpdate", typingReactionRef.current);
       typingReactionRef.current = null;
@@ -460,20 +599,23 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
         try {
           const elapsed = (Date.now() - startTime) / 1000;
           const coreModel = model.internalModel.coreModel;
-          // Curious head tilt
+          // Curious head tilt + slight lean
           coreModel.setParameterValueById("ParamAngleZ", Math.sin(elapsed * 2) * 5 + 5);
-          // Slight head lean toward screen
           coreModel.setParameterValueById("ParamAngleY", 3);
+          // Eyebrows up slightly (curious)
+          coreModel.setParameterValueById("ParamBrowLY", 0.3);
+          coreModel.setParameterValueById("ParamBrowRY", 0.3);
         } catch {}
       };
       typingReactionRef.current = handler;
       model.internalModel.on("beforeModelUpdate", handler);
     } else {
-      // Reset head position gradually (physics will smooth it)
       try {
         const coreModel = model.internalModel.coreModel;
         coreModel.setParameterValueById("ParamAngleZ", 0);
         coreModel.setParameterValueById("ParamAngleY", 0);
+        coreModel.setParameterValueById("ParamBrowLY", 0);
+        coreModel.setParameterValueById("ParamBrowRY", 0);
       } catch {}
     }
   }, []);
