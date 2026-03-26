@@ -25,6 +25,10 @@ Thumbs.db
 chats/
 *.mp3
 
+# Live2D models — ignore all except haru (default)
+models/live2d/*
+!models/live2d/haru/
+
 # Env
 .env
 .env.local
