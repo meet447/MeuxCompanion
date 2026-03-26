@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect } from "react";
 import * as PIXI from "pixi.js";
 import { Live2DModel } from "pixi-live2d-display/cubism4";
 import type { ModelMapping } from "../types";
+import type { AudioLevels } from "./useAudioAnalyser";
 
 // Expose PIXI globally for pixi-live2d-display
 (window as any).PIXI = PIXI;
@@ -332,7 +333,9 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     }
   }, []);
 
-  const startLipSync = useCallback(() => {
+  const audioLevelsGetterRef = useRef<(() => AudioLevels) | null>(null);
+
+  const startLipSync = useCallback((getAudioLevels?: () => AudioLevels) => {
     const model = modelRef.current;
     if (!model) return;
 
@@ -342,38 +345,52 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
 
     lipSyncActiveRef.current = true;
     debugRef.current.lipSyncActive = true;
-    lastToggleRef.current = Date.now();
     mouthValueRef.current = 0;
     mouthTargetRef.current = 0;
+
+    if (getAudioLevels) {
+      audioLevelsGetterRef.current = getAudioLevels;
+    }
 
     const handler = () => {
       if (!lipSyncActiveRef.current) return;
 
-      const now = Date.now();
       const params = getParams();
+      const getter = audioLevelsGetterRef.current;
 
-      if (now - lastToggleRef.current > 80 + Math.random() * 80) {
-        lastToggleRef.current = now;
-        const r = Math.random();
-        if (r < 0.25) {
-          mouthTargetRef.current = 0;
-        } else if (r < 0.5) {
-          mouthTargetRef.current = 0.3 + Math.random() * 0.3;
-        } else {
-          mouthTargetRef.current = 0.6 + Math.random() * 0.4;
+      if (getter) {
+        // Audio-driven lip sync
+        const levels = getter();
+
+        // Smooth interpolation for natural movement
+        mouthValueRef.current += (levels.mouthOpen - mouthValueRef.current) * 0.4;
+
+        debugRef.current.mouthValue = Math.round(mouthValueRef.current * 100) / 100;
+
+        try {
+          const coreModel = model.internalModel.coreModel;
+          coreModel.setParameterValueById(params.mouthOpen, mouthValueRef.current);
+          coreModel.setParameterValueById(params.mouthForm, levels.mouthForm * 0.5);
+        } catch {}
+      } else {
+        // Fallback: random lip sync if no audio analyser available
+        const now = Date.now();
+        if (now - lastToggleRef.current > 80 + Math.random() * 80) {
+          lastToggleRef.current = now;
+          const r = Math.random();
+          if (r < 0.25) mouthTargetRef.current = 0;
+          else if (r < 0.5) mouthTargetRef.current = 0.3 + Math.random() * 0.3;
+          else mouthTargetRef.current = 0.6 + Math.random() * 0.4;
         }
+
+        mouthValueRef.current += (mouthTargetRef.current - mouthValueRef.current) * 0.35;
+        debugRef.current.mouthValue = Math.round(mouthValueRef.current * 100) / 100;
+
+        try {
+          const coreModel = model.internalModel.coreModel;
+          coreModel.setParameterValueById(params.mouthOpen, mouthValueRef.current);
+        } catch {}
       }
-
-      mouthValueRef.current +=
-        (mouthTargetRef.current - mouthValueRef.current) * 0.35;
-      debugRef.current.mouthValue = Math.round(mouthValueRef.current * 100) / 100;
-
-      try {
-        const coreModel = model.internalModel.coreModel;
-        coreModel.setParameterValueById(params.mouthOpen, mouthValueRef.current);
-        const formVal = Math.sin(now * 0.005) * 0.3;
-        coreModel.setParameterValueById(params.mouthForm, formVal);
-      } catch {}
     };
 
     lipSyncHandlerRef.current = handler;
@@ -386,6 +403,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     debugRef.current.mouthValue = 0;
     mouthValueRef.current = 0;
     mouthTargetRef.current = 0;
+    audioLevelsGetterRef.current = null;
 
     const model = modelRef.current;
     if (!model) return;

@@ -22,6 +22,7 @@ interface Props {
   zoom: number;
   onZoomChange: (zoom: number) => void;
   onBackgroundChange: (bg: string) => void;
+  getAudioLevels?: () => { volume: number; mouthOpen: number; mouthForm: number };
 }
 
 export function Live2DCanvas({
@@ -34,6 +35,7 @@ export function Live2DCanvas({
   zoom,
   onZoomChange,
   onBackgroundChange,
+  getAudioLevels,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { loadModel, setExpression, startLipSync, stopLipSync, setZoom, setTypingReaction, getDebug } =
@@ -60,11 +62,11 @@ export function Live2DCanvas({
 
   useEffect(() => {
     if (speaking) {
-      startLipSync();
+      startLipSync(getAudioLevels);
     } else {
       stopLipSync();
     }
-  }, [speaking, startLipSync, stopLipSync]);
+  }, [speaking, startLipSync, stopLipSync, getAudioLevels]);
 
   useEffect(() => {
     setZoom(zoom);

@@ -24,7 +24,7 @@ function App() {
 
   const { messages, loading, streamingText, sendMessage, clearMessages, setOnExpression } =
     useChat();
-  const { listening, speaking, startListening, stopListening, fetchAndPlayTTS } =
+  const { listening, speaking, startListening, stopListening, fetchAndPlayTTS, getAudioLevels } =
     useVoice();
 
   const idleTimerRef = useRef<number | null>(null);
@@ -203,6 +203,7 @@ function App() {
           zoom={zoom}
           onZoomChange={setZoom}
           onBackgroundChange={setBackground}
+          getAudioLevels={getAudioLevels}
         />
         <ChatPanel
           messages={messages}

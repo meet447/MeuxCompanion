@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { useAudioAnalyser } from "./useAudioAnalyser";
 
 export function useVoice() {
   const [listening, setListening] = useState(false);
@@ -6,6 +7,7 @@ export function useVoice() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { connectAudio, getAudioLevels, disconnect } = useAudioAnalyser();
 
   const startListening = useCallback(
     (onResult: (text: string) => void) => {
@@ -50,24 +52,39 @@ export function useVoice() {
   const playAudio = useCallback(
     (base64Audio: string): Promise<void> => {
       return new Promise((resolve) => {
+        // Disconnect previous audio element
+        disconnect();
+
         const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+        // Need crossOrigin for AudioContext to work with data URIs in some browsers
+        audio.crossOrigin = "anonymous";
         audioRef.current = audio;
-        setSpeaking(true);
+
+        audio.oncanplay = () => {
+          // Connect to analyser once audio is ready
+          connectAudio(audio);
+        };
+
+        audio.onplay = () => {
+          setSpeaking(true);
+        };
 
         audio.onended = () => {
           setSpeaking(false);
+          disconnect();
           resolve();
         };
 
         audio.onerror = () => {
           setSpeaking(false);
+          disconnect();
           resolve();
         };
 
         audio.play();
       });
     },
-    []
+    [connectAudio, disconnect]
   );
 
   const fetchAndPlayTTS = useCallback(
@@ -98,5 +115,6 @@ export function useVoice() {
     startListening,
     stopListening,
     fetchAndPlayTTS,
+    getAudioLevels,
   };
 }
