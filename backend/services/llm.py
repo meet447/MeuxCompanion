@@ -1,7 +1,7 @@
 import requests
 
 NECTARA_URL = "https://api-nectara.chipling.xyz/v1/chat/completions"
-DEFAULT_MODEL = "llama3.1-8B"
+DEFAULT_MODEL = "openai/gpt-oss-20b"
 
 
 def chat(

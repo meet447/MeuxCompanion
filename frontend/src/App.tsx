@@ -6,18 +6,22 @@ import { useChat } from "./hooks/useChat";
 import { useVoice } from "./hooks/useVoice";
 import type { Character, Live2DModelInfo } from "./types";
 
+const DEFAULT_BG =
+  "linear-gradient(135deg, #2d1b2e 0%, #3d2233 30%, #4a2a2a 60%, #5c3a2e 100%)";
+
 function App() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [models, setModels] = useState<Live2DModelInfo[]>([]);
   const [selectedCharId, setSelectedCharId] = useState("");
   const [charSelectOpen, setCharSelectOpen] = useState(false);
-  const [currentEmotion, setCurrentEmotion] = useState("neutral");
+  const [currentExpression, setCurrentExpression] = useState("neutral");
+  const [background, setBackground] = useState(DEFAULT_BG);
+  const [zoom, setZoom] = useState(1.2);
 
   const { messages, loading, sendMessage, clearMessages } = useChat();
   const { listening, speaking, startListening, stopListening, fetchAndPlayTTS } =
     useVoice();
 
-  // Fetch characters and models on mount
   useEffect(() => {
     fetch("/api/characters")
       .then((r) => r.json())
@@ -35,12 +39,13 @@ function App() {
 
   const selectedChar = characters.find((c) => c.id === selectedCharId);
 
-  // Find the Live2D model path for the selected character
-  const modelPath = (() => {
+  const selectedModel = (() => {
     if (!selectedChar?.live2d_model) return null;
-    const model = models.find((m) => m.id === selectedChar.live2d_model);
-    return model?.path ?? null;
+    return models.find((m) => m.id === selectedChar.live2d_model) ?? null;
   })();
+
+  const modelPath = selectedModel?.path ?? null;
+  const modelMapping = selectedModel?.mapping ?? null;
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -48,9 +53,7 @@ function App() {
 
       const response = await sendMessage(selectedCharId, text);
       if (response) {
-        setCurrentEmotion(response.emotion || "neutral");
-
-        // Generate and play TTS
+        setCurrentExpression(response.expression || "neutral");
         const voice = selectedChar?.voice || "jp_001";
         fetchAndPlayTTS(response.text, voice);
       }
@@ -72,16 +75,17 @@ function App() {
     (id: string) => {
       setSelectedCharId(id);
       clearMessages();
-      setCurrentEmotion("neutral");
+      setCurrentExpression("neutral");
+      setZoom(1.2);
     },
     [clearMessages]
   );
 
   return (
-    <div className="h-screen flex flex-col bg-gray-950 text-white">
+    <div className="h-screen flex flex-col bg-stone-950 text-stone-100">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-        <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+      <header className="flex items-center justify-between px-4 py-2 bg-stone-900 border-b border-stone-800/60">
+        <h1 className="text-lg font-bold text-amber-300/90">
           MeuxCompanion
         </h1>
         <div className="flex gap-2">
@@ -99,8 +103,13 @@ function App() {
       <div className="flex-1 flex overflow-hidden">
         <Live2DCanvas
           modelPath={modelPath}
-          emotion={currentEmotion}
+          modelMapping={modelMapping}
+          expression={currentExpression}
           speaking={speaking}
+          background={background}
+          zoom={zoom}
+          onZoomChange={setZoom}
+          onBackgroundChange={setBackground}
         />
         <ChatPanel
           messages={messages}

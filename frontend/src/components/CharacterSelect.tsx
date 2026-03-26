@@ -19,7 +19,7 @@ export function CharacterSelect({
     <div className="relative">
       <button
         onClick={onToggle}
-        className="bg-gray-800 hover:bg-gray-700 text-white rounded-lg px-3 py-1.5 text-sm transition-colors"
+        className="bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg px-3 py-1.5 text-sm transition-colors"
       >
         Characters
       </button>
@@ -27,9 +27,9 @@ export function CharacterSelect({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={onToggle} />
-          <div className="absolute right-0 top-full mt-2 w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
-            <div className="p-3 border-b border-gray-700">
-              <h3 className="text-white font-medium text-sm">
+          <div className="absolute right-0 top-full mt-2 w-64 bg-stone-800 border border-stone-700/50 rounded-xl shadow-xl z-50 overflow-hidden">
+            <div className="p-3 border-b border-stone-700/50">
+              <h3 className="text-stone-200 font-medium text-sm">
                 Select Character
               </h3>
             </div>
@@ -43,8 +43,8 @@ export function CharacterSelect({
                   }}
                   className={`w-full text-left px-4 py-3 text-sm transition-colors ${
                     selected === char.id
-                      ? "bg-indigo-600 text-white"
-                      : "text-gray-300 hover:bg-gray-700"
+                      ? "bg-amber-800/50 text-amber-100"
+                      : "text-stone-300 hover:bg-stone-700"
                   }`}
                 >
                   <div className="font-medium">{char.name}</div>
@@ -54,7 +54,7 @@ export function CharacterSelect({
                 </button>
               ))}
               {characters.length === 0 && (
-                <div className="px-4 py-3 text-gray-500 text-sm">
+                <div className="px-4 py-3 text-stone-500 text-sm">
                   No characters found. Add .md files to characters/
                 </div>
               )}
