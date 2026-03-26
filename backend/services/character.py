@@ -6,6 +6,10 @@ from pathlib import Path
 
 CHARACTERS_DIR = Path(__file__).parent.parent.parent / "characters"
 MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "live2d"
+VRM_MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "vrm"
+
+# Standard VRM blend shape expressions
+VRM_EXPRESSIONS = ["happy", "angry", "sad", "relaxed", "surprised"]
 
 
 def _parse_md_frontmatter(content: str) -> tuple[dict, str]:
@@ -57,21 +61,45 @@ def load_character(character_id: str) -> dict | None:
     }
 
 
+def _detect_model_type(model_id: str) -> str | None:
+    """Detect if a model_id refers to a Live2D or VRM model."""
+    # Check Live2D first
+    live2d_dir = MODELS_DIR / model_id
+    if live2d_dir.exists() and _find_model3_json(live2d_dir):
+        return "live2d"
+    # Check VRM
+    vrm_path = VRM_MODELS_DIR / f"{model_id}.vrm"
+    if vrm_path.exists():
+        return "vrm"
+    # Check VRM in subfolder
+    vrm_dir = VRM_MODELS_DIR / model_id
+    if vrm_dir.exists():
+        vrm_files = list(vrm_dir.glob("*.vrm"))
+        if vrm_files:
+            return "vrm"
+    return None
+
+
 def get_model_expressions(model_id: str) -> list[str]:
-    """Get available expression names from a Live2D model."""
+    """Get available expression names from a model (Live2D or VRM)."""
     if not model_id:
         return []
-    model_dir = MODELS_DIR / model_id
-    if not model_dir.exists():
-        return []
 
-    model3_path = _find_model3_json(model_dir)
-    if not model3_path:
-        return []
+    model_type = _detect_model_type(model_id)
 
-    model_data = json.loads(model3_path.read_text(encoding="utf-8"))
-    expressions = model_data.get("FileReferences", {}).get("Expressions", [])
-    return [e.get("Name", "") for e in expressions if e.get("Name")]
+    if model_type == "vrm":
+        return VRM_EXPRESSIONS
+
+    if model_type == "live2d":
+        model_dir = MODELS_DIR / model_id
+        model3_path = _find_model3_json(model_dir)
+        if not model3_path:
+            return []
+        model_data = json.loads(model3_path.read_text(encoding="utf-8"))
+        expressions = model_data.get("FileReferences", {}).get("Expressions", [])
+        return [e.get("Name", "") for e in expressions if e.get("Name")]
+
+    return []
 
 
 DEFAULT_EXPRESSIONS = ["neutral", "happy", "sad", "angry", "surprised", "embarrassed", "thinking", "excited"]
@@ -257,24 +285,52 @@ def load_model_mapping(model_id: str) -> dict:
     return _auto_generate_mapping(model_dir)
 
 
-def list_live2d_models() -> list[dict]:
-    """List available Live2D models by scanning for .model3.json files."""
+def list_all_models() -> list[dict]:
+    """List all available models (Live2D + VRM)."""
     models = []
-    if not MODELS_DIR.exists():
-        return models
 
-    for model_dir in sorted(MODELS_DIR.iterdir()):
-        if not model_dir.is_dir():
-            continue
-        model3_path = _find_model3_json(model_dir)
-        if model3_path:
-            # Build the relative path from MODELS_DIR
-            rel_path = model3_path.relative_to(MODELS_DIR)
-            mapping = load_model_mapping(model_dir.name)
+    # Scan Live2D models
+    if MODELS_DIR.exists():
+        for model_dir in sorted(MODELS_DIR.iterdir()):
+            if not model_dir.is_dir():
+                continue
+            model3_path = _find_model3_json(model_dir)
+            if model3_path:
+                rel_path = model3_path.relative_to(MODELS_DIR)
+                mapping = load_model_mapping(model_dir.name)
+                models.append({
+                    "id": model_dir.name,
+                    "type": "live2d",
+                    "model_file": model3_path.name,
+                    "path": f"/static/live2d/{rel_path}",
+                    "mapping": mapping,
+                })
+
+    # Scan VRM models
+    if VRM_MODELS_DIR.exists():
+        # Check for .vrm files directly in the folder
+        for vrm_file in sorted(VRM_MODELS_DIR.glob("*.vrm")):
+            model_id = vrm_file.stem
             models.append({
-                "id": model_dir.name,
-                "model_file": model3_path.name,
-                "path": f"/static/live2d/{rel_path}",
-                "mapping": mapping,
+                "id": model_id,
+                "type": "vrm",
+                "model_file": vrm_file.name,
+                "path": f"/static/vrm/{vrm_file.name}",
+                "mapping": None,
             })
+        # Check for .vrm files in subfolders
+        for subdir in sorted(VRM_MODELS_DIR.iterdir()):
+            if not subdir.is_dir():
+                continue
+            vrm_files = list(subdir.glob("*.vrm"))
+            if vrm_files:
+                vrm_file = vrm_files[0]
+                models.append({
+                    "id": subdir.name,
+                    "type": "vrm",
+                    "model_file": vrm_file.name,
+                    "path": f"/static/vrm/{subdir.name}/{vrm_file.name}",
+                    "mapping": None,
+                })
+
     return models
