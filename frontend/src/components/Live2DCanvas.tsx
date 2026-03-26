@@ -17,6 +17,7 @@ interface Props {
   modelMapping: ModelMapping | null;
   expression: string;
   speaking: boolean;
+  userTyping: boolean;
   background: string;
   zoom: number;
   onZoomChange: (zoom: number) => void;
@@ -28,13 +29,14 @@ export function Live2DCanvas({
   modelMapping,
   expression,
   speaking,
+  userTyping,
   background,
   zoom,
   onZoomChange,
   onBackgroundChange,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { loadModel, setExpression, startLipSync, stopLipSync, setZoom, getDebug } =
+  const { loadModel, setExpression, startLipSync, stopLipSync, setZoom, setTypingReaction, getDebug } =
     useLive2D(canvasRef);
   const prevModelPath = useRef<string | null>(null);
   const prevExpression = useRef<string>("");
@@ -67,6 +69,10 @@ export function Live2DCanvas({
   useEffect(() => {
     setZoom(zoom);
   }, [zoom, setZoom]);
+
+  useEffect(() => {
+    setTypingReaction(userTyping);
+  }, [userTyping, setTypingReaction]);
 
   // Poll debug info when debug panel is open
   useEffect(() => {
