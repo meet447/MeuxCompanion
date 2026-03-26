@@ -143,11 +143,11 @@ def _auto_generate_mapping(model_dir: Path) -> dict:
     motions = model_data.get("FileReferences", {}).get("Motions", {})
 
     # Auto-patch: find loose .exp3.json files and add them to model3.json
-    loose_exps = list(actual_dir.glob("*.exp3.json"))
-    listed_files = {e.get("File", "") for e in expressions}
+    # Only if the model has NO expressions at all (don't override curated lists)
     patched = False
-    for exp_file in loose_exps:
-        if exp_file.name not in listed_files:
+    if not expressions:
+        loose_exps = list(actual_dir.glob("*.exp3.json"))
+        for exp_file in loose_exps:
             name = exp_file.stem.replace(".exp3", "")
             expressions.append({"Name": name, "File": exp_file.name})
             patched = True

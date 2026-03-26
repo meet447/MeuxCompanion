@@ -1,0 +1,36 @@
+{
+  "emotions": {
+    "neutral": {
+      "expression": "\u5708\u5708\u773c"
+    },
+    "happy": {
+      "expression": "\u7231\u5fc3\u773c"
+    },
+    "sad": {
+      "expression": "\u9ed1\u5316"
+    },
+    "angry": {
+      "expression": "\u5708\u5708\u773c"
+    },
+    "surprised": {
+      "expression": "\u7231\u5fc3\u773c"
+    },
+    "embarrassed": {
+      "expression": "\u9ed1\u5316"
+    },
+    "thinking": {
+      "expression": "\u5708\u5708\u773c"
+    },
+    "excited": {
+      "expression": "\u7231\u5fc3\u773c"
+    }
+  },
+  "params": {
+    "mouthOpen": "ParamMouthOpenY",
+    "mouthForm": "ParamMouthForm",
+    "eyeLeftOpen": "ParamEyeLOpen",
+    "eyeRightOpen": "ParamEyeROpen",
+    "breath": "ParamBreath",
+    "bodyAngleX": "ParamBodyAngleX"
+  }
+}

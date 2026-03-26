@@ -83,6 +83,10 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
       // Clean up previous model but keep the PIXI Application
       if (modelRef.current) {
         const oldModel = modelRef.current;
+        // Remove mousemove listener
+        if ((oldModel as any)._onMouseMove && (oldModel as any)._canvas) {
+          (oldModel as any)._canvas.removeEventListener("mousemove", (oldModel as any)._onMouseMove);
+        }
         // Remove handlers before destroying
         if (idleHandlerRef.current) {
           oldModel.internalModel.off("beforeModelUpdate", idleHandlerRef.current);
@@ -92,6 +96,10 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
           oldModel.internalModel.off("beforeModelUpdate", lipSyncHandlerRef.current);
           lipSyncHandlerRef.current = null;
           lipSyncActiveRef.current = false;
+        }
+        if (typingReactionRef.current) {
+          oldModel.internalModel.off("beforeModelUpdate", typingReactionRef.current);
+          typingReactionRef.current = null;
         }
         if (appRef.current) {
           appRef.current.stage.removeChildren();
@@ -208,11 +216,19 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
         console.log("[Live2D Debug] Available motion groups:", debugRef.current.availableMotionGroups);
         console.log("[Live2D Debug] Mapping emotions:", debugRef.current.mappingEmotions);
 
-        // Cursor tracking
-        canvasRef.current.addEventListener("mousemove", (e) => {
-          const rect = canvasRef.current!.getBoundingClientRect();
-          model.focus(e.clientX - rect.left, e.clientY - rect.top);
-        });
+        // Cursor tracking — guarded against destroyed model
+        const canvas = canvasRef.current;
+        const onMouseMove = (e: MouseEvent) => {
+          if (!modelRef.current || !canvas) return;
+          try {
+            const rect = canvas.getBoundingClientRect();
+            modelRef.current.focus(e.clientX - rect.left, e.clientY - rect.top);
+          } catch {}
+        };
+        canvas.addEventListener("mousemove", onMouseMove);
+        // Store for cleanup
+        (model as any)._onMouseMove = onMouseMove;
+        (model as any)._canvas = canvas;
 
         // Click interaction — play a random TapBody motion
         model.on("hit", (hitAreas: string[]) => {
@@ -407,6 +423,43 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     model.scale.set(baseScaleRef.current * zoom);
   }, []);
 
+  // Typing awareness — subtle head tilt when user is typing
+  const typingReactionRef = useRef<(() => void) | null>(null);
+
+  const setTypingReaction = useCallback((isTyping: boolean) => {
+    const model = modelRef.current;
+    if (!model) return;
+
+    // Remove previous handler
+    if (typingReactionRef.current) {
+      model.internalModel.off("beforeModelUpdate", typingReactionRef.current);
+      typingReactionRef.current = null;
+    }
+
+    if (isTyping) {
+      const startTime = Date.now();
+      const handler = () => {
+        try {
+          const elapsed = (Date.now() - startTime) / 1000;
+          const coreModel = model.internalModel.coreModel;
+          // Curious head tilt
+          coreModel.setParameterValueById("ParamAngleZ", Math.sin(elapsed * 2) * 5 + 5);
+          // Slight head lean toward screen
+          coreModel.setParameterValueById("ParamAngleY", 3);
+        } catch {}
+      };
+      typingReactionRef.current = handler;
+      model.internalModel.on("beforeModelUpdate", handler);
+    } else {
+      // Reset head position gradually (physics will smooth it)
+      try {
+        const coreModel = model.internalModel.coreModel;
+        coreModel.setParameterValueById("ParamAngleZ", 0);
+        coreModel.setParameterValueById("ParamAngleY", 0);
+      } catch {}
+    }
+  }, []);
+
   const getDebug = useCallback((): DebugInfo => {
     return { ...debugRef.current };
   }, []);
@@ -418,6 +471,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     stopLipSync,
     triggerMotion,
     setZoom,
+    setTypingReaction,
     getDebug,
   };
 }
