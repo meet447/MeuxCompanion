@@ -24,7 +24,7 @@ export function useChat() {
         const assistantMsg: ChatMessage = {
           role: "assistant",
           text: data.text,
-          emotion: data.emotion,
+          expression: data.expression,
         };
         setMessages((prev) => [...prev, assistantMsg]);
         return assistantMsg;
@@ -33,7 +33,7 @@ export function useChat() {
         const errorMsg: ChatMessage = {
           role: "assistant",
           text: "Sorry, I couldn't respond right now...",
-          emotion: "sad",
+          expression: "neutral",
         };
         setMessages((prev) => [...prev, errorMsg]);
         return errorMsg;

@@ -34,11 +34,11 @@ export function ChatPanel({
   };
 
   return (
-    <div className="w-[400px] flex flex-col bg-gray-900 border-l border-gray-800">
+    <div className="w-[400px] flex flex-col bg-stone-900 border-l border-stone-800/60">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
-          <div className="text-gray-500 text-center mt-8">
+          <div className="text-stone-500 text-center mt-8">
             <p>Start chatting with {characterName}!</p>
           </div>
         )}
@@ -50,15 +50,15 @@ export function ChatPanel({
             <div
               className={`max-w-[85%] rounded-2xl px-4 py-2 ${
                 msg.role === "user"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-800 text-gray-100"
+                  ? "bg-amber-800/60 text-amber-50"
+                  : "bg-stone-800 text-stone-100"
               }`}
             >
               {msg.role === "assistant" && (
-                <span className="text-xs text-purple-400 font-medium block mb-1">
+                <span className="text-xs text-amber-400/80 font-medium block mb-1">
                   {characterName}
-                  {msg.emotion && msg.emotion !== "neutral" && (
-                    <span className="ml-1 text-gray-500">({msg.emotion})</span>
+                  {msg.expression && (
+                    <span className="ml-1 text-stone-500">({msg.expression})</span>
                   )}
                 </span>
               )}
@@ -68,7 +68,7 @@ export function ChatPanel({
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-gray-800 text-gray-400 rounded-2xl px-4 py-2">
+            <div className="bg-stone-800 text-stone-400 rounded-2xl px-4 py-2">
               <span className="animate-pulse">typing...</span>
             </div>
           </div>
@@ -79,21 +79,21 @@ export function ChatPanel({
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="p-3 border-t border-gray-800 flex gap-2"
+        className="p-3 border-t border-stone-800/60 flex gap-2"
       >
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
+          className="flex-1 bg-stone-800 text-stone-100 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-700/50 placeholder-stone-500"
           disabled={loading}
         />
         <MicButton listening={listening} onToggle={onMicToggle} />
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+          className="bg-amber-800/70 hover:bg-amber-700/70 disabled:bg-stone-800 disabled:cursor-not-allowed text-amber-50 rounded-xl px-4 py-2 text-sm font-medium transition-colors"
         >
           Send
         </button>

@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.services.llm import chat
-from backend.services.character import load_character, build_system_prompt
-from backend.utils.emotion import parse_emotion
+from backend.services.character import load_character, build_system_prompt, get_model_expressions
+from backend.utils.emotion import parse_expression
 
 router = APIRouter()
 
@@ -18,7 +18,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     text: str
-    emotion: str
+    expression: str
 
 
 @router.post("/api/chat", response_model=ChatResponse)
@@ -27,7 +27,10 @@ def send_message(req: ChatRequest):
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
 
-    system_prompt = build_system_prompt(character)
+    # Get available expressions from the Live2D model
+    expressions = get_model_expressions(character.get("live2d_model", ""))
+
+    system_prompt = build_system_prompt(character, expressions or None)
 
     # Get or create history for this character
     if req.character_id not in chat_histories:
@@ -46,14 +49,14 @@ def send_message(req: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {str(e)}")
 
-    # Parse emotion from response
-    emotion, clean_text = parse_emotion(raw_response)
+    # Parse expression from response
+    expr, clean_text = parse_expression(raw_response, expressions or None)
 
     # Update history
     history.append({"role": "user", "content": req.message})
     history.append({"role": "assistant", "content": clean_text})
 
-    return ChatResponse(text=clean_text, emotion=emotion)
+    return ChatResponse(text=clean_text, expression=expr)
 
 
 @router.post("/api/chat/clear")

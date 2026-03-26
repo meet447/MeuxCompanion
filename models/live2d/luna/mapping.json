@@ -1,0 +1,11 @@
+{
+  "emotions": {},
+  "params": {
+    "mouthOpen": "ParamMouthOpenY",
+    "mouthForm": "ParamMouthForm",
+    "eyeLeftOpen": "ParamEyeLOpen",
+    "eyeRightOpen": "ParamEyeROpen",
+    "breath": "ParamBreath",
+    "bodyAngleX": "ParamBodyAngleX"
+  }
+}

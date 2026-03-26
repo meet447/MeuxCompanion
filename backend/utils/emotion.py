@@ -1,24 +1,32 @@
 import re
 
-VALID_EMOTIONS = [
-    "neutral", "happy", "sad", "angry",
-    "surprised", "embarrassed", "thinking", "excited",
-]
 
-DEFAULT_EMOTION = "neutral"
+def parse_expression(text: str, available: list[str] | None = None) -> tuple[str, str]:
+    """Parse expression tag from LLM response.
 
-
-def parse_emotion(text: str) -> tuple[str, str]:
-    """Parse emotion tag from LLM response.
-
-    Returns (emotion, clean_text) tuple.
-    Example: "[emotion: happy] Hello!" -> ("happy", "Hello!")
+    Supports both [expression: X] and [emotion: X] formats.
+    Returns (expression_name, clean_text) tuple.
     """
-    match = re.match(r"\[emotion:\s*(\w+)\]\s*", text)
+    # Try [expression: ...] first, then [emotion: ...]
+    match = re.match(r"\[(?:expression|emotion):\s*([^\]]+)\]\s*", text)
     if match:
-        emotion = match.group(1).lower()
+        expr = match.group(1).strip()
         clean_text = text[match.end():]
-        if emotion not in VALID_EMOTIONS:
-            emotion = DEFAULT_EMOTION
-        return emotion, clean_text
-    return DEFAULT_EMOTION, text
+
+        # If we have a list of available expressions, validate against it
+        if available:
+            # Exact match
+            if expr in available:
+                return expr, clean_text
+            # Case-insensitive match
+            for a in available:
+                if a.lower() == expr.lower():
+                    return a, clean_text
+            # No match — use first available as default
+            return available[0], clean_text
+
+        return expr, clean_text
+
+    # No tag found — return first available or "neutral"
+    default = available[0] if available else "neutral"
+    return default, text

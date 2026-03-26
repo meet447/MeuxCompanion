@@ -1,0 +1,28 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "ゴスロリちゃん.moc3",
+		"Textures": [
+			"ゴスロリちゃん.2048/texture_00.png"
+		],
+		"Physics": "ゴスロリちゃん.physics3.json",
+		"DisplayInfo": "ゴスロリちゃん.cdi3.json"
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": [
+				"ParamMouthOpenY"
+			]
+		}
+	]
+}
