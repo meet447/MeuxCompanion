@@ -81,7 +81,16 @@ export function useVoice() {
           resolve();
         };
 
-        audio.play();
+        audio.play().catch(() => {
+          // Autoplay blocked — wait for user interaction then retry
+          const resumePlay = () => {
+            audio.play().catch(() => {});
+            document.removeEventListener("click", resumePlay);
+            document.removeEventListener("keydown", resumePlay);
+          };
+          document.addEventListener("click", resumePlay, { once: true });
+          document.addEventListener("keydown", resumePlay, { once: true });
+        });
       });
     },
     [connectAudio, disconnect]
