@@ -73,17 +73,13 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     return mappingRef.current?.params || DEFAULT_PARAMS;
   }, []);
 
+  // Cleanup only on true unmount (key change removes the component from DOM)
+  // We intentionally don't destroy here because React strict mode double-invokes
+  // effects, which would kill the WebGL context and make the retry impossible.
+  // The PIXI app is cleaned up in loadModel when switching models.
   useEffect(() => {
     return () => {
       lipSyncActiveRef.current = false;
-      if (modelRef.current) {
-        modelRef.current.destroy();
-        modelRef.current = null;
-      }
-      if (appRef.current) {
-        appRef.current.destroy(true);
-        appRef.current = null;
-      }
     };
   }, []);
 
