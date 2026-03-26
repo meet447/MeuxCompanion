@@ -1,0 +1,42 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "ムースちゃん立ち絵.moc3",
+    "Textures": [
+      "ムースちゃん立ち絵.4096/texture_00.png"
+    ],
+    "Physics": "ムースちゃん立ち絵.physics3.json",
+    "DisplayInfo": "ムースちゃん立ち絵.cdi3.json",
+    "Expressions": [
+      {
+        "Name": "伤心",
+        "File": "伤心.exp3.json"
+      },
+      {
+        "Name": "懵",
+        "File": "懵.exp3.json"
+      },
+      {
+        "Name": "生气",
+        "File": "生气.exp3.json"
+      }
+    ]
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeLOpen",
+        "ParamEyeROpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthOpenY"
+      ]
+    }
+  ]
+}

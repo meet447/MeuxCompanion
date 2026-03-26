@@ -1,0 +1,20 @@
+{
+  "emotions": {
+    "neutral": { "expression": "懵" },
+    "happy": { "expression": "懵" },
+    "sad": { "expression": "伤心" },
+    "angry": { "expression": "生气" },
+    "surprised": { "expression": "懵" },
+    "embarrassed": { "expression": "伤心" },
+    "thinking": { "expression": "懵" },
+    "excited": { "expression": "生气" }
+  },
+  "params": {
+    "mouthOpen": "ParamMouthOpenY",
+    "mouthForm": "ParamMouthForm",
+    "eyeLeftOpen": "ParamEyeLOpen",
+    "eyeRightOpen": "ParamEyeROpen",
+    "breath": "ParamBreath",
+    "bodyAngleX": "ParamBodyAngleX"
+  }
+}
