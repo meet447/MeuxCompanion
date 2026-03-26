@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from backend.services.character import list_characters, load_character, list_live2d_models
+from backend.services.character import list_characters, load_character, list_all_models
 
 router = APIRouter()
 
@@ -15,7 +15,6 @@ def get_character(character_id: str):
     character = load_character(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    # Don't expose system_prompt to frontend
     return {
         "id": character["id"],
         "name": character["name"],
@@ -27,4 +26,4 @@ def get_character(character_id: str):
 
 @router.get("/api/models")
 def get_models():
-    return list_live2d_models()
+    return list_all_models()

@@ -1,20 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Live2DCanvas } from "./components/Live2DCanvas";
+import { VRMCanvas } from "./components/VRMCanvas";
 import { ChatPanel } from "./components/ChatPanel";
 import { CharacterSelect } from "./components/CharacterSelect";
 import { useChat } from "./hooks/useChat";
 import { useVoice } from "./hooks/useVoice";
-import type { Character, Live2DModelInfo } from "./types";
+import type { Character, ModelInfo } from "./types";
 
 const DEFAULT_BG =
   "linear-gradient(135deg, #2d1b2e 0%, #3d2233 30%, #4a2a2a 60%, #5c3a2e 100%)";
 
-// Idle chatter: send after this many seconds of silence
-const IDLE_DELAY_MS = 60_000; // 1 minute
+const IDLE_DELAY_MS = 60_000;
 
 function App() {
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [models, setModels] = useState<Live2DModelInfo[]>([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [selectedCharId, setSelectedCharId] = useState("");
   const [charSelectOpen, setCharSelectOpen] = useState(false);
   const [currentExpression, setCurrentExpression] = useState("neutral");
@@ -31,14 +31,12 @@ function App() {
   const hasGreetedRef = useRef<Set<string>>(new Set());
   const selectedCharRef = useRef<Character | undefined>(undefined);
 
-  // Wire up expression callback from streaming
   useEffect(() => {
     setOnExpression((expr: string) => {
       setCurrentExpression(expr);
     });
   }, [setOnExpression]);
 
-  // Fetch characters and models on mount
   useEffect(() => {
     fetch("/api/characters")
       .then((r) => r.json())
@@ -63,14 +61,12 @@ function App() {
   })();
 
   const modelPath = selectedModel?.path ?? null;
+  const modelType = selectedModel?.type ?? "live2d";
   const modelMapping = selectedModel?.mapping ?? null;
 
-  // --- Core send handler ---
   const handleSend = useCallback(
     async (text: string) => {
       if (!selectedCharId) return;
-
-      // Reset idle timer
       resetIdleTimer();
 
       const response = await sendMessage(selectedCharId, text);
@@ -79,14 +75,11 @@ function App() {
         const voice = selectedCharRef.current?.voice || "jp_001";
         fetchAndPlayTTS(response.text, voice);
       }
-
-      // Restart idle timer after response
       startIdleTimer();
     },
     [selectedCharId, sendMessage, fetchAndPlayTTS]
   );
 
-  // --- Idle chatter ---
   const sendIdleMessage = useCallback(async () => {
     if (!selectedCharId || loading) return;
 
@@ -120,11 +113,9 @@ function App() {
     }, IDLE_DELAY_MS);
   }, [resetIdleTimer, sendIdleMessage]);
 
-  // --- Greeting on character load ---
   useEffect(() => {
     if (!selectedCharId || hasGreetedRef.current.has(selectedCharId)) return;
 
-    // Small delay so model loads first
     const timer = setTimeout(async () => {
       hasGreetedRef.current.add(selectedCharId);
 
@@ -143,18 +134,14 @@ function App() {
     return () => clearTimeout(timer);
   }, [selectedCharId, sendMessage, fetchAndPlayTTS, startIdleTimer]);
 
-  // --- Typing awareness ---
   const handleTypingChange = useCallback(
     (isTyping: boolean) => {
       setUserTyping(isTyping);
-      if (isTyping) {
-        resetIdleTimer(); // Don't interrupt while typing
-      }
+      if (isTyping) resetIdleTimer();
     },
     [resetIdleTimer]
   );
 
-  // --- Mic ---
   const handleMicToggle = useCallback(() => {
     if (listening) {
       stopListening();
@@ -165,7 +152,6 @@ function App() {
     }
   }, [listening, startListening, stopListening, handleSend]);
 
-  // --- Character switch ---
   const handleCharacterChange = useCallback(
     (id: string) => {
       setSelectedCharId(id);
@@ -176,6 +162,19 @@ function App() {
     },
     [clearMessages, resetIdleTimer]
   );
+
+  // Common canvas props
+  const canvasProps = {
+    modelPath,
+    expression: currentExpression,
+    speaking,
+    userTyping,
+    background,
+    zoom,
+    onZoomChange: setZoom,
+    onBackgroundChange: setBackground,
+    getAudioLevels,
+  };
 
   return (
     <div className="h-screen flex flex-col bg-stone-950 text-stone-100">
@@ -193,18 +192,15 @@ function App() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        <Live2DCanvas
-          modelPath={modelPath}
-          modelMapping={modelMapping}
-          expression={currentExpression}
-          speaking={speaking}
-          userTyping={userTyping}
-          background={background}
-          zoom={zoom}
-          onZoomChange={setZoom}
-          onBackgroundChange={setBackground}
-          getAudioLevels={getAudioLevels}
-        />
+        {modelType === "vrm" ? (
+          <VRMCanvas key={`vrm-${selectedCharId}`} {...canvasProps} />
+        ) : (
+          <Live2DCanvas
+            key={`l2d-${selectedCharId}`}
+            {...canvasProps}
+            modelMapping={modelMapping}
+          />
+        )}
         <ChatPanel
           messages={messages}
           loading={loading}

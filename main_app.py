@@ -29,6 +29,11 @@ models_dir = Path(__file__).parent / "models" / "live2d"
 if models_dir.exists():
     app.mount("/static/live2d", StaticFiles(directory=str(models_dir)), name="live2d")
 
+# Serve VRM models as static files
+vrm_dir = Path(__file__).parent / "models" / "vrm"
+if vrm_dir.exists():
+    app.mount("/static/vrm", StaticFiles(directory=str(vrm_dir)), name="vrm")
+
 # Serve built frontend in production
 frontend_dist = Path(__file__).parent / "frontend" / "dist"
 if frontend_dist.exists():

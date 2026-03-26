@@ -29,6 +29,9 @@ chats/
 models/live2d/*
 !models/live2d/haru/
 
+# VRM models — user-provided
+models/vrm/*
+
 # Env
 .env
 .env.local
