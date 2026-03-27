@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 
 export interface AudioLevels {
   volume: number;      // 0-1, overall loudness
@@ -113,6 +113,15 @@ export function useAudioAnalyser() {
     connectedElementRef.current = null;
     smoothVolumeRef.current = 0;
     smoothFormRef.current = 0;
+  }, []);
+
+  // Clean up AudioContext on unmount
+  useEffect(() => {
+    return () => {
+      sourceRef.current?.disconnect();
+      analyserRef.current?.disconnect();
+      contextRef.current?.close();
+    };
   }, []);
 
   return { connectAudio, getAudioLevels, disconnect };

@@ -68,18 +68,16 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
   const breathSpeedRef = useRef(0.03); // Adjustable per emotion
   const audioLevelsGetterRef = useRef<(() => AudioLevels) | null>(null);
   const typingReactionRef = useRef<(() => void) | null>(null);
+  const mouseCleanupRef = useRef<(() => void) | null>(null);
 
   const getParams = useCallback(() => {
     return mappingRef.current?.params || DEFAULT_PARAMS;
   }, []);
 
-  // Cleanup only on true unmount (key change removes the component from DOM)
-  // We intentionally don't destroy here because React strict mode double-invokes
-  // effects, which would kill the WebGL context and make the retry impossible.
-  // The PIXI app is cleaned up in loadModel when switching models.
   useEffect(() => {
     return () => {
       lipSyncActiveRef.current = false;
+      mouseCleanupRef.current?.();
     };
   }, []);
 
@@ -389,6 +387,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
           } catch {}
         };
         canvas.addEventListener("mousemove", onMouseMove);
+        mouseCleanupRef.current = () => canvas.removeEventListener("mousemove", onMouseMove);
         (model as any)._onMouseMove = onMouseMove;
         (model as any)._canvas = canvas;
 
