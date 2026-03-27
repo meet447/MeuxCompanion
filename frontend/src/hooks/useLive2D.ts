@@ -581,8 +581,12 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     let targetY = appRef.current.screen.height / 2;
     
     if (framing === "half") {
-      targetScale *= 1.8; // zoom in
-      targetY += (model.height * targetScale) * 0.25; // shift down
+      const framingZoom = 2.2; // Increase scale safely for half-body
+      targetScale *= framingZoom;
+      
+      // Mathematically pushes the center of the model down exactly relative to the zoom
+      // ensuring the top of the character stays locked at the top of the screen safely.
+      targetY = (appRef.current.screen.height / 2) * framingZoom;
     }
     
     model.scale.set(targetScale);
