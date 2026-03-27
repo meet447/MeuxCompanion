@@ -43,13 +43,18 @@ export const VRMCanvas = memo(function VRMCanvas({
   const [showDebug, setShowDebug] = useState(false);
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [modelLoading, setModelLoading] = useState(false);
+  const [moveMode, setMoveMode] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const isDraggingRef = useRef(false);
+  const lastPosRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (modelPath && modelPath !== prevModelPath.current) {
       prevModelPath.current = modelPath;
       setModelLoading(true);
       loadModel(modelPath, animations).then(() => {
-        setViewport(zoom, framing);
+        setViewport(zoom, framing, dragOffset.x, dragOffset.y);
       }).finally(() => setModelLoading(false));
     }
     // Intentionally disabling lint rule - loading state is necessary for model loading UX
@@ -72,8 +77,8 @@ export const VRMCanvas = memo(function VRMCanvas({
   }, [speaking, startLipSync, stopLipSync, getAudioLevels]);
 
   useEffect(() => {
-    setViewport(zoom, framing);
-  }, [zoom, framing, setViewport]);
+    setViewport(zoom, framing, dragOffset.x, dragOffset.y);
+  }, [zoom, framing, dragOffset, setViewport]);
 
   useEffect(() => {
     setTypingReaction(userTyping);
@@ -86,6 +91,27 @@ export const VRMCanvas = memo(function VRMCanvas({
     }, 200);
     return () => clearInterval(interval);
   }, [showDebug, getDebug]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!moveMode) return;
+    isDraggingRef.current = true;
+    lastPosRef.current = { x: e.clientX, y: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current || !moveMode) return;
+    const dx = e.clientX - lastPosRef.current.x;
+    const dy = e.clientY - lastPosRef.current.y;
+    lastPosRef.current = { x: e.clientX, y: e.clientY };
+    setDragOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
 
   return (
     <div
@@ -108,23 +134,27 @@ export const VRMCanvas = memo(function VRMCanvas({
       )}
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-pointer"
-        style={{ display: modelPath ? "block" : "none" }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className={`w-full h-full ${moveMode ? "cursor-move" : "cursor-pointer"}`}
+        style={{ display: modelPath ? "block" : "none", touchAction: "none" }}
       />
 
       {/* Debug overlay */}
       {showDebug && debugInfo && (
-        <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm text-xs font-mono text-green-400 rounded-lg p-3 max-w-xs z-50 space-y-1">
-          <div className="text-green-300 font-bold mb-2 flex items-center justify-between">
+        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-xs font-mono text-slate-600 rounded-2xl p-4 max-w-sm z-50 space-y-2 shadow-xl ring-1 ring-slate-200/50 pointer-events-none">
+          <div className="text-slate-800 font-bold mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
             <span>VRM Debug</span>
-            <button onClick={() => setShowDebug(false)} className="text-stone-500 hover:text-stone-300 ml-4">X</button>
+            <button onClick={() => setShowDebug(false)} className="text-slate-400 hover:text-slate-600 ml-4 hover:bg-slate-100 rounded-full w-5 h-5 flex items-center justify-center transition-colors">×</button>
           </div>
           <Row label="Model" value={debugInfo.modelLoaded ? "loaded (VRM)" : "none"} ok={debugInfo.modelLoaded} />
           <Row label="Lip Sync" value={debugInfo.lipSyncActive ? "ON" : "off"} ok={debugInfo.lipSyncActive} />
           <Row label="Mouth Value" value={String(debugInfo.mouthValue)} />
-          <div>
-            <div className="text-stone-500">Expressions:</div>
-            <div className="text-green-300">
+          <div className="pt-1">
+            <div className="text-slate-400 font-semibold mb-1">Expressions:</div>
+            <div className="text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md max-h-20 overflow-y-auto">
               {debugInfo.availableExpressions.length > 0
                 ? debugInfo.availableExpressions.join(", ")
                 : "(none)"}
@@ -134,75 +164,109 @@ export const VRMCanvas = memo(function VRMCanvas({
       )}
 
       {/* Controls */}
-      <div className="absolute bottom-3 left-3 flex items-center gap-2">
-        <div className="relative">
+      {showControls && (
+        <div className="absolute bottom-4 left-4 flex items-center gap-3">
+          <div className="relative">
+            <button
+              onClick={() => setShowBgPicker(!showBgPicker)}
+              className="bg-white/60 hover:bg-white/90 backdrop-blur-md text-slate-600 hover:text-slate-800 rounded-full px-3.5 py-2 text-xs font-semibold transition-all shadow-sm ring-1 ring-slate-200/50"
+            >
+              BG
+            </button>
+            {showBgPicker && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowBgPicker(false)} />
+                <div className="absolute bottom-full left-0 mb-3 bg-white/95 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-2xl z-50 p-2 w-48 font-medium">
+                  <div className="text-xs text-slate-400 px-3 py-1.5 mb-1 uppercase tracking-wider font-bold">Background</div>
+                  {BG_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      onClick={() => { onBackgroundChange(preset.value); setShowBgPicker(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${
+                        background === preset.value ? "bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-full shadow-inner ring-1 ring-slate-200/50 shrink-0" style={{ background: preset.value }} />
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 bg-white/60 backdrop-blur-md rounded-full px-2 py-1.5 shadow-sm ring-1 ring-slate-200/50">
+            <button
+              onClick={() => onZoomChange(Math.round(Math.max(30, (zoom * 100) - 1)) / 100)}
+              className="text-slate-500 hover:text-slate-800 hover:bg-white rounded-full text-sm w-6 h-6 flex items-center justify-center transition-colors font-medium shadow-sm ring-1 ring-transparent hover:ring-slate-200/50"
+            >-</button>
+            <span className="text-slate-700 font-semibold text-xs w-10 text-center">{Math.round(zoom * 100)}%</span>
+            <button
+              onClick={() => onZoomChange(Math.round(Math.min(200, (zoom * 100) + 1)) / 100)}
+              className="text-slate-500 hover:text-slate-800 hover:bg-white rounded-full text-sm w-6 h-6 flex items-center justify-center transition-colors font-medium shadow-sm ring-1 ring-transparent hover:ring-slate-200/50"
+            >+</button>
+          </div>
+
+          {/* Move toggle */}
           <button
-            onClick={() => setShowBgPicker(!showBgPicker)}
-            className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-amber-200/70 hover:text-amber-200 rounded-lg px-2.5 py-1.5 text-xs transition-colors"
+            onClick={() => {
+              setMoveMode(!moveMode);
+              if (moveMode) {
+                setDragOffset({ x: 0, y: 0 }); // reset on toggle off
+              }
+            }}
+            className={`backdrop-blur-md rounded-full px-3.5 py-2 text-xs font-bold tracking-wide transition-all shadow-sm ring-1 ${
+              moveMode
+                ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200 ring-indigo-200"
+                : "bg-white/60 hover:bg-white/90 text-slate-600 hover:text-slate-800 ring-slate-200/50"
+            }`}
           >
-            BG
+            MOVE
           </button>
-          {showBgPicker && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowBgPicker(false)} />
-              <div className="absolute bottom-full left-0 mb-2 bg-stone-900/95 backdrop-blur-sm border border-stone-700/50 rounded-xl shadow-xl z-50 p-2 w-44">
-                <div className="text-xs text-stone-400 px-2 py-1 mb-1">Background</div>
-                {BG_PRESETS.map((preset) => (
-                  <button
-                    key={preset.name}
-                    onClick={() => { onBackgroundChange(preset.value); setShowBgPicker(false); }}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
-                      background === preset.value ? "bg-amber-900/40 text-amber-200" : "text-stone-300 hover:bg-stone-800"
-                    }`}
-                  >
-                    <div className="w-5 h-5 rounded-md border border-stone-600/50 shrink-0" style={{ background: preset.value }} />
-                    {preset.name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
 
-        <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm rounded-lg px-1.5 py-1">
           <button
-            onClick={() => onZoomChange(Math.round(Math.max(30, (zoom * 100) - 1)) / 100)}
-            className="text-amber-200/70 hover:text-amber-200 text-xs w-5 h-5 flex items-center justify-center transition-colors"
-          >-</button>
-          <span className="text-amber-200/60 text-xs w-10 text-center">{Math.round(zoom * 100)}%</span>
-          <button
-            onClick={() => onZoomChange(Math.round(Math.min(200, (zoom * 100) + 1)) / 100)}
-            className="text-amber-200/70 hover:text-amber-200 text-xs w-5 h-5 flex items-center justify-center transition-colors"
-          >+</button>
-        </div>
+            onClick={() => onFramingChange(framing === "full" ? "half" : "full")}
+            className={`backdrop-blur-md rounded-full px-4 py-2 text-xs font-bold tracking-wide transition-all shadow-sm ring-1 ${
+              framing === "half"
+                ? "bg-blue-100 text-blue-700 hover:bg-blue-200 ring-blue-200"
+                : "bg-white/60 hover:bg-white/90 text-slate-600 hover:text-slate-800 ring-slate-200/50"
+            }`}
+          >
+            {framing.toUpperCase()}
+          </button>
 
+          <button
+            onClick={() => setShowDebug(!showDebug)}
+            className={`backdrop-blur-md rounded-full px-3.5 py-2 text-xs font-bold tracking-wide transition-all shadow-sm ring-1 ${
+              showDebug ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 ring-emerald-200" : "bg-white/60 hover:bg-white/90 text-slate-600 hover:text-slate-800 ring-slate-200/50"
+            }`}
+          >DBG</button>
+        </div>
+      )}
+
+      {/* Visibility toggle */}
+      {modelPath && !showDebug && (
         <button
-          onClick={() => onFramingChange(framing === "full" ? "half" : "full")}
-          className={`backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
-            framing === "half"
-              ? "bg-blue-900/60 text-blue-400 font-medium"
-              : "bg-black/40 hover:bg-black/60 text-amber-200/70 hover:text-amber-200"
-          }`}
+          onClick={() => setShowControls(!showControls)}
+          className="absolute bottom-4 right-4 bg-white/60 hover:bg-white/90 backdrop-blur-md text-slate-500 hover:text-slate-700 p-2.5 rounded-full ring-1 ring-slate-200/50 shadow-sm transition-all"
+          title={showControls ? "Hide Controls" : "Show Controls"}
         >
-          {framing.toUpperCase()}
+          {showControls ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+          )}
         </button>
-
-        <button
-          onClick={() => setShowDebug(!showDebug)}
-          className={`backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
-            showDebug ? "bg-green-900/60 text-green-400" : "bg-black/40 hover:bg-black/60 text-amber-200/70 hover:text-amber-200"
-          }`}
-        >DBG</button>
-      </div>
+      )}
     </div>
   );
 });
 
 function Row({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
   return (
-    <div className="flex justify-between gap-3">
-      <span className="text-stone-500">{label}:</span>
-      <span className={ok !== undefined ? (ok ? "text-green-400" : "text-red-400") : ""}>{value}</span>
+    <div className="flex justify-between gap-3 items-center text-sm">
+      <span className="text-slate-500 font-medium">{label}:</span>
+      <span className={`font-semibold bg-slate-50 px-2 py-0.5 rounded-md ${ok !== undefined ? (ok ? "text-emerald-600" : "text-rose-500") : "text-slate-700"}`}>{value}</span>
     </div>
   );
 }

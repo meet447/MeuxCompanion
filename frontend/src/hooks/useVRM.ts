@@ -480,7 +480,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
   }, [playAnimation]);
 
-  const setViewport = useCallback((zoom: number, framing: "full" | "half") => {
+  const setViewport = useCallback((zoom: number, framing: "full" | "half", offsetX: number = 0, offsetY: number = 0) => {
     if (!cameraRef.current) return;
     
     let zIdx = 4.5 / zoom;
@@ -492,6 +492,12 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
     
     cameraRef.current.position.set(0, yPos, zIdx);
+    
+    if (vrmRef.current) {
+      // Convert screen pixel drag offset to rudimentary 3D world space (approx 0.0025 units per pixel)
+      vrmRef.current.scene.position.x = offsetX * 0.0025;
+      vrmRef.current.scene.position.y = -offsetY * 0.0025; // Invert Y because Three.js Y is up, screen Y is down
+    }
   }, []);
 
   const setTypingReaction = useCallback((_isTyping: boolean) => {
