@@ -183,18 +183,6 @@ DEFAULT_PARAMS = {
     "bodyAngleX": "ParamBodyAngleX",
 }
 
-# Common expression name patterns mapped to our standard emotions
-EXPRESSION_GUESSES = {
-    "neutral": ["neutral", "normal", "default", "idle"],
-    "happy": ["happy", "smile", "joy", "glad", "fun"],
-    "sad": ["sad", "cry", "unhappy", "sorrow", "down", "伤心"],
-    "angry": ["angry", "anger", "mad", "rage", "furious", "生气"],
-    "surprised": ["surprise", "surprised", "shock", "shocked", "wow", "懵"],
-    "embarrassed": ["embarrass", "shy", "blush", "fluster"],
-    "thinking": ["think", "thinking", "ponder", "hmm", "wonder"],
-    "excited": ["excite", "excited", "hype", "energetic", "cheer"],
-}
-
 
 def _find_model3_json(model_dir: Path) -> Path | None:
     """Find .model3.json, checking the directory and one level of subdirectories."""
@@ -211,21 +199,22 @@ def _find_model3_json(model_dir: Path) -> Path | None:
 
 
 def _auto_generate_mapping(model_dir: Path) -> dict:
-    """Auto-generate a mapping.json by scanning the model's expressions."""
+    """Auto-generate a mapping.json with canvas params only.
+    Expression mappings are never auto-generated — they must be configured
+    manually by the user in the frontend ModelSettings UI."""
     model3_path = _find_model3_json(model_dir)
     if not model3_path:
-        return {"emotions": {}, "params": DEFAULT_PARAMS}
+        return {"params": DEFAULT_PARAMS}
 
     actual_dir = model3_path.parent
     try:
         model_data = json.loads(model3_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, ValueError):
-        return {"emotions": {}, "params": DEFAULT_PARAMS}
+        return {"params": DEFAULT_PARAMS}
+
     expressions = model_data.get("FileReferences", {}).get("Expressions", [])
-    motions = model_data.get("FileReferences", {}).get("Motions", {})
 
     # Auto-patch: find loose .exp3.json files and add them to model3.json
-    # Only if the model has NO expressions at all (don't override curated lists)
     patched = False
     if not expressions:
         loose_exps = list(actual_dir.glob("*.exp3.json"))
@@ -238,7 +227,6 @@ def _auto_generate_mapping(model_dir: Path) -> dict:
     groups = model_data.get("Groups", [])
     for g in groups:
         if g.get("Name") == "LipSync" and not g.get("Ids"):
-            # Check if the model has a CDI file listing ParamMouthOpenY
             cdi_files = list(actual_dir.glob("*.cdi3.json"))
             if cdi_files:
                 cdi_data = json.loads(cdi_files[0].read_text(encoding="utf-8"))
@@ -254,73 +242,7 @@ def _auto_generate_mapping(model_dir: Path) -> dict:
             json.dumps(model_data, indent=2, ensure_ascii=False), encoding="utf-8"
         )
 
-    # Collect expression names
-    available_names = [e.get("Name", "") for e in expressions]
-
-    # Try to match expression names to our standard emotions
-    emotion_map = {}
-
-    for emotion, keywords in EXPRESSION_GUESSES.items():
-        for name in available_names:
-            name_lower = name.lower()
-            if any(kw in name_lower for kw in keywords):
-                emotion_map[emotion] = {"expression": name}
-                break
-
-    # If no keyword matches found, assign by index
-    if not emotion_map and available_names:
-        standard_emotions = list(EXPRESSION_GUESSES.keys())
-        for i, name in enumerate(available_names):
-            if i < len(standard_emotions):
-                emotion_map[standard_emotions[i]] = {"expression": name}
-
-    # Ensure neutral exists
-    if "neutral" not in emotion_map and available_names:
-        emotion_map["neutral"] = {"expression": available_names[0]}
-
-    # Fill ALL 8 standard emotions — map missing ones to closest available
-    if available_names and emotion_map:
-        # Define fallback chains: if emotion X is missing, try these in order
-        fallbacks = {
-            "neutral": ["happy", "thinking"],
-            "happy": ["excited", "neutral"],
-            "sad": ["embarrassed", "neutral"],
-            "angry": ["excited", "neutral"],
-            "surprised": ["excited", "happy", "neutral"],
-            "embarrassed": ["sad", "happy", "neutral"],
-            "thinking": ["neutral", "sad"],
-            "excited": ["happy", "surprised", "angry", "neutral"],
-        }
-        all_emotions = list(EXPRESSION_GUESSES.keys())
-        for emo in all_emotions:
-            if emo not in emotion_map:
-                # Try fallback chain
-                filled = False
-                for fallback in fallbacks.get(emo, []):
-                    if fallback in emotion_map:
-                        emotion_map[emo] = {"expression": emotion_map[fallback]["expression"]}
-                        filled = True
-                        break
-                if not filled:
-                    # Last resort: use first available expression
-                    emotion_map[emo] = {"expression": available_names[0]}
-
-    # Add motions to expressive emotions if TapBody exists
-    if "TapBody" in motions:
-        tap_count = len(motions["TapBody"])
-        motion_emotions = ["excited", "surprised", "angry", "happy", "embarrassed"]
-        for i, emo in enumerate(motion_emotions):
-            if emo in emotion_map and i < tap_count:
-                emotion_map[emo]["motion"] = {"group": "TapBody", "index": i}
-
-    # Save expression mapping to expression_mappings/ (the sole source for emotions)
-    if emotion_map:
-        from backend.services.expressions import save_expression_mapping
-        flat_emotions = {k: v.get("expression", "") for k, v in emotion_map.items() if v.get("expression")}
-        if flat_emotions:
-            save_expression_mapping(model_dir.name, flat_emotions)
-
-    # mapping.json stores only params (canvas rendering config) — no emotions
+    # mapping.json stores only params (canvas rendering config)
     mapping = {"params": DEFAULT_PARAMS}
 
     mapping_path = model_dir / "mapping.json"
