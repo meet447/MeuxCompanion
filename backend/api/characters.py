@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import Optional
 
-from backend.services.character import list_characters, load_character, list_all_models
+from backend.services.character import list_characters, load_character, list_all_models, create_character
 
 router = APIRouter()
 
@@ -27,3 +29,27 @@ def get_character(character_id: str):
 @router.get("/api/models")
 def get_models():
     return list_all_models()
+
+
+class CreateCharacterRequest(BaseModel):
+    name: str
+    personality: str
+    model_id: str = "haru"
+    voice: str = "jp_001"
+    user_name: str
+    user_about: str
+    vibe: Optional[str] = None
+
+
+@router.post("/api/characters/create")
+def create_new_character(body: CreateCharacterRequest):
+    char_id = create_character(
+        name=body.name,
+        personality=body.personality,
+        model_id=body.model_id,
+        voice=body.voice,
+        user_name=body.user_name,
+        user_about=body.user_about,
+        vibe=body.vibe,
+    )
+    return {"id": char_id}
