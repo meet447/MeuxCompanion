@@ -29,16 +29,18 @@ chats/
 # Live2D models — ignore all except haru (default sample)
 models/live2d/*
 !models/live2d/haru/
+models/live2d/ariu/
+
+# Characters — ignore all except rika (default sample)
+characters/*
+!characters/rika.md
+characters/ariu.md
 
 # VRM models — user-provided
 models/vrm/*
 
 # Expression mappings — user-configured per model
 models/expression_mappings/
-
-# Characters — ignore all except rika (default sample)
-characters/*
-!characters/rika.md
 
 # Environment — secrets
 .env
