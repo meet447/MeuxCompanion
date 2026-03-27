@@ -32,6 +32,9 @@ models/live2d/*
 # VRM models — user-provided
 models/vrm/*
 
+# Expression mappings — user-configured
+models/expression_mappings/
+
 # Characters — ignore all except rika (default)
 characters/*
 !characters/rika.md
