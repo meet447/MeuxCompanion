@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from queue import Queue, Empty
 
 from backend.services.llm import chat_stream
-from backend.services.tts import generate_tts
+from backend.services.tts import generate_tts_auto
 from backend.services.character import load_character, build_system_prompt
 from backend.services.expressions import GLOBAL_EXPRESSIONS, resolve_expression
 from backend.utils.emotion import _validate_expression
@@ -48,8 +48,6 @@ def stream_message(req: ChatRequest):
 
     model_id = character.get("live2d_model", "")
     system_prompt = build_system_prompt(character, GLOBAL_EXPRESSIONS)
-    voice = character.get("voice", "jp_001")
-
     if req.character_id not in chat_histories:
         chat_histories[req.character_id] = []
 
@@ -98,7 +96,7 @@ def stream_message(req: ChatRequest):
                 tts_thread_count[0] += 1
 
             def tts_work():
-                audio = generate_tts(clean, voice)
+                audio = generate_tts_auto(clean)
                 if audio:
                     emit(f"data: {json.dumps({'type': 'audio', 'index': idx, 'audio': audio})}\n\n")
                 with tts_lock:
