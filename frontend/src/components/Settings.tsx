@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import type { JSX } from "react";
 import { ModelSettings } from "./ModelSettings";
+import { MemoryStatePanel } from "./MemoryStatePanel";
 
 interface Voice {
   id: string;
@@ -18,7 +20,7 @@ interface TTSPreset {
   needs_key: boolean;
 }
 
-type SettingsPage = null | "profile" | "llm" | "tts" | "expressions";
+type SettingsPage = null | "profile" | "llm" | "tts" | "expressions" | "memory";
 
 const ProfileIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -32,12 +34,16 @@ const SpeakerIcon = () => (
 const MaskIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 );
+const ArchiveIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 8h14M5 12h10M5 16h8M4 4h16v16H4z" /></svg>
+);
 
 const MENU_ITEMS: { id: SettingsPage & string; label: string; description: string; icon: () => JSX.Element }[] = [
   { id: "profile", label: "Your Profile", description: "Name and about yourself", icon: ProfileIcon },
   { id: "llm", label: "LLM Provider", description: "AI model and API connection", icon: BrainIcon },
   { id: "tts", label: "Voice & TTS", description: "Text-to-speech provider and voice", icon: SpeakerIcon },
   { id: "expressions", label: "Expression Mapping", description: "Map emotions to model expressions", icon: MaskIcon },
+  { id: "memory", label: "Memory & State", description: "Inspect local memories and relationship state", icon: ArchiveIcon },
 ];
 
 const inputClass = "w-full px-5 py-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/50 text-slate-700 text-[15px] outline-none transition-all placeholder-slate-400 border border-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 mb-5";
@@ -45,10 +51,14 @@ const labelClass = "block text-sm font-semibold text-slate-700 tracking-wide mb-
 const buttonClass = "w-full py-3.5 rounded-2xl bg-blue-500 text-white text-[15px] font-semibold hover:bg-blue-600 shadow-md shadow-blue-500/20 disabled:opacity-50 hover:-translate-y-0.5 transition-all active:translate-y-0";
 const secondaryBtnClass = "w-full py-3.5 rounded-2xl bg-white border border-slate-200 text-slate-600 text-[15px] font-medium hover:bg-slate-50 hover:border-slate-300 shadow-sm disabled:opacity-50 transition-all mb-3";
 
-export function Settings({ onClose, modelId, onPreviewExpression }: {
+export function Settings({ onClose, characterId, characterName, modelId, onPreviewExpression, onConversationCleared, onStateChanged }: {
   onClose: () => void;
+  characterId?: string;
+  characterName: string;
   modelId?: string;
   onPreviewExpression?: (expr: string) => void;
+  onConversationCleared?: () => void;
+  onStateChanged?: () => void;
 }) {
   const [page, setPage] = useState<SettingsPage>(null);
   const [config, setConfig] = useState<any>(null);
@@ -442,6 +452,22 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
         ) : (
           <div className="p-6 text-sm text-slate-400">No model loaded — select a character first.</div>
         )}
+      </div>
+    );
+  }
+
+  if (page === "memory") {
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 pb-0">
+          <SubHeader title="Memory & State" />
+        </div>
+        <MemoryStatePanel
+          characterId={characterId}
+          characterName={characterName}
+          onConversationCleared={onConversationCleared}
+          onStateChanged={onStateChanged}
+        />
       </div>
     );
   }

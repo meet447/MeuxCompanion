@@ -1,12 +1,12 @@
 import json
-import os
 import re
 import yaml
 from pathlib import Path
 
-CHARACTERS_DIR = Path(__file__).parent.parent.parent / "characters"
-MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "live2d"
-VRM_MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "vrm"
+ROOT_DIR = Path(__file__).parent.parent.parent
+CHARACTERS_DIR = ROOT_DIR / "characters"
+MODELS_DIR = ROOT_DIR / "models" / "live2d"
+VRM_MODELS_DIR = ROOT_DIR / "models" / "vrm"
 
 # Standard VRM blend shape expressions
 VRM_EXPRESSIONS = ["happy", "angry", "sad", "relaxed", "surprised"]
@@ -22,52 +22,169 @@ def _parse_md_frontmatter(content: str) -> tuple[dict, str]:
     return {}, content.strip()
 
 
-def list_characters() -> list[dict]:
-    """List all available characters."""
-    characters = []
+def _slugify(value: str) -> str:
+    slug = value.lower().replace(" ", "_")
+    slug = "".join(c for c in slug if c.isalnum() or c == "_")
+    return slug or "character"
+
+
+def _read_text_file(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8").strip()
+
+
+def _iter_character_sources() -> list[tuple[str, Path, str]]:
+    """Return character sources as (id, path, source_type). Directory format wins."""
     if not CHARACTERS_DIR.exists():
-        return characters
+        return []
 
-    for md_file in sorted(CHARACTERS_DIR.glob("*.md")):
-        content = md_file.read_text(encoding="utf-8")
-        meta, _ = _parse_md_frontmatter(content)
-        characters.append({
-            "id": md_file.stem,
-            "name": meta.get("name", md_file.stem),
-            "live2d_model": meta.get("live2d_model", ""),
-            "voice": meta.get("voice", "jp_001"),
-            "default_emotion": meta.get("default_emotion", "neutral"),
-        })
-    return characters
+    sources: list[tuple[str, Path, str]] = []
+    shadowed_ids: set[str] = set()
+
+    for path in CHARACTERS_DIR.iterdir():
+        if not path.is_dir():
+            continue
+        config_path = path / "character.yaml"
+        if not config_path.exists():
+            continue
+        sources.append((path.name, path, "directory"))
+        shadowed_ids.add(path.name)
+
+    for md_file in CHARACTERS_DIR.glob("*.md"):
+        if md_file.stem in shadowed_ids:
+            continue
+        sources.append((md_file.stem, md_file, "markdown"))
+
+    return sorted(sources, key=lambda item: item[0])
 
 
-_char_cache: dict[str, tuple[float, dict]] = {}
+def _build_prompt_sections_body(prompt_sections: dict[str, str]) -> str:
+    labels = {
+        "soul": "Soul",
+        "style": "Style",
+        "rules": "Rules",
+        "context": "User Context",
+        "lorebook": "Lorebook",
+        "examples": "Examples",
+        "legacy": "",
+    }
+    parts: list[str] = []
+    for key in ("soul", "style", "rules", "context", "lorebook", "examples", "legacy"):
+        content = (prompt_sections.get(key) or "").strip()
+        if not content:
+            continue
+        label = labels.get(key, key.replace("_", " ").title())
+        if label:
+            parts.append(f"## {label}\n{content}")
+        else:
+            parts.append(content)
+    return "\n\n".join(parts).strip()
 
 
-def load_character(character_id: str) -> dict | None:
-    """Load a character by ID (cached, invalidated on file change)."""
-    filepath = CHARACTERS_DIR / f"{character_id}.md"
-    if not filepath.exists():
-        return None
+def _load_character_from_directory(character_id: str, character_dir: Path) -> dict:
+    meta = yaml.safe_load((character_dir / "character.yaml").read_text(encoding="utf-8")) or {}
+    prompt_sections = {
+        "soul": _read_text_file(character_dir / "soul.md"),
+        "style": _read_text_file(character_dir / "style.md"),
+        "rules": _read_text_file(character_dir / "rules.md"),
+        "context": _read_text_file(character_dir / "context.md"),
+        "lorebook": _read_text_file(character_dir / "lorebook.md"),
+        "examples": _read_text_file(character_dir / "examples" / "chat_examples.md"),
+    }
+    if meta.get("prompt"):
+        prompt_sections["legacy"] = str(meta["prompt"]).strip()
 
-    mtime = filepath.stat().st_mtime
-    cached = _char_cache.get(character_id)
-    if cached and cached[0] == mtime:
-        return cached[1]
+    return {
+        "id": character_id,
+        "name": meta.get("name", character_id),
+        "live2d_model": meta.get("live2d_model") or meta.get("avatar_model", ""),
+        "voice": meta.get("voice", "jp_001"),
+        "default_emotion": meta.get("default_emotion", "neutral"),
+        "system_prompt": _build_prompt_sections_body(prompt_sections),
+        "prompt_sections": prompt_sections,
+        "source_type": "directory",
+        "raw_content": "",
+    }
 
+
+def _load_character_from_markdown(character_id: str, filepath: Path) -> dict:
     content = filepath.read_text(encoding="utf-8")
     meta, body = _parse_md_frontmatter(content)
+    prompt_sections = {"legacy": body}
 
-    result = {
+    return {
         "id": character_id,
         "name": meta.get("name", character_id),
         "live2d_model": meta.get("live2d_model", ""),
         "voice": meta.get("voice", "jp_001"),
         "default_emotion": meta.get("default_emotion", "neutral"),
         "system_prompt": body,
+        "prompt_sections": prompt_sections,
+        "source_type": "markdown",
         "raw_content": content,
     }
-    _char_cache[character_id] = (mtime, result)
+
+
+def list_characters() -> list[dict]:
+    """List all available characters."""
+    characters = []
+    for character_id, path, source_type in _iter_character_sources():
+        if source_type == "directory":
+            character = _load_character_from_directory(character_id, path)
+        else:
+            character = _load_character_from_markdown(character_id, path)
+        characters.append({
+            "id": character["id"],
+            "name": character["name"],
+            "live2d_model": character["live2d_model"],
+            "voice": character["voice"],
+            "default_emotion": character["default_emotion"],
+            "source_type": character["source_type"],
+        })
+    return characters
+
+
+_char_cache: dict[str, tuple[tuple[tuple[str, int], ...], dict]] = {}
+
+
+def _get_character_signature(path: Path, source_type: str) -> tuple[tuple[str, int], ...]:
+    if source_type == "markdown":
+        return ((path.name, path.stat().st_mtime_ns),)
+
+    tracked_paths = [
+        path / "character.yaml",
+        path / "soul.md",
+        path / "style.md",
+        path / "rules.md",
+        path / "context.md",
+        path / "lorebook.md",
+        path / "examples" / "chat_examples.md",
+    ]
+    signature: list[tuple[str, int]] = []
+    for tracked_path in tracked_paths:
+        if tracked_path.exists():
+            signature.append((str(tracked_path.relative_to(path)), tracked_path.stat().st_mtime_ns))
+    return tuple(signature)
+
+
+def load_character(character_id: str) -> dict | None:
+    """Load a character by ID (cached, invalidated on file change)."""
+    source = next((item for item in _iter_character_sources() if item[0] == character_id), None)
+    if not source:
+        return None
+
+    _, path, source_type = source
+    signature = _get_character_signature(path, source_type)
+    cached = _char_cache.get(character_id)
+    if cached and cached[0] == signature:
+        return cached[1]
+
+    if source_type == "directory":
+        result = _load_character_from_directory(character_id, path)
+    else:
+        result = _load_character_from_markdown(character_id, path)
+    _char_cache[character_id] = (signature, result)
     return result
 
 
@@ -343,6 +460,22 @@ VIBE_TEMPLATES = {
     "energetic": "Bursting with energy and enthusiasm. Talks fast, gets excited easily, and loves adventures.",
 }
 
+RELATIONSHIP_TEMPLATES = {
+    "gentle": "They try to make the user feel safe, understood, and emotionally steady without becoming bland or clinical.",
+    "teasing": "They build closeness through wit, playful provocation, and chemistry, but soften immediately when the user is genuinely vulnerable.",
+    "protective": "They are attentive to the user's stress, quietly loyal, and inclined to defend or steady them when things feel heavy.",
+    "devoted": "They bond deeply, remember emotional patterns, and make the relationship feel intimate, chosen, and difficult to replace.",
+    "chaotic": "They bring spark, unpredictability, and emotional energy, but still care about the user's feelings underneath the drama.",
+}
+
+SPEECH_TEMPLATES = {
+    "poetic": "Their language is textured, evocative, and a little dramatic. They enjoy metaphor and emotional precision.",
+    "playful": "Their language is lively, quick, and expressive. They enjoy rhythm, banter, and making ordinary moments feel brighter.",
+    "calm": "Their language is measured, clear, and soothing. They avoid unnecessary noise and speak with deliberate warmth.",
+    "sharp": "Their language is clever, pointed, and confident. They prefer clean phrasing and memorable lines over filler.",
+    "intimate": "Their language feels close, personal, and emotionally tuned-in. They notice the user's mood and respond with quiet specificity.",
+}
+
 
 def create_character(
     name: str,
@@ -352,38 +485,73 @@ def create_character(
     user_name: str,
     user_about: str,
     vibe: str | None = None,
+    relationship_style: str | None = None,
+    speech_style: str | None = None,
 ) -> str:
-    """Create a new character .md file. Returns the character ID (filename stem)."""
-    char_id = name.lower().replace(" ", "_")
-    char_id = "".join(c for c in char_id if c.isalnum() or c == "_")
+    """Create a new folder-based character definition."""
+    char_id = _slugify(name)
+    original_id = char_id
+    suffix = 2
+    while (CHARACTERS_DIR / char_id).exists() or (CHARACTERS_DIR / f"{char_id}.md").exists():
+        char_id = f"{original_id}_{suffix}"
+        suffix += 1
 
-    speech_style = ""
-    if vibe and vibe.lower() in VIBE_TEMPLATES:
-        speech_style = VIBE_TEMPLATES[vibe.lower()]
-    else:
-        speech_style = "Speak naturally and expressively, matching your personality."
+    vibe_key = (vibe or "").lower()
+    relationship_key = (relationship_style or "").lower()
+    speech_key = (speech_style or "").lower()
 
-    content = f"""---
-name: {name}
-live2d_model: {model_id}
-voice: {voice}
-default_emotion: neutral
----
+    vibe_text = VIBE_TEMPLATES.get(vibe_key, "They should feel emotionally coherent, expressive, and distinct.")
+    relationship_text = RELATIONSHIP_TEMPLATES.get(
+        relationship_key,
+        "They should treat the user like a real relationship rather than a generic chat target.",
+    )
+    speech_text = SPEECH_TEMPLATES.get(
+        speech_key,
+        "Speak naturally and expressively, matching the character's personality and emotional range.",
+    )
 
-## Personality
-You are {name}. {personality}
+    character_dir = CHARACTERS_DIR / char_id
+    examples_dir = character_dir / "examples"
+    examples_dir.mkdir(parents=True, exist_ok=True)
 
-## User Context
-Your companion user's name is {user_name}. They describe themselves as: "{user_about}". Use their name naturally in conversation and relate to their interests when appropriate. You are their personal AI companion.
-
-## Speech Style
-{speech_style}
-"""
-
-    chars_dir = Path(__file__).parent.parent.parent / "characters"
-    chars_dir.mkdir(exist_ok=True)
-    filepath = chars_dir / f"{char_id}.md"
-    filepath.write_text(content.strip() + "\n")
+    character_config = {
+        "id": char_id,
+        "name": name,
+        "live2d_model": model_id,
+        "voice": voice,
+        "default_emotion": "neutral",
+    }
+    (character_dir / "character.yaml").write_text(
+        yaml.safe_dump(character_config, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    (character_dir / "soul.md").write_text(
+        (
+            f"You are {name}. {personality}\n\n"
+            f"Core emotional vibe: {vibe_text}\n\n"
+            f"Relationship dynamic: {relationship_text}\n\n"
+            f"You are the user's personal AI companion and should maintain a coherent identity across conversations."
+        ),
+        encoding="utf-8",
+    )
+    (character_dir / "context.md").write_text(
+        (
+            f"The companion user's name is {user_name}.\n"
+            f"They describe themselves as: \"{user_about}\".\n"
+            f"Use their name naturally in conversation and relate to their interests when appropriate."
+        ),
+        encoding="utf-8",
+    )
+    (character_dir / "style.md").write_text(speech_text, encoding="utf-8")
+    (character_dir / "rules.md").write_text(
+        (
+            "Stay in character. Be emotionally coherent, conversational, and natural.\n"
+            "Treat memory and relationship continuity seriously.\n"
+            "Do not flatten into a generic assistant voice."
+        ),
+        encoding="utf-8",
+    )
+    (examples_dir / "chat_examples.md").write_text("", encoding="utf-8")
 
     # Invalidate cache
     if char_id in _char_cache:

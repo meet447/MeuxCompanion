@@ -10,11 +10,25 @@ from backend.services.llm import chat_stream
 from backend.services.tts import generate_tts_auto
 from backend.services.character import load_character, build_system_prompt
 from backend.services.expressions import GLOBAL_EXPRESSIONS, resolve_expression
+from backend.services.memory_engine import (
+    format_memory_prompt,
+    remember_exchange,
+    retrieve_relevant_memories,
+)
+from backend.services.memory_store import ensure_memory_store
+from backend.services.session_store import (
+    append_session_message,
+    clear_session_history,
+    load_session_history,
+)
+from backend.services.state_store import (
+    format_state_prompt,
+    load_character_state,
+    update_character_state_from_exchange,
+)
 from backend.utils.emotion import _validate_expression
 
 router = APIRouter()
-
-chat_histories: dict[str, list[dict]] = {}
 
 EXPR_TAG = re.compile(r'<<([^/>][^>]*)>>')
 CLOSING_TAG = re.compile(r'<</[^>]*>>')
@@ -40,6 +54,14 @@ def _extract_expression(text: str, available: list[str] | None) -> tuple[str, st
     return default, text
 
 
+@router.get("/api/chat/history/{character_id}")
+def get_history(character_id: str, limit: int = 50):
+    character = load_character(character_id)
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    return {"character_id": character_id, "messages": load_session_history(character_id, limit=limit)}
+
+
 @router.post("/api/chat/stream")
 def stream_message(req: ChatRequest):
     character = load_character(req.character_id)
@@ -48,14 +70,18 @@ def stream_message(req: ChatRequest):
 
     model_id = character.get("live2d_model", "")
     system_prompt = build_system_prompt(character, GLOBAL_EXPRESSIONS)
-    if req.character_id not in chat_histories:
-        chat_histories[req.character_id] = []
-
-    history = chat_histories[req.character_id]
+    ensure_memory_store(req.character_id)
+    state_prompt = format_state_prompt(load_character_state(req.character_id))
+    relevant_memories = retrieve_relevant_memories(req.character_id, req.message, limit=4)
+    memory_prompt = format_memory_prompt(relevant_memories)
+    history = load_session_history(req.character_id, limit=20)
     messages = [{"role": "system", "content": system_prompt}]
-    messages.extend(history[-20:])
+    messages.append({"role": "system", "content": state_prompt})
+    if memory_prompt:
+        messages.append({"role": "system", "content": memory_prompt})
+    messages.extend(history)
     messages.append({"role": "user", "content": req.message})
-    history.append({"role": "user", "content": req.message})
+    append_session_message(req.character_id, "user", req.message)
 
     available = GLOBAL_EXPRESSIONS
 
@@ -164,8 +190,10 @@ def stream_message(req: ChatRequest):
             except Empty:
                 break
 
-        # Save to history
-        history.append({"role": "assistant", "content": " ".join(all_clean_text)})
+        assistant_text = " ".join(all_clean_text)
+        append_session_message(req.character_id, "assistant", assistant_text)
+        remember_exchange(req.character_id, req.message, assistant_text)
+        update_character_state_from_exchange(req.character_id, req.message, assistant_text)
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -173,8 +201,5 @@ def stream_message(req: ChatRequest):
 
 @router.post("/api/chat/clear")
 def clear_history(character_id: str = ""):
-    if character_id:
-        chat_histories.pop(character_id, None)
-    else:
-        chat_histories.clear()
+    clear_session_history(character_id=character_id)
     return {"status": "ok"}
