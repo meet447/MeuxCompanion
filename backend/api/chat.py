@@ -16,8 +16,8 @@ router = APIRouter()
 
 chat_histories: dict[str, list[dict]] = {}
 
-EXPR_TAG = re.compile(r'<<([^/>][^>]*)>>')  # Match <<name>> but not <</name>>
-CLOSING_TAG = re.compile(r'<</[^>]*>>')    # Match closing tags to strip them
+EXPR_TAG = re.compile(r'<<([^/>][^>]*)>>')
+CLOSING_TAG = re.compile(r'<</[^>]*>>')
 
 
 class ChatRequest(BaseModel):
@@ -26,7 +26,6 @@ class ChatRequest(BaseModel):
 
 
 def _extract_expression(text: str, available: list[str] | None) -> tuple[str, str]:
-    """Extract <<expression>> tag from text."""
     match = re.match(r'<<([^>]+)>>\s*', text)
     if match:
         expr = match.group(1).strip()
@@ -48,7 +47,6 @@ def stream_message(req: ChatRequest):
         raise HTTPException(status_code=404, detail="Character not found")
 
     model_id = character.get("live2d_model", "")
-    # LLM always picks from global expressions
     system_prompt = build_system_prompt(character, GLOBAL_EXPRESSIONS)
     voice = character.get("voice", "jp_001")
 
@@ -63,149 +61,109 @@ def stream_message(req: ChatRequest):
 
     available = GLOBAL_EXPRESSIONS
 
-    def map_expression(expr: str) -> str:
-        """Map global expression name to actual model expression ID."""
+    def map_expr(expr: str) -> str:
         return resolve_expression(model_id, expr)
 
     def generate():
-        buffer = ""
-        sentence_index = 0
-        current_expression = available[0] if available else "neutral"
-        all_clean_text = []
+        # Event queue — both LLM stream and TTS threads push events here
+        # This allows TTS audio to be sent as soon as it's ready
+        event_queue: Queue[str | None] = Queue()
+        all_clean_text: list[str] = []
+        sentence_index_counter = [0]
+        current_expression = [available[0]]
+        pending_text = [""]
+        tts_thread_count = [0]
+        llm_done = threading.Event()
 
-        # Audio results queue — TTS threads put results here
-        audio_ready: Queue[tuple[int, str | None]] = Queue()
-        pending_audio: dict[int, str | None] = {}
-        next_audio_to_send = 0
-        active_threads: list[threading.Thread] = []
+        def emit(event_str: str):
+            event_queue.put(event_str)
 
-        def tts_worker(idx: int, text: str, v: str):
-            audio = generate_tts(text, v)
-            audio_ready.put((idx, audio))
-
-        def try_send_audio():
-            """Collect completed TTS and yield any that are next in order."""
-            nonlocal next_audio_to_send
-            # Collect all completed results
-            while True:
-                try:
-                    idx, audio = audio_ready.get_nowait()
-                    pending_audio[idx] = audio
-                except Empty:
-                    break
-            # Send in order
-            events = []
-            while next_audio_to_send in pending_audio:
-                audio = pending_audio.pop(next_audio_to_send)
-                if audio:
-                    events.append(
-                        f"data: {json.dumps({'type': 'audio', 'index': next_audio_to_send, 'audio': audio})}\n\n"
-                    )
-                next_audio_to_send += 1
-            return events
-
-        def process_sentence(raw_sentence: str):
-            nonlocal sentence_index, current_expression
-
-            # Extract expression tag
-            expr, clean = _extract_expression(raw_sentence, available)
-            if clean != raw_sentence:
-                current_expression = expr
-
-            # Strip remaining tags
-            clean = re.sub(r'<<[^>]+>>\s*', '', clean).strip()
+        def process_segment(text: str, expression: str):
+            """Process a complete text segment — send sentence + start TTS."""
+            clean = re.sub(r'<<[^>]+>>\s*', '', text).strip()
+            clean = CLOSING_TAG.sub('', clean).strip()
             if not clean or len(clean) < 2:
                 return
 
+            idx = sentence_index_counter[0]
+            sentence_index_counter[0] += 1
+            mapped = map_expr(expression)
             all_clean_text.append(clean)
 
-            return {
-                "index": sentence_index,
-                "expression": current_expression,
-                "text": clean,
-            }
+            emit(f"data: {json.dumps({'type': 'sentence', 'index': idx, 'expression': mapped, 'text': clean})}\n\n")
 
-        # === MAIN STREAMING LOOP ===
-        # Split on <<expression>> tags — each tag starts a new segment
-        # Buffer accumulates tokens until the next tag or end of stream
-        pending_text = ""  # text for current expression segment
+            # Generate TTS in background — emit audio event when done
+            tts_thread_count[0] += 1
 
-        for chunk in chat_stream(messages):
-            buffer += chunk
+            def tts_work():
+                audio = generate_tts(clean, voice)
+                if audio:
+                    emit(f"data: {json.dumps({'type': 'audio', 'index': idx, 'audio': audio})}\n\n")
+                tts_thread_count[0] -= 1
+                # If LLM is done and all TTS threads finished, signal completion
+                if llm_done.is_set() and tts_thread_count[0] <= 0:
+                    emit(None)  # sentinel to end the event stream
 
-            # Strip closing tags like <</name>>
-            buffer = CLOSING_TAG.sub('', buffer)
+            t = threading.Thread(target=tts_work, daemon=True)
+            t.start()
 
-            # Stream raw text for live display
-            yield f"data: {json.dumps({'type': 'text', 'text': chunk})}\n\n"
-
-            # Check if buffer contains a new <<expression>> tag
-            # Split: "text before <<expr>> text after"
-            while True:
-                match = EXPR_TAG.search(buffer)
-                if not match:
-                    break
-
-                # Everything before this tag belongs to the previous segment
-                before = buffer[:match.start()].strip()
-                new_expr = _validate_expression(match.group(1).strip(), available)
-                buffer = buffer[match.end():]
-
-                # Flush the previous segment
-                if pending_text or before:
-                    segment_text = (pending_text + " " + before).strip()
-                    segment_text = re.sub(r'<<[^>]+>>\s*', '', segment_text).strip()
-
-                    if segment_text and len(segment_text) >= 2:
-                        all_clean_text.append(segment_text)
-
-                        yield f"data: {json.dumps({'type': 'sentence', 'index': sentence_index, 'expression': map_expression(current_expression), 'text': segment_text})}\n\n"
-
-                        t = threading.Thread(
-                            target=tts_worker,
-                            args=(sentence_index, segment_text, voice),
-                            daemon=True,
-                        )
-                        t.start()
-                        active_threads.append(t)
-                        sentence_index += 1
-
-                    pending_text = ""
-
-                # Update expression for the next segment
-                current_expression = new_expr
-
-            # Accumulate remaining buffer as pending text
-            pending_text += buffer
+        def llm_worker():
+            """Stream LLM tokens, extract sentences on expression boundaries."""
             buffer = ""
 
-            # Check if any TTS finished and send audio
-            for event in try_send_audio():
+            for chunk in chat_stream(messages):
+                buffer += chunk
+                buffer = CLOSING_TAG.sub('', buffer)
+
+                # Send raw text for live display
+                emit(f"data: {json.dumps({'type': 'text', 'text': chunk})}\n\n")
+
+                # Check for expression tags — each one starts a new segment
+                while True:
+                    match = EXPR_TAG.search(buffer)
+                    if not match:
+                        break
+
+                    before = buffer[:match.start()].strip()
+                    new_expr = _validate_expression(match.group(1).strip(), available)
+                    buffer = buffer[match.end():]
+
+                    # Flush previous segment
+                    combined = (pending_text[0] + " " + before).strip()
+                    if combined:
+                        process_segment(combined, current_expression[0])
+                    pending_text[0] = ""
+                    current_expression[0] = new_expr
+
+                pending_text[0] += buffer
+                buffer = ""
+
+            # Flush final segment
+            final = pending_text[0].strip()
+            if final:
+                process_segment(final, current_expression[0])
+
+            llm_done.set()
+
+            # If no TTS threads are running, signal done immediately
+            if tts_thread_count[0] <= 0:
+                emit(None)
+
+        # Start LLM streaming in a background thread
+        llm_thread = threading.Thread(target=llm_worker, daemon=True)
+        llm_thread.start()
+
+        # Yield events as they arrive from any thread
+        while True:
+            try:
+                event = event_queue.get(timeout=30)
+                if event is None:
+                    break
                 yield event
+            except Empty:
+                break
 
-        # Flush final segment
-        final_text = re.sub(r'<<[^>]+>>\s*', '', pending_text).strip()
-        if final_text and len(final_text) >= 2:
-            all_clean_text.append(final_text)
-
-            yield f"data: {json.dumps({'type': 'sentence', 'index': sentence_index, 'expression': map_expression(current_expression), 'text': final_text})}\n\n"
-
-            t = threading.Thread(
-                target=tts_worker,
-                args=(sentence_index, final_text, voice),
-                daemon=True,
-            )
-            t.start()
-            active_threads.append(t)
-            sentence_index += 1
-
-        # Wait for remaining TTS and send audio
-        for t in active_threads:
-            t.join(timeout=15)
-
-        for event in try_send_audio():
-            yield event
-
+        # Save to history
         history.append({"role": "assistant", "content": " ".join(all_clean_text)})
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
