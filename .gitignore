@@ -17,6 +17,7 @@ frontend/dist/
 *.swo
 *~
 .claude/
+docs
 
 # OS
 .DS_Store
