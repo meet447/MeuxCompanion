@@ -8,10 +8,10 @@ export function MicButton({ listening, onToggle }: Props) {
     <button
       type="button"
       onClick={onToggle}
-      className={`rounded-xl px-3 py-2 text-sm transition-colors ${
+      className={`rounded-full p-2.5 transition-colors ${
         listening
-          ? "bg-red-700/80 hover:bg-red-600/80 text-red-100 animate-pulse"
-          : "bg-stone-800 hover:bg-stone-700 text-stone-400"
+          ? "bg-red-100 text-red-500 animate-pulse shadow-sm shadow-red-500/20"
+          : "text-slate-400 hover:text-blue-500 hover:bg-blue-50"
       }`}
       title={listening ? "Stop listening" : "Start voice input"}
     >

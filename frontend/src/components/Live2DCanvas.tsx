@@ -3,6 +3,7 @@ import { useLive2D } from "../hooks/useLive2D";
 import type { DebugInfo } from "../hooks/useLive2D";
 import type { ModelMapping } from "../types";
 import { BG_PRESETS } from "../constants/bgPresets";
+import { LoadingOverlay } from "./LoadingOverlay";
 
 interface Props {
   modelPath: string | null;
@@ -12,7 +13,9 @@ interface Props {
   userTyping: boolean;
   background: string;
   zoom: number;
+  framing: "full" | "half";
   onZoomChange: (zoom: number) => void;
+  onFramingChange: (framing: "full" | "half") => void;
   onBackgroundChange: (bg: string) => void;
   getAudioLevels?: () => { volume: number; mouthOpen: number; mouthForm: number };
 }
@@ -25,24 +28,33 @@ export const Live2DCanvas = memo(function Live2DCanvas({
   userTyping,
   background,
   zoom,
+  framing,
   onZoomChange,
+  onFramingChange,
   onBackgroundChange,
   getAudioLevels,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { loadModel, setExpression, startLipSync, stopLipSync, setZoom, setTypingReaction, getDebug } =
+  const { loadModel, setExpression, startLipSync, stopLipSync, setViewport, setTypingReaction, getDebug } =
     useLive2D(canvasRef);
   const prevModelPath = useRef<string | null>(null);
   const prevExpression = useRef<string>("");
   const [showBgPicker, setShowBgPicker] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
+  const [modelLoading, setModelLoading] = useState(false);
 
   useEffect(() => {
     if (modelPath && modelPath !== prevModelPath.current) {
       prevModelPath.current = modelPath;
-      loadModel(modelPath, modelMapping || undefined);
+      setModelLoading(true);
+      loadModel(modelPath, modelMapping || undefined).then(() => {
+        // apply viewport after load
+        setViewport(zoom, framing);
+      }).finally(() => setModelLoading(false));
     }
+    // Intentionally disabling lint rule - loading state is necessary for model loading UX
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/set-state-syntax-use-give-error-message
   }, [modelPath, modelMapping, loadModel]);
 
   useEffect(() => {
@@ -61,8 +73,8 @@ export const Live2DCanvas = memo(function Live2DCanvas({
   }, [speaking, startLipSync, stopLipSync, getAudioLevels]);
 
   useEffect(() => {
-    setZoom(zoom);
-  }, [zoom, setZoom]);
+    setViewport(zoom, framing);
+  }, [zoom, framing, setViewport]);
 
   useEffect(() => {
     setTypingReaction(userTyping);
@@ -79,9 +91,15 @@ export const Live2DCanvas = memo(function Live2DCanvas({
 
   return (
     <div
-      className="flex-1 flex items-center justify-center relative overflow-hidden"
+      className="w-full h-full flex items-center justify-center relative overflow-hidden"
       style={{ background }}
     >
+      <LoadingOverlay
+        visible={modelLoading}
+        message="Loading model..."
+        subMessage="Please wait"
+        variant="model"
+      />
       {!modelPath && (
         <div className="text-amber-200/50 text-center">
           <p className="text-lg">No Live2D model loaded</p>
@@ -204,6 +222,18 @@ export const Live2DCanvas = memo(function Live2DCanvas({
             +
           </button>
         </div>
+
+        {/* Framing toggle */}
+        <button
+          onClick={() => onFramingChange(framing === "full" ? "half" : "full")}
+          className={`backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
+            framing === "half"
+              ? "bg-blue-900/60 text-blue-400 font-medium"
+              : "bg-black/40 hover:bg-black/60 text-amber-200/70 hover:text-amber-200"
+          }`}
+        >
+          {framing.toUpperCase()}
+        </button>
 
         {/* Debug toggle */}
         <button
