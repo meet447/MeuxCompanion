@@ -35,6 +35,11 @@ const VIBES = ["Cheerful", "Chill", "Tsundere", "Gothic", "Mysterious", "Sassy",
 
 const STEPS = ["About You", "LLM Provider", "Voice & TTS", "Your Companion"];
 
+const inputClass = "w-full px-5 py-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/50 text-slate-700 text-[15px] outline-none transition-all placeholder-slate-400 border border-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 mb-5";
+const labelClass = "block text-sm font-semibold text-slate-700 tracking-wide mb-2 pl-1";
+const headingClass = "text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 mb-3 tracking-tight";
+const descriptionClass = "text-slate-500 text-[15px] mb-8 leading-relaxed";
+
 export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
   const [llmPresets, setLlmPresets] = useState<Record<string, LLMPreset>>({});
@@ -233,233 +238,267 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-xl">
+    <div className="h-screen overflow-y-auto bg-gradient-to-br from-blue-50 via-white to-indigo-50 relative">
+      {/* Decorative Blur Blobs */}
+      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-300/20 blur-[100px]" />
+        <div className="absolute top-[60%] -right-[10%] w-[60%] h-[60%] rounded-full bg-indigo-300/20 blur-[120px]" />
+      </div>
+
+      <div className="min-h-full flex flex-col items-center justify-center p-6 py-12">
+      <div className="w-full max-w-xl z-10 relative">
         {step < 4 && (
-          <div className="flex items-center justify-center gap-2 mb-8">
+          <div className="flex items-center justify-center gap-2 mb-10">
             {STEPS.map((label, i) => (
               <div key={label} className="flex items-center gap-2">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
                     i === step
-                      ? "bg-blue-500 text-white"
+                      ? "bg-blue-500 text-white shadow-md shadow-blue-500/30 scale-110"
                       : i < step
-                        ? "bg-blue-200 text-blue-700"
-                        : "bg-slate-200 text-slate-400"
+                        ? "bg-blue-100 text-blue-600"
+                        : "bg-white/60 text-slate-400 border border-slate-200/50"
                   }`}
                 >
                   {i < step ? "\u2713" : i + 1}
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div className={`w-8 h-0.5 ${i < step ? "bg-blue-300" : "bg-slate-200"}`} />
+                  <div className={`w-10 h-1 rounded-full transition-all duration-300 ${i < step ? "bg-blue-400/80" : "bg-white/60 border border-slate-100/50"}`} />
                 )}
               </div>
             ))}
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-lg shadow-blue-900/5 border border-slate-100 p-8">
+        <div className="backdrop-blur-3xl bg-white/90 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] shadow-blue-900/5 border border-white p-10 ring-1 ring-slate-100/50">
           {step === 0 && (
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Let's set up your AI companion</h2>
-              <p className="text-slate-500 mb-6">Tell us a bit about yourself so your companion can get to know you.</p>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <h2 className={headingClass}>Let's set up your companion</h2>
+              <p className={descriptionClass}>Tell us a bit about yourself so your companion can get to know you.</p>
+              
+              <label className={labelClass}>Your Name</label>
               <input
                 type="text"
                 value={form.user.name}
                 onChange={(e) => updateForm("user", "name", e.target.value)}
                 placeholder="What should your companion call you?"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4"
+                className={inputClass}
               />
-              <label className="block text-sm font-medium text-slate-700 mb-1">About Yourself</label>
+              
+              <label className={labelClass}>About Yourself</label>
               <textarea
                 value={form.user.about}
                 onChange={(e) => updateForm("user", "about", e.target.value)}
-                placeholder="Tell your companion a bit about yourself — your interests, what you do, what you enjoy talking about..."
+                placeholder="Tell your companion a bit about yourself — your interests, what you do..."
                 rows={4}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                className={`${inputClass} resize-none mb-2 rounded-3xl`}
               />
             </div>
           )}
 
           {step === 1 && (
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Connect your AI brain</h2>
-              <p className="text-slate-500 mb-6">Choose an LLM provider. Any OpenAI-compatible API works.</p>
-              <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <h2 className={headingClass}>Connect your AI brain</h2>
+              <p className={descriptionClass}>Choose an LLM provider. Any OpenAI-compatible API works.</p>
+              
+              <div className="grid grid-cols-2 gap-3 mb-6">
                 {Object.entries(llmPresets).map(([id, preset]) => (
                   <button
                     key={id}
                     onClick={() => selectLLMPreset(id)}
-                    className={`px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                    className={`px-4 py-3.5 rounded-2xl text-[14px] font-semibold border transition-all ${
                       form.llm.provider === id
-                        ? "border-blue-400 bg-blue-50 text-blue-700"
-                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                        ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 hover:-translate-y-0.5"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:shadow-sm"
                     }`}
                   >
                     {preset.name}
                   </button>
                 ))}
               </div>
+              
               {form.llm.provider && (
-                <>
+                <div className="animate-in fade-in duration-300">
                   {llmPresets[form.llm.provider]?.needs_key !== false && (
                     <>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">API Key</label>
+                      <label className={labelClass}>API Key</label>
                       <input
                         type="password"
                         value={form.llm.api_key}
                         onChange={(e) => { updateForm("llm", "api_key", e.target.value); setTestResult(null); }}
                         placeholder="Paste your API key"
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4"
+                        className={inputClass}
                       />
                     </>
                   )}
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Model</label>
+                  
+                  <label className={labelClass}>Model</label>
                   <input
                     type="text"
                     value={form.llm.model}
                     onChange={(e) => { updateForm("llm", "model", e.target.value); setTestResult(null); }}
                     placeholder="e.g. gpt-4o"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4"
+                    className={inputClass}
                   />
+                  
                   {form.llm.provider === "custom" && (
                     <>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Base URL</label>
+                      <label className={labelClass}>Base URL</label>
                       <input
                         type="text"
                         value={form.llm.base_url}
                         onChange={(e) => { updateForm("llm", "base_url", e.target.value); setTestResult(null); }}
                         placeholder="https://api.example.com/v1"
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4"
+                        className={inputClass}
                       />
                     </>
                   )}
+                  
                   <button
                     onClick={testConnection}
                     disabled={testing}
-                    className="w-full py-2.5 rounded-xl bg-slate-800 text-white font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                    className="w-full py-3.5 rounded-2xl bg-white border border-slate-200 text-slate-600 text-[15px] font-medium hover:bg-slate-50 hover:border-slate-300 shadow-sm disabled:opacity-50 transition-all mb-4"
                   >
                     {testing ? "Testing..." : "Test Connection"}
                   </button>
+                  
                   {testResult && (
-                    <div className={`mt-3 px-4 py-2.5 rounded-xl text-sm ${
+                    <div className={`px-5 py-4 rounded-2xl text-[15px] font-medium animate-in fade-in ${
                       testResult.success
-                        ? "bg-green-50 text-green-700 border border-green-200"
-                        : "bg-red-50 text-red-700 border border-red-200"
+                        ? "bg-green-50 text-green-700 border border-green-200/50 shadow-sm"
+                        : "bg-red-50 text-red-700 border border-red-200/50 shadow-sm"
                     }`}>
                       {testResult.success ? "Connected successfully!" : testResult.error || "Connection failed"}
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}
 
           {step === 2 && (
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Choose a voice</h2>
-              <p className="text-slate-500 mb-6">Pick a TTS provider and voice for your companion.</p>
-              <label className="block text-sm font-medium text-slate-700 mb-1">TTS Provider</label>
-              <div className="flex gap-2 mb-4">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <h2 className={headingClass}>Choose a voice</h2>
+              <p className={descriptionClass}>Pick a TTS provider and voice for your companion.</p>
+              
+              <label className={labelClass}>TTS Provider</label>
+              <div className="flex flex-wrap gap-3 mb-6">
                 {Object.entries(ttsPresets).map(([id, preset]) => (
                   <button
                     key={id}
                     onClick={() => updateForm("tts", "provider", id)}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                    className={`px-4 py-3 rounded-2xl text-[14px] font-semibold border transition-all ${
                       form.tts.provider === id
-                        ? "border-blue-400 bg-blue-50 text-blue-700"
-                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                        ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 hover:-translate-y-0.5"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:shadow-sm"
                     }`}
                   >
                     {preset.name}
                   </button>
                 ))}
               </div>
-              {ttsPresets[form.tts.provider]?.needs_key && (
-                <>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">API Key</label>
-                  <input
-                    type="password"
-                    value={form.tts.api_key}
-                    onChange={(e) => updateForm("tts", "api_key", e.target.value)}
-                    placeholder="Paste your API key"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4"
-                  />
-                </>
-              )}
-              <label className="block text-sm font-medium text-slate-700 mb-1">Voice</label>
-              <div className="flex gap-2 mb-4">
-                <select
-                  value={form.tts.voice}
-                  onChange={(e) => updateForm("tts", "voice", e.target.value)}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                >
-                  {voices.map((v) => (
-                    <option key={v.id} value={v.id}>{v.name}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={playSample}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-600 text-sm font-medium transition-colors"
-                >
-                  Play Sample
-                </button>
+              
+              <div className="animate-in fade-in duration-300">
+                {ttsPresets[form.tts.provider]?.needs_key && (
+                  <>
+                    <label className={labelClass}>API Key</label>
+                    <input
+                      type="password"
+                      value={form.tts.api_key}
+                      onChange={(e) => updateForm("tts", "api_key", e.target.value)}
+                      placeholder="Paste your API key"
+                      className={inputClass}
+                    />
+                  </>
+                )}
+                
+                <label className={labelClass}>Voice</label>
+                <div className="flex gap-3 mb-4">
+                  <div className="relative flex-1">
+                    <select
+                      value={form.tts.voice}
+                      onChange={(e) => updateForm("tts", "voice", e.target.value)}
+                      className={`${inputClass} appearance-none cursor-pointer mb-0`}
+                    >
+                      {voices.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </div>
+                  </div>
+                  <button
+                    onClick={playSample}
+                    className="px-6 rounded-2xl bg-white border border-slate-200 text-blue-600 text-[15px] font-semibold hover:bg-slate-50 hover:border-blue-200 shadow-sm transition-all"
+                  >
+                    Play Sample
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {step === 3 && (
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Create your companion</h2>
-              <p className="text-slate-500 mb-6">Give your companion a name and personality.</p>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Companion Name</label>
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <h2 className={headingClass}>Create your companion</h2>
+              <p className={descriptionClass}>Give your companion a name and personality.</p>
+              
+              <label className={labelClass}>Companion Name</label>
               <input
                 type="text"
                 value={form.companion.name}
                 onChange={(e) => updateForm("companion", "name", e.target.value)}
                 placeholder="What's your companion's name?"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4"
+                className={inputClass}
               />
-              <label className="block text-sm font-medium text-slate-700 mb-2">Vibe</label>
-              <div className="flex flex-wrap gap-2 mb-4">
+              
+              <label className={labelClass}>Vibe</label>
+              <div className="flex flex-wrap gap-2.5 mb-6">
                 {VIBES.map((vibe) => (
                   <button
                     key={vibe}
                     onClick={() => selectVibe(vibe)}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                    className={`px-4 py-2 rounded-full text-[14px] font-semibold border transition-all ${
                       form.companion.vibe === vibe
-                        ? "border-blue-400 bg-blue-50 text-blue-700"
-                        : "border-slate-200 hover:border-slate-300 text-slate-500"
+                        ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
                     }`}
                   >
                     {vibe}
                   </button>
                 ))}
               </div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Personality</label>
+              
+              <label className={labelClass}>Personality</label>
               <textarea
                 value={form.companion.personality}
                 onChange={(e) => updateForm("companion", "personality", e.target.value)}
                 placeholder="Describe your companion's personality... e.g., cheerful and energetic, calm and wise, playful and sarcastic"
                 rows={4}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none mb-4"
+                className={`${inputClass} resize-none rounded-3xl`}
               />
-              <label className="block text-sm font-medium text-slate-700 mb-1">Model</label>
+              
+              <label className={labelClass}>Model</label>
               {models.length > 1 ? (
-                <select
-                  value={form.companion.model_id}
-                  onChange={(e) => updateForm("companion", "model_id", e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                >
-                  {models.map((m) => (
-                    <option key={m.id} value={m.id}>{m.id} ({m.type})</option>
-                  ))}
-                </select>
+                <div className="relative mb-2">
+                  <select
+                    value={form.companion.model_id}
+                    onChange={(e) => updateForm("companion", "model_id", e.target.value)}
+                    className={`${inputClass} appearance-none cursor-pointer mb-0`}
+                  >
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>{m.id} ({m.type})</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                </div>
               ) : (
-                <div className="px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-sm">
+                <div className="px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100/80 text-slate-600 text-sm mb-2 shadow-sm font-medium">
                   Using default model (haru).
-                  <span className="block text-xs text-slate-400 mt-1">
+                  <span className="block text-[13px] text-slate-400 font-normal mt-1.5 leading-relaxed">
                     To use a custom model, place it in models/live2d/ or models/vrm/ and restart.
                   </span>
                 </div>
@@ -468,12 +507,12 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
           )}
 
           {step === 4 && (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
+            <div className="text-center py-12 animate-in fade-in zoom-in-95 duration-500">
+              <div className="w-20 h-20 bg-gradient-to-tr from-green-400 to-emerald-400 text-white shadow-lg shadow-green-500/30 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
                 {"\u2713"}
               </div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">You're all set!</h2>
-              <p className="text-slate-500">Meet {form.companion.name}. Loading your companion...</p>
+              <h2 className="text-3xl font-extrabold text-slate-800 mb-3 tracking-tight">You're all set!</h2>
+              <p className="text-slate-500 text-[16px] max-w-sm mx-auto">Meet <span className="font-semibold text-blue-600">{form.companion.name}</span>. Loading your companion now...</p>
             </div>
           )}
 
@@ -484,11 +523,13 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
           )}
 
           {step < 4 && (
-            <div className="flex justify-between mt-8">
+            <div className="flex justify-between mt-10 space-x-4">
               <button
                 onClick={() => setStep(step - 1)}
                 disabled={step === 0}
-                className="px-6 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-0 transition-colors"
+                className={`w-1/3 py-3.5 rounded-2xl bg-white border border-slate-200 text-slate-600 text-[15px] font-medium transition-all ${
+                  step === 0 ? "opacity-0 pointer-events-none" : "hover:bg-slate-50 hover:border-slate-300 shadow-sm"
+                }`}
               >
                 Back
               </button>
@@ -496,15 +537,15 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <button
                   onClick={() => setStep(step + 1)}
                   disabled={!canProceed()}
-                  className="px-6 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                  className="flex-1 py-3.5 rounded-2xl bg-blue-500 text-white text-[15px] font-semibold hover:bg-blue-600 shadow-md shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 transition-all active:translate-y-0"
                 >
-                  Next
+                  Continue
                 </button>
               ) : (
                 <button
                   onClick={handleFinish}
                   disabled={!canProceed() || submitting}
-                  className="px-6 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                  className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-[15px] font-semibold hover:from-blue-600 hover:to-indigo-700 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 transition-all active:translate-y-0"
                 >
                   {submitting ? "Setting up..." : "Finish"}
                 </button>
@@ -512,6 +553,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

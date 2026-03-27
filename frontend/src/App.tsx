@@ -217,7 +217,14 @@ function App() {
   if (onboardingComplete === null) {
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <div className="text-slate-400 font-medium">Loading...</div>
+        <div className="flex flex-col items-center gap-5">
+          <div className="flex gap-2">
+            <span className="w-3 h-3 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-3 h-3 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-3 h-3 rounded-full bg-blue-400 animate-bounce" />
+          </div>
+          <div className="text-slate-400 font-semibold text-sm tracking-wide uppercase">Loading</div>
+        </div>
       </div>
     );
   }
