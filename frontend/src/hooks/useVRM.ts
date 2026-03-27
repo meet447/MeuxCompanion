@@ -174,12 +174,12 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       if (vrm.humanoid) {
         const leftUpperArm = vrm.humanoid.getNormalizedBoneNode("leftUpperArm");
         const rightUpperArm = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
-        // Z rotation brings arms down from T-pose
+        // Blend arms toward rest position (absolute, not additive)
         if (leftUpperArm) {
-          leftUpperArm.rotation.z += 0.6;
+          leftUpperArm.rotation.z = lerp(leftUpperArm.rotation.z, 0.6, 0.1);
         }
         if (rightUpperArm) {
-          rightUpperArm.rotation.z -= 0.6;
+          rightUpperArm.rotation.z = lerp(rightUpperArm.rotation.z, -0.6, 0.1);
         }
       }
 
@@ -353,18 +353,21 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         // Load FBX animations
         if (animations && animations.length > 0) {
           const fbxLoader = new FBXLoader();
-          for (const anim of animations) {
-            try {
-              const fbx = await fbxLoader.loadAsync(anim.path);
-              const clip = retargetAnimation(fbx, vrm, anim.name);
-              if (clip) {
-                clipsRef.current.set(anim.name, clip);
-                console.log(`[VRM] Loaded animation: "${anim.name}" (${clip.duration.toFixed(1)}s)`);
+          // Load all animations in parallel
+          await Promise.allSettled(
+            animations.map(async (anim) => {
+              try {
+                const fbx = await fbxLoader.loadAsync(anim.path);
+                const clip = retargetAnimation(fbx, vrm, anim.name);
+                if (clip) {
+                  clipsRef.current.set(anim.name, clip);
+                  console.log(`[VRM] Loaded animation: "${anim.name}" (${clip.duration.toFixed(1)}s)`);
+                }
+              } catch (err) {
+                console.warn(`[VRM] Failed to load animation "${anim.name}":`, err);
               }
-            } catch (err) {
-              console.warn(`[VRM] Failed to load animation "${anim.name}":`, err);
-            }
-          }
+            })
+          );
 
           // Play idle animation if available
           const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
