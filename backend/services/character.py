@@ -95,7 +95,10 @@ def get_model_expressions(model_id: str) -> list[str]:
         model3_path = _find_model3_json(model_dir)
         if not model3_path:
             return []
-        model_data = json.loads(model3_path.read_text(encoding="utf-8"))
+        try:
+            model_data = json.loads(model3_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, ValueError):
+            return []
         expressions = model_data.get("FileReferences", {}).get("Expressions", [])
         return [e.get("Name", "") for e in expressions if e.get("Name")]
 
@@ -115,10 +118,12 @@ def build_system_prompt(character: dict, expressions: list[str] | None = None) -
 
     return (
         f"You are {name}. Stay in character at all times.\n"
-        f"Every response must start with an expression tag in this format: [expression: <name>]\n"
+        f"You can change your expression at any point by inserting a tag: <<expression_name>>\n"
         f"Available expressions: {expressions_str}\n"
-        f"Pick the expression that best matches the emotion of your response. "
-        f"If none fits well, use the first one as the default.\n\n"
+        f"Use expressions naturally throughout your response to match the emotion of each sentence.\n"
+        f"You MUST start your response with an expression tag.\n"
+        f"Example: <<happy>> Hey, that's great! <<surprised>> Wait, really? <<happy>> Hehe, just kidding!\n"
+        f"IMPORTANT: Use EXACTLY the expression names listed above inside << >> tags. Do not invent new ones.\n\n"
         f"{body}"
     )
 

@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } fro
 import { ChatPanel } from "./components/ChatPanel";
 import { CharacterSelect } from "./components/CharacterSelect";
 import { useChat } from "./hooks/useChat";
+import { useAudioQueue } from "./hooks/useAudioQueue";
 import { useVoice } from "./hooks/useVoice";
 import type { Character, ModelInfo } from "./types";
 
-// Lazy load renderers — only one is active at a time
 const Live2DCanvas = lazy(() => import("./components/Live2DCanvas").then(m => ({ default: m.Live2DCanvas })));
 const VRMCanvas = lazy(() => import("./components/VRMCanvas").then(m => ({ default: m.VRMCanvas })));
 
@@ -24,20 +24,32 @@ function App() {
   const [zoom, setZoom] = useState(1.2);
   const [userTyping, setUserTyping] = useState(false);
 
-  const { messages, loading, streamingText, sendMessage, clearMessages, setOnExpression } =
+  const { messages, loading, streamingText, sendMessage, clearMessages, setOnSentence, setOnAudio } =
     useChat();
-  const { listening, speaking, startListening, stopListening, fetchAndPlayTTS, getAudioLevels } =
-    useVoice();
+  const { listening, startListening, stopListening } = useVoice();
+  const { speaking, addSentence, addAudio, clearQueue, getAudioLevels, setOnExpressionChange } =
+    useAudioQueue();
 
   const idleTimerRef = useRef<number | null>(null);
   const hasGreetedRef = useRef<Set<string>>(new Set());
   const selectedCharRef = useRef<Character | undefined>(undefined);
 
+  // Wire audio queue events to model
   useEffect(() => {
-    setOnExpression((expr: string) => {
+    setOnExpressionChange((expr: string) => {
       setCurrentExpression(expr);
     });
-  }, [setOnExpression]);
+  }, [setOnExpressionChange]);
+
+  // Wire chat sentence events to audio queue
+  useEffect(() => {
+    setOnSentence((task) => {
+      addSentence(task);
+    });
+    setOnAudio((index, audio) => {
+      addAudio(index, audio);
+    });
+  }, [setOnSentence, setOnAudio, addSentence, addAudio]);
 
   useEffect(() => {
     fetch("/api/characters")
@@ -54,7 +66,6 @@ function App() {
       .catch(console.error);
   }, []);
 
-  // Memoize expensive lookups
   const selectedChar = useMemo(
     () => characters.find((c) => c.id === selectedCharId),
     [characters, selectedCharId]
@@ -70,7 +81,6 @@ function App() {
   const modelType = selectedModel?.type ?? "live2d";
   const modelMapping = selectedModel?.mapping ?? null;
 
-  // Stable idle timer using ref to break callback chain
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) {
       clearTimeout(idleTimerRef.current);
@@ -97,14 +107,9 @@ function App() {
     ];
     const prompt = idlePrompts[Math.floor(Math.random() * idlePrompts.length)];
 
-    const response = await sendMessage(selectedCharId, `[system: ${prompt}]`);
-    if (response) {
-      setCurrentExpression(response.expression || "neutral");
-      const voice = selectedCharRef.current?.voice || "jp_001";
-      fetchAndPlayTTS(response.text, voice);
-    }
+    await sendMessage(selectedCharId, `[system: ${prompt}]`);
     startIdleTimer();
-  }, [selectedCharId, loading, sendMessage, fetchAndPlayTTS, startIdleTimer]);
+  }, [selectedCharId, loading, sendMessage, startIdleTimer]);
 
   useEffect(() => {
     sendIdleMessageRef.current = sendIdleMessage;
@@ -114,16 +119,12 @@ function App() {
     async (text: string) => {
       if (!selectedCharId) return;
       resetIdleTimer();
+      clearQueue();
 
-      const response = await sendMessage(selectedCharId, text);
-      if (response) {
-        setCurrentExpression(response.expression || "neutral");
-        const voice = selectedCharRef.current?.voice || "jp_001";
-        fetchAndPlayTTS(response.text, voice);
-      }
+      await sendMessage(selectedCharId, text);
       startIdleTimer();
     },
-    [selectedCharId, sendMessage, fetchAndPlayTTS, resetIdleTimer, startIdleTimer]
+    [selectedCharId, sendMessage, resetIdleTimer, startIdleTimer, clearQueue]
   );
 
   // Greeting on character load
@@ -132,21 +133,15 @@ function App() {
 
     const timer = setTimeout(async () => {
       hasGreetedRef.current.add(selectedCharId);
-
-      const response = await sendMessage(
+      await sendMessage(
         selectedCharId,
         "[system: The user just opened the app. Greet them warmly and in-character. Keep it short — 1-2 sentences.]"
       );
-      if (response) {
-        setCurrentExpression(response.expression || "neutral");
-        const voice = selectedCharRef.current?.voice || "jp_001";
-        fetchAndPlayTTS(response.text, voice);
-      }
       startIdleTimer();
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [selectedCharId, sendMessage, fetchAndPlayTTS, startIdleTimer]);
+  }, [selectedCharId, sendMessage, startIdleTimer]);
 
   const handleTypingChange = useCallback(
     (isTyping: boolean) => {
@@ -170,14 +165,14 @@ function App() {
     (id: string) => {
       setSelectedCharId(id);
       clearMessages();
+      clearQueue();
       setCurrentExpression("neutral");
       setZoom(1.2);
       resetIdleTimer();
     },
-    [clearMessages, resetIdleTimer]
+    [clearMessages, clearQueue, resetIdleTimer]
   );
 
-  // Memoize canvas props to prevent unnecessary re-renders
   const canvasProps = useMemo(() => ({
     modelPath,
     expression: currentExpression,
