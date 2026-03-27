@@ -299,9 +299,19 @@ function App() {
         <div className="w-[420px] rounded-[2rem] bg-white border border-slate-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] shadow-blue-900/5 my-2 mr-2 flex flex-col overflow-hidden relative backdrop-blur-3xl bg-white/95">
           {settingsOpen ? (
             <Settings
+              modelId={selectedModel?.id || ""}
+              onPreviewExpression={(expr) => setCurrentExpression(expr)}
               onClose={() => {
                 setSettingsOpen(false);
                 fetch("/api/characters").then((r) => r.json()).then(setCharacters);
+                if (selectedModel?.id) {
+                  fetch(`/api/expressions/configured/${selectedModel.id}`)
+                    .then((r) => r.json())
+                    .then((data) => {
+                      setExpressionsConfigured(data.configured);
+                      if (data.neutral) setNeutralExpression(data.neutral);
+                    });
+                }
               }}
             />
           ) : !expressionsConfigured ? (
