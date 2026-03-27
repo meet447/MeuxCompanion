@@ -58,27 +58,25 @@ def is_configured(model_id: str):
     if not raw_exprs:
         return {"configured": True, "neutral": "neutral"}
 
-    # Requires expression_mappings/{model_id}.json with values
+    # Check expression_mappings/{model_id}.json
     mapping = get_expression_mapping(model_id)
     if mapping and any(v for v in mapping.values()):
         neutral = mapping.get("neutral", "neutral")
         return {"configured": True, "neutral": neutral}
 
-    # Auto-generate from model's mapping.json if it exists
-    from backend.services.character import MODELS_DIR
-    import json
-    model_mapping_path = MODELS_DIR / model_id / "mapping.json"
-    if model_mapping_path.exists():
-        try:
-            data = json.loads(model_mapping_path.read_text(encoding="utf-8"))
-            emotions = data.get("emotions", {})
-            if emotions:
-                flat = {k: v.get("expression", "") for k, v in emotions.items() if v.get("expression")}
-                if flat:
-                    save_expression_mapping(model_id, flat)
-                    neutral = flat.get("neutral", "neutral")
-                    return {"configured": True, "neutral": neutral}
-        except (json.JSONDecodeError, ValueError):
-            pass
+    # No mapping yet — trigger auto-generation (regenerates mapping.json
+    # which now writes expressions to expression_mappings/)
+    from backend.services.character import load_model_mapping, MODELS_DIR
+    model_dir = MODELS_DIR / model_id
+    if model_dir.exists():
+        from backend.services.character import _auto_generate_mapping
+        _auto_generate_mapping(model_dir)
+        # Re-check after generation
+        from backend.services.expressions import _mapping_cache
+        _mapping_cache.pop(model_id, None)
+        mapping = get_expression_mapping(model_id)
+        if mapping and any(v for v in mapping.values()):
+            neutral = mapping.get("neutral", "neutral")
+            return {"configured": True, "neutral": neutral}
 
     return {"configured": False, "neutral": "neutral"}

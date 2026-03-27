@@ -313,9 +313,16 @@ def _auto_generate_mapping(model_dir: Path) -> dict:
             if emo in emotion_map and i < tap_count:
                 emotion_map[emo]["motion"] = {"group": "TapBody", "index": i}
 
-    mapping = {"emotions": emotion_map, "params": DEFAULT_PARAMS}
+    # Save expression mapping to expression_mappings/ (the sole source for emotions)
+    if emotion_map:
+        from backend.services.expressions import save_expression_mapping
+        flat_emotions = {k: v.get("expression", "") for k, v in emotion_map.items() if v.get("expression")}
+        if flat_emotions:
+            save_expression_mapping(model_dir.name, flat_emotions)
 
-    # Save the auto-generated mapping for future use
+    # mapping.json stores only params (canvas rendering config) — no emotions
+    mapping = {"params": DEFAULT_PARAMS}
+
     mapping_path = model_dir / "mapping.json"
     mapping_path.write_text(json.dumps(mapping, indent=2), encoding="utf-8")
 
@@ -323,18 +330,21 @@ def _auto_generate_mapping(model_dir: Path) -> dict:
 
 
 def load_model_mapping(model_id: str) -> dict:
-    """Load the mapping.json for a Live2D model, auto-generating if missing."""
+    """Load the mapping.json for a Live2D model, auto-generating if missing.
+    mapping.json only contains params (canvas rendering config).
+    Expression mappings live in expression_mappings/{model_id}.json."""
     model_dir = MODELS_DIR / model_id
     if not model_dir.exists():
-        return {"emotions": {}, "params": DEFAULT_PARAMS}
+        return {"params": DEFAULT_PARAMS}
 
-    # Check for mapping.json in the model dir
     mapping_path = model_dir / "mapping.json"
     if mapping_path.exists():
-        mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
-        # If mapping has no emotions, try regenerating (may have been empty placeholder)
-        if mapping.get("emotions"):
-            return mapping
+        try:
+            mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+            if mapping.get("params"):
+                return mapping
+        except (json.JSONDecodeError, ValueError):
+            pass
 
     return _auto_generate_mapping(model_dir)
 
