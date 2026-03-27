@@ -41,16 +41,24 @@ def list_characters() -> list[dict]:
     return characters
 
 
+_char_cache: dict[str, tuple[float, dict]] = {}
+
+
 def load_character(character_id: str) -> dict | None:
-    """Load a character by ID (filename without extension)."""
+    """Load a character by ID (cached, invalidated on file change)."""
     filepath = CHARACTERS_DIR / f"{character_id}.md"
     if not filepath.exists():
         return None
 
+    mtime = filepath.stat().st_mtime
+    cached = _char_cache.get(character_id)
+    if cached and cached[0] == mtime:
+        return cached[1]
+
     content = filepath.read_text(encoding="utf-8")
     meta, body = _parse_md_frontmatter(content)
 
-    return {
+    result = {
         "id": character_id,
         "name": meta.get("name", character_id),
         "live2d_model": meta.get("live2d_model", ""),
@@ -59,6 +67,8 @@ def load_character(character_id: str) -> dict | None:
         "system_prompt": body,
         "raw_content": content,
     }
+    _char_cache[character_id] = (mtime, result)
+    return result
 
 
 def _detect_model_type(model_id: str) -> str | None:

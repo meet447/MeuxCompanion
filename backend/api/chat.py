@@ -73,6 +73,7 @@ def stream_message(req: ChatRequest):
         current_expression = [available[0]]
         pending_text = [""]
         tts_thread_count = [0]
+        tts_lock = threading.Lock()
         llm_done = threading.Event()
 
         def emit(event_str: str):
@@ -93,16 +94,18 @@ def stream_message(req: ChatRequest):
             emit(f"data: {json.dumps({'type': 'sentence', 'index': idx, 'expression': mapped, 'text': clean})}\n\n")
 
             # Generate TTS in background — emit audio event when done
-            tts_thread_count[0] += 1
+            with tts_lock:
+                tts_thread_count[0] += 1
 
             def tts_work():
                 audio = generate_tts(clean, voice)
                 if audio:
                     emit(f"data: {json.dumps({'type': 'audio', 'index': idx, 'audio': audio})}\n\n")
-                tts_thread_count[0] -= 1
-                # If LLM is done and all TTS threads finished, signal completion
-                if llm_done.is_set() and tts_thread_count[0] <= 0:
-                    emit(None)  # sentinel to end the event stream
+                with tts_lock:
+                    tts_thread_count[0] -= 1
+                    should_signal = llm_done.is_set() and tts_thread_count[0] <= 0
+                if should_signal:
+                    emit(None)
 
             t = threading.Thread(target=tts_work, daemon=True)
             t.start()

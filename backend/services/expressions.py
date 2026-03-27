@@ -3,7 +3,6 @@ from pathlib import Path
 
 MAPPINGS_DIR = Path(__file__).parent.parent.parent / "models" / "expression_mappings"
 
-# Standard global expressions the LLM always picks from
 GLOBAL_EXPRESSIONS = [
     "neutral",
     "happy",
@@ -19,36 +18,46 @@ GLOBAL_EXPRESSIONS = [
     "disgusted",
 ]
 
+# In-memory cache for expression mappings
+_mapping_cache: dict[str, dict[str, str]] = {}
+
 
 def ensure_mappings_dir():
     MAPPINGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_expression_mapping(model_id: str) -> dict[str, str]:
-    """Load expression mapping for a model. Returns {global_name: model_expression_id}."""
+    """Load expression mapping for a model (cached)."""
+    if model_id in _mapping_cache:
+        return _mapping_cache[model_id]
+
     ensure_mappings_dir()
     path = MAPPINGS_DIR / f"{model_id}.json"
     if path.exists():
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            mapping = json.loads(path.read_text(encoding="utf-8"))
+            _mapping_cache[model_id] = mapping
+            return mapping
         except (json.JSONDecodeError, ValueError):
             pass
+
+    _mapping_cache[model_id] = {}
     return {}
 
 
 def save_expression_mapping(model_id: str, mapping: dict[str, str]):
-    """Save expression mapping for a model."""
+    """Save expression mapping for a model (updates cache)."""
     ensure_mappings_dir()
     path = MAPPINGS_DIR / f"{model_id}.json"
     path.write_text(json.dumps(mapping, indent=2, ensure_ascii=False), encoding="utf-8")
+    _mapping_cache[model_id] = mapping
 
 
 def resolve_expression(model_id: str, global_name: str) -> str:
-    """Resolve a global expression name to the actual model expression ID."""
+    """Resolve a global expression name to the actual model expression ID (cached)."""
     mapping = get_expression_mapping(model_id)
     if global_name in mapping and mapping[global_name]:
         return mapping[global_name]
-    # If no mapping, return the global name as-is (works for models with readable names)
     return global_name
 
 
