@@ -39,6 +39,8 @@ class CreateCharacterRequest(BaseModel):
     user_name: str
     user_about: str
     vibe: Optional[str] = None
+    relationship_style: Optional[str] = None
+    speech_style: Optional[str] = None
 
 
 @router.post("/api/characters/create")
@@ -51,5 +53,7 @@ def create_new_character(body: CreateCharacterRequest):
         user_name=body.user_name,
         user_about=body.user_about,
         vibe=body.vibe,
+        relationship_style=body.relationship_style,
+        speech_style=body.speech_style,
     )
     return {"id": char_id}

@@ -103,7 +103,38 @@ export function useChat() {
     []
   );
 
-  const clearMessages = useCallback(() => {
+  const loadHistory = useCallback(async (characterId: string) => {
+    try {
+      const res = await fetch(`/api/chat/history/${characterId}`);
+      if (!res.ok) throw new Error("Failed to load chat history");
+      const data = await res.json();
+      const restored: ChatMessage[] = (data.messages || [])
+        .filter((msg: { role?: string; content?: string }) => msg.role === "user" || msg.role === "assistant")
+        .map((msg: { role: "user" | "assistant"; content: string }) => ({
+          role: msg.role,
+          text: msg.content,
+        }));
+      setMessages(restored);
+      setStreamingText("");
+      return restored;
+    } catch (err) {
+      console.error("History load error:", err);
+      setMessages([]);
+      setStreamingText("");
+      return [];
+    }
+  }, []);
+
+  const clearMessages = useCallback(async (characterId?: string) => {
+    if (characterId) {
+      try {
+        await fetch(`/api/chat/clear?character_id=${encodeURIComponent(characterId)}`, {
+          method: "POST",
+        });
+      } catch (err) {
+        console.error("Clear chat error:", err);
+      }
+    }
     setMessages([]);
     setStreamingText("");
   }, []);
@@ -116,5 +147,5 @@ export function useChat() {
     onAudioRef.current = cb;
   }, []);
 
-  return { messages, loading, streamingText, sendMessage, clearMessages, setOnSentence, setOnAudio };
+  return { messages, loading, streamingText, sendMessage, loadHistory, clearMessages, setOnSentence, setOnAudio };
 }

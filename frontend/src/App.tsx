@@ -6,7 +6,7 @@ import { Settings } from "./components/Settings";
 import { useChat } from "./hooks/useChat";
 import { useAudioQueue } from "./hooks/useAudioQueue";
 import { useVoice } from "./hooks/useVoice";
-import type { Character, ModelInfo } from "./types";
+import type { Character, CharacterState, ModelInfo } from "./types";
 
 const Live2DCanvas = lazy(() => import("./components/Live2DCanvas").then(m => ({ default: m.Live2DCanvas })));
 const VRMCanvas = lazy(() => import("./components/VRMCanvas").then(m => ({ default: m.VRMCanvas })));
@@ -25,8 +25,9 @@ function App() {
   const [expressionsConfigured, setExpressionsConfigured] = useState<boolean | null>(null);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [userTyping, setUserTyping] = useState(false);
+  const [characterState, setCharacterState] = useState<CharacterState | null>(null);
 
-  const { messages, loading, streamingText, sendMessage, clearMessages, setOnSentence, setOnAudio } =
+  const { messages, loading, streamingText, sendMessage, loadHistory, clearMessages, setOnSentence, setOnAudio } =
     useChat();
   const { listening, startListening, stopListening } = useVoice();
   const { speaking, addSentence, addAudio, clearQueue, getAudioLevels, setOnExpressionChange, setNeutralExpression } =
@@ -35,6 +36,18 @@ function App() {
   const idleTimerRef = useRef<number | null>(null);
   const hasGreetedRef = useRef<Set<string>>(new Set());
   const selectedCharRef = useRef<Character | undefined>(undefined);
+
+  const refreshCharacterState = useCallback(async (characterId: string) => {
+    try {
+      const res = await fetch(`/api/state/${characterId}`);
+      if (!res.ok) throw new Error("Failed to load state");
+      const data = await res.json();
+      setCharacterState(data.state ?? null);
+    } catch (err) {
+      console.error("State load error:", err);
+      setCharacterState(null);
+    }
+  }, []);
 
   // Wire audio queue events to model
   useEffect(() => {
@@ -131,8 +144,9 @@ function App() {
     const prompt = idlePrompts[Math.floor(Math.random() * idlePrompts.length)];
 
     await sendMessage(selectedCharId, `[system: ${prompt}]`);
+    await refreshCharacterState(selectedCharId);
     startIdleTimer();
-  }, [selectedCharId, loading, expressionsConfigured, sendMessage, startIdleTimer]);
+  }, [selectedCharId, loading, expressionsConfigured, sendMessage, startIdleTimer, refreshCharacterState]);
 
   useEffect(() => {
     sendIdleMessageRef.current = sendIdleMessage;
@@ -145,14 +159,22 @@ function App() {
       clearQueue();
 
       await sendMessage(selectedCharId, text);
+      await refreshCharacterState(selectedCharId);
       startIdleTimer();
     },
-    [selectedCharId, expressionsConfigured, sendMessage, resetIdleTimer, startIdleTimer, clearQueue]
+    [selectedCharId, expressionsConfigured, sendMessage, resetIdleTimer, startIdleTimer, clearQueue, refreshCharacterState]
   );
+
+  useEffect(() => {
+    if (!selectedCharId) return;
+    clearMessages();
+    loadHistory(selectedCharId);
+    refreshCharacterState(selectedCharId);
+  }, [selectedCharId, loadHistory, clearMessages, refreshCharacterState]);
 
   // Greeting on character load — only fires once expressionsConfigured is confirmed true
   useEffect(() => {
-    if (!selectedCharId || expressionsConfigured !== true || hasGreetedRef.current.has(selectedCharId)) return;
+    if (!selectedCharId || expressionsConfigured !== true || hasGreetedRef.current.has(selectedCharId) || messages.length > 0) return;
 
     const timer = setTimeout(async () => {
       hasGreetedRef.current.add(selectedCharId);
@@ -160,11 +182,12 @@ function App() {
         selectedCharId,
         "[system: The user just opened the app. Greet them warmly and in-character. Keep it short — 1-2 sentences.]"
       );
+      await refreshCharacterState(selectedCharId);
       startIdleTimer();
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [selectedCharId, expressionsConfigured, sendMessage, startIdleTimer]);
+  }, [selectedCharId, expressionsConfigured, messages.length, sendMessage, startIdleTimer, refreshCharacterState]);
 
   const handleTypingChange = useCallback(
     (isTyping: boolean) => {
@@ -213,6 +236,14 @@ function App() {
   }), [modelPath, currentExpression, speaking, userTyping, background, zoom, framing, getAudioLevels]);
 
   const charName = selectedChar?.name || "Companion";
+  const stateMoodLabel = characterState?.mood ? characterState.mood : "neutral";
+  const relationshipLabel = characterState
+    ? characterState.affection >= 0.7
+      ? "close"
+      : characterState.affection >= 0.35 || characterState.trust >= 0.35
+        ? "warming"
+        : "new bond"
+    : "new bond";
 
   if (onboardingComplete === null) {
     return (
@@ -262,7 +293,22 @@ function App() {
           <svg className="w-6 h-6 text-blue-400" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
           </svg>
-          <h1 className="text-xl font-bold text-slate-700 tracking-wide uppercase">{charName}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-slate-700 tracking-wide uppercase">{charName}</h1>
+            <div className="hidden md:flex items-center gap-2">
+              <span className="rounded-full border border-blue-200/70 bg-blue-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700">
+                mood {stateMoodLabel}
+              </span>
+              <span className="rounded-full border border-amber-200/70 bg-amber-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-700">
+                bond {relationshipLabel}
+              </span>
+              {selectedChar?.source_type === "directory" && (
+                <span className="rounded-full border border-emerald-200/70 bg-emerald-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                  layered soul
+                </span>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-4 bg-white/70 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm shadow-blue-900/5 ring-1 ring-slate-100">
           <button
@@ -306,11 +352,25 @@ function App() {
         <div className="w-[420px] rounded-[2rem] bg-white border border-slate-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] shadow-blue-900/5 my-2 mr-2 flex flex-col overflow-hidden relative backdrop-blur-3xl bg-white/95">
           {settingsOpen ? (
             <Settings
+              characterId={selectedCharId}
+              characterName={charName}
               modelId={selectedModel?.id || ""}
               onPreviewExpression={(expr) => setCurrentExpression(expr)}
+              onConversationCleared={async () => {
+                await clearMessages(selectedCharId);
+              }}
+              onStateChanged={() => {
+                if (selectedCharId) {
+                  refreshCharacterState(selectedCharId);
+                }
+              }}
               onClose={() => {
                 setSettingsOpen(false);
                 fetch("/api/characters").then((r) => r.json()).then(setCharacters);
+                if (selectedCharId) {
+                  loadHistory(selectedCharId);
+                  refreshCharacterState(selectedCharId);
+                }
                 if (selectedModel?.id) {
                   fetch(`/api/expressions/configured/${selectedModel.id}`)
                     .then((r) => r.json())
@@ -363,4 +423,3 @@ function App() {
 }
 
 export default App;
-

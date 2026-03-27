@@ -67,7 +67,14 @@ export function CharacterSelect({
                       {char.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div className={`text-[14px] ${selected === char.id ? "font-semibold" : "font-medium group-hover:text-blue-600 transition-colors"}`}>{char.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className={`text-[14px] ${selected === char.id ? "font-semibold" : "font-medium group-hover:text-blue-600 transition-colors"}`}>{char.name}</div>
+                        {char.source_type === "directory" && (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-600">
+                            layered
+                          </span>
+                        )}
+                      </div>
                       <div className={`text-xs mt-0.5 ${selected === char.id ? "text-blue-500/80" : "text-slate-400"}`}>
                         {char.live2d_model || "default model"}
                       </div>
