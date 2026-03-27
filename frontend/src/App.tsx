@@ -193,7 +193,7 @@ function App() {
 
       <div className="flex-1 flex overflow-hidden">
         {modelType === "vrm" ? (
-          <VRMCanvas key={`vrm-${selectedCharId}`} {...canvasProps} />
+          <VRMCanvas key={`vrm-${selectedCharId}`} {...canvasProps} animations={selectedModel?.animations} />
         ) : (
           <Live2DCanvas
             key={`l2d-${selectedCharId}`}

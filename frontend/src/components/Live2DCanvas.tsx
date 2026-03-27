@@ -47,7 +47,7 @@ export function Live2DCanvas({
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
 
   useEffect(() => {
-    if (modelPath) {
+    if (modelPath && modelPath !== prevModelPath.current) {
       prevModelPath.current = modelPath;
       loadModel(modelPath, modelMapping || undefined);
     }
