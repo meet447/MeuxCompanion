@@ -22,7 +22,7 @@ function App() {
   const [background, setBackground] = useState("transparent");
   const [zoom, setZoom] = useState(1.1);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [expressionsConfigured, setExpressionsConfigured] = useState(true);
+  const [expressionsConfigured, setExpressionsConfigured] = useState<boolean | null>(null);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [userTyping, setUserTyping] = useState(false);
 
@@ -121,7 +121,7 @@ function App() {
   }, [resetIdleTimer]);
 
   const sendIdleMessage = useCallback(async () => {
-    if (!selectedCharId || loading) return;
+    if (!selectedCharId || loading || !expressionsConfigured) return;
 
     const idlePrompts = [
       "Say something to get the user's attention since they've been quiet. Be playful and in-character.",
@@ -132,7 +132,7 @@ function App() {
 
     await sendMessage(selectedCharId, `[system: ${prompt}]`);
     startIdleTimer();
-  }, [selectedCharId, loading, sendMessage, startIdleTimer]);
+  }, [selectedCharId, loading, expressionsConfigured, sendMessage, startIdleTimer]);
 
   useEffect(() => {
     sendIdleMessageRef.current = sendIdleMessage;
@@ -140,19 +140,19 @@ function App() {
 
   const handleSend = useCallback(
     async (text: string) => {
-      if (!selectedCharId) return;
+      if (!selectedCharId || !expressionsConfigured) return;
       resetIdleTimer();
       clearQueue();
 
       await sendMessage(selectedCharId, text);
       startIdleTimer();
     },
-    [selectedCharId, sendMessage, resetIdleTimer, startIdleTimer, clearQueue]
+    [selectedCharId, expressionsConfigured, sendMessage, resetIdleTimer, startIdleTimer, clearQueue]
   );
 
-  // Greeting on character load
+  // Greeting on character load — only fires once expressionsConfigured is confirmed true
   useEffect(() => {
-    if (!selectedCharId || !expressionsConfigured || hasGreetedRef.current.has(selectedCharId)) return;
+    if (!selectedCharId || expressionsConfigured !== true || hasGreetedRef.current.has(selectedCharId)) return;
 
     const timer = setTimeout(async () => {
       hasGreetedRef.current.add(selectedCharId);
@@ -321,6 +321,14 @@ function App() {
                 }
               }}
             />
+          ) : expressionsConfigured === null ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce" />
+              </div>
+            </div>
           ) : !expressionsConfigured ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-orange-50/50">
               <div className="w-16 h-16 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center text-3xl font-bold mb-6 shadow-sm">!</div>
