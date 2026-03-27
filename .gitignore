@@ -9,7 +9,6 @@ env/
 # Node
 node_modules/
 frontend/dist/
-characters/rika.md
 
 # IDE
 .vscode/
@@ -26,6 +25,7 @@ Thumbs.db
 
 # App data
 chats/
+data/
 *.mp3
 
 # Live2D models — ignore all except haru (default sample)
@@ -33,10 +33,9 @@ models/live2d/*
 !models/live2d/haru/
 models/live2d/ariu/
 
-# Characters — ignore all except rika (default sample)
+# Characters — onboarding and local creation should own this directory
 characters/*
-!characters/rika.md
-characters/ariu.md
+!characters/.gitkeep
 
 # VRM models — user-provided
 models/vrm/*
