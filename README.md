@@ -4,20 +4,34 @@ A self-hosted AI companion web app with anime-style Live2D and VRM characters. T
 
 > **Rework of [MeuxVtuber](https://github.com/meuxtw/MeuxVtuber)** — evolved from a YouTube chat VTuber bot into a full interactive companion experience.
 
+![MeuxCompanion Demo](assets/demo.png)
+
 ## Features
 
+### Core
 - **Live2D & VRM model support** — use 2D (Live2D Cubism) or 3D (VRM) anime characters
 - **Per-sentence expression changes** — character changes facial expression with each sentence, not just once per response
 - **Audio-driven lip sync** — mouth movement follows actual speech audio via Web Audio API frequency analysis
 - **Streaming responses** — text appears word-by-word as the LLM generates, TTS runs in parallel per sentence
-- **Idle animations** — breathing, blinking, eye saccades, body sway, random pose shifts
+
+### Interaction
 - **Voice input** — speak via microphone using Web Speech API
 - **Idle chatter** — character greets you on load and initiates conversation if you're quiet
 - **Typing awareness** — character tilts head curiously when you're typing
+- **Idle animations** — breathing, blinking, eye saccades, body sway, random pose shifts
+
+### Customization
+- **Guided onboarding** — step-by-step setup wizard for first-time users (name, LLM provider, character creation)
+- **In-app settings** — configure LLM, TTS, and expression mappings without editing files
+- **Multi-provider support** — switch between configured LLM and TTS providers with saved per-provider settings
+- **Expression mapping UI** — visually preview and assign model expressions to emotions
 - **Customizable backgrounds** — preset gradients or custom colors
-- **Expression mapping UI** — configure which model expressions map to which emotions
-- **Any OpenAI-compatible LLM** — works with Nectara, OpenAI, Groq, Ollama, OpenRouter, etc.
-- **Zero cost** — uses free TTS (TikTok TTS API) and supports free LLM providers
+- **Model viewport controls** — zoom, fullscreen, move/reposition, and debug overlays
+
+### Providers
+- **Any OpenAI-compatible LLM** — works with OpenAI, Groq, Ollama, OpenRouter, Nectara, or any custom endpoint
+- **Multiple TTS engines** — TikTok TTS (free, no API key), ElevenLabs, or OpenAI TTS
+- **Zero cost option** — use free TTS (TikTok) + free LLM providers (Nectara, Ollama)
 
 ## Quick Start
 
@@ -25,7 +39,6 @@ A self-hosted AI companion web app with anime-style Live2D and VRM characters. T
 
 - Python 3.10+
 - Node.js 18+
-- An API key for any OpenAI-compatible LLM provider
 
 ### Setup
 
@@ -44,10 +57,6 @@ cd frontend
 npm install
 npm run build
 cd ..
-
-# Configure your LLM
-cp .env.example .env
-# Edit .env with your API key
 ```
 
 ### Run
@@ -56,6 +65,11 @@ cp .env.example .env
 python main_app.py
 # Open http://localhost:8000
 ```
+
+On first launch, the **onboarding wizard** will guide you through:
+1. Setting your name
+2. Choosing an LLM provider and API key
+3. Creating your first companion character
 
 ### Development Mode
 
@@ -70,23 +84,32 @@ cd frontend && npm run dev
 
 ## Configuration
 
-### `.env`
+All configuration is managed through the **in-app Settings panel** — no need to edit files manually.
 
-```env
-LLM_BASE_URL=https://api-nectara.chipling.xyz/v1
-LLM_API_KEY=your_api_key_here
-LLM_MODEL=openai/gpt-oss-20b
-```
+### LLM Providers
 
-Works with any OpenAI-compatible API — just change `LLM_BASE_URL` and `LLM_API_KEY`:
+Configure via **Settings > LLM Provider**. Supported providers:
 
-| Provider | Base URL |
-|----------|----------|
-| OpenAI | `https://api.openai.com/v1` |
-| Groq | `https://api.groq.com/openai/v1` |
-| Ollama (local) | `http://localhost:11434/v1` |
-| OpenRouter | `https://openrouter.ai/api/v1` |
-| Nectara (free) | `https://api-nectara.chipling.xyz/v1` |
+| Provider | Base URL | API Key Required |
+|----------|----------|:---:|
+| OpenAI | `https://api.openai.com/v1` | Yes |
+| Groq | `https://api.groq.com/openai/v1` | Yes |
+| Ollama (local) | `http://localhost:11434/v1` | No |
+| OpenRouter | `https://openrouter.ai/api/v1` | Yes |
+| Nectara (free) | `https://api-nectara.chipling.xyz/v1` | Yes |
+| Custom | Any OpenAI-compatible URL | Varies |
+
+You can configure multiple providers and switch between them — each provider's settings (API key, model) are saved independently.
+
+### TTS Providers
+
+Configure via **Settings > Voice & TTS**:
+
+| Provider | API Key Required | Notes |
+|----------|:---:|-------|
+| TikTok TTS | No | Free, many voices, default |
+| ElevenLabs | Yes | High-quality, natural voices |
+| OpenAI TTS | Yes | alloy, echo, fable, onyx, nova, shimmer |
 
 ### Characters
 
@@ -106,6 +129,8 @@ A tsundere anime girl who loves anime but won't admit it...
 - Uses "b-baka!" when embarrassed
 - Energetic and dramatic
 ```
+
+You can also create characters through the **onboarding wizard** or by adding `.md` files directly.
 
 ### Adding Models
 
@@ -129,10 +154,12 @@ models/vrm/my_model/
 
 ### Expression Mapping
 
-Click **Settings** in the app header to open the expression mapping panel:
+Open **Settings > Expression Mapping** in the app:
 1. Preview each model expression by clicking it
-2. Map global emotions (happy, sad, angry...) to model expressions
-3. Save — the LLM will use these mappings automatically
+2. Map global emotions (happy, sad, angry...) to model-specific expressions
+3. Save — the LLM will tag each sentence with the appropriate expression automatically
+
+> Models with unmapped expressions will show a prompt to configure them before chatting.
 
 ## Architecture
 
@@ -144,7 +171,8 @@ Browser                              FastAPI Server
 │                     │              │  ├─ Sentence split│
 │  Chat Panel         │              │  └─ TTS (parallel)│
 │  Audio Queue        │              │                  │
-│  Expression System  │              │  /api/expressions│
+│  Expression System  │              │  /api/config     │
+│  Settings/Onboarding│              │  /api/expressions│
 └─────────────────────┘              └──────────────────┘
 ```
 
@@ -164,7 +192,7 @@ Browser                              FastAPI Server
 | VRM/3D | Three.js + @pixiv/three-vrm |
 | Backend | FastAPI (Python) |
 | LLM | OpenAI SDK (any compatible provider) |
-| TTS | TikTok TTS API (free) |
+| TTS | TikTok TTS / ElevenLabs / OpenAI TTS |
 | STT | Web Speech API (browser) |
 | Storage | Local `.md` and `.json` files |
 
@@ -174,37 +202,44 @@ Browser                              FastAPI Server
 MeuxCompanion/
 ├── main_app.py              # FastAPI entry point
 ├── requirements.txt
-├── .env.example             # Environment template
+├── config.json              # Auto-managed app configuration
+├── assets/                  # Screenshots and demo media
 │
 ├── backend/
 │   ├── api/                 # API endpoints
 │   │   ├── chat.py          # Streaming chat with per-sentence TTS
+│   │   ├── config.py        # Config CRUD, provider switching
 │   │   ├── tts.py           # Text-to-speech
 │   │   ├── characters.py    # Character CRUD
 │   │   └── expressions.py   # Expression mapping
 │   ├── services/            # Business logic
+│   │   ├── config.py        # Multi-provider config management
 │   │   ├── llm.py           # LLM client (OpenAI SDK)
-│   │   ├── tts.py           # TikTok TTS with connection pooling
+│   │   ├── tts.py           # TikTok / ElevenLabs / OpenAI TTS
 │   │   ├── character.py     # Character loading with caching
 │   │   └── expressions.py   # Expression mapping system
 │   └── utils/
 │       └── emotion.py       # Expression tag parsing
 │
 ├── frontend/src/
-│   ├── App.tsx
+│   ├── App.tsx              # Main app shell & state management
+│   ├── index.css            # Global styles & animations
 │   ├── components/
-│   │   ├── Live2DCanvas.tsx  # Live2D renderer
-│   │   ├── VRMCanvas.tsx     # VRM 3D renderer
-│   │   ├── ChatPanel.tsx     # Chat interface
-│   │   ├── ModelSettings.tsx # Expression mapping UI
-│   │   ├── CharacterSelect.tsx
-│   │   └── MicButton.tsx
+│   │   ├── Live2DCanvas.tsx  # Live2D renderer with idle animations
+│   │   ├── VRMCanvas.tsx     # VRM 3D renderer with FBX animations
+│   │   ├── ChatPanel.tsx     # Chat interface with streaming
+│   │   ├── Onboarding.tsx    # First-run setup wizard
+│   │   ├── Settings.tsx      # In-app configuration panel
+│   │   ├── ModelSettings.tsx  # Expression mapping UI
+│   │   ├── CharacterSelect.tsx # Character switcher dropdown
+│   │   ├── LoadingOverlay.tsx  # Loading states
+│   │   └── MicButton.tsx     # Voice input toggle
 │   ├── hooks/
 │   │   ├── useChat.ts        # Streaming chat with SSE
 │   │   ├── useAudioQueue.ts  # Per-sentence audio playback
-│   │   ├── useLive2D.ts      # Live2D animations
+│   │   ├── useLive2D.ts      # Live2D animations & viewport
 │   │   ├── useVRM.ts         # VRM animations + FBX loading
-│   │   ├── useVoice.ts       # Voice input/output
+│   │   ├── useVoice.ts       # Voice input (Web Speech API)
 │   │   └── useAudioAnalyser.ts # Audio frequency analysis
 │   └── utils/
 │       └── mixamoRigMap.ts   # Mixamo→VRM bone mapping
@@ -214,9 +249,26 @@ MeuxCompanion/
 │   ├── live2d/              # Live2D models
 │   ├── vrm/                 # VRM models
 │   └── expression_mappings/ # User expression configs
-└── docs/
-    └── specs/               # Design specs
+└── chats/                   # Chat history storage
 ```
+
+## API Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/chat/stream` | POST | Stream LLM response with per-sentence TTS |
+| `/api/config` | GET/POST | Read/update app configuration |
+| `/api/config/presets` | GET | List available LLM and TTS presets |
+| `/api/config/configured` | GET | Check which providers are configured |
+| `/api/config/switch-llm` | POST | Quick-switch active LLM provider |
+| `/api/config/switch-tts` | POST | Quick-switch active TTS provider |
+| `/api/config/test-llm` | POST | Test LLM connection |
+| `/api/characters` | GET | List all characters |
+| `/api/characters/create` | POST | Create a new character |
+| `/api/voices/{provider}` | GET | List voices for a TTS provider |
+| `/api/expressions/mapping` | GET/POST | Read/save expression mappings |
+| `/api/expressions/configured/{model}` | GET | Check if model expressions are mapped |
+| `/api/models` | GET | List available Live2D/VRM models |
 
 ## License
 
