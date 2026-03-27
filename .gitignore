@@ -40,8 +40,8 @@ characters/ariu.md
 # VRM models — user-provided
 models/vrm/*
 
-# Expression mappings — user-configured per model
-models/expression_mappings/
+# Expression mappings — user-configured per model (manual via UI)
+models/expression_mappings/*.json
 
 # Environment — secrets
 .env

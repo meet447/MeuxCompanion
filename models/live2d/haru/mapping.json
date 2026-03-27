@@ -1,14 +1,4 @@
 {
-  "emotions": {
-    "neutral": { "expression": "F01" },
-    "happy": { "expression": "F05", "motion": { "group": "TapBody", "index": 3 } },
-    "sad": { "expression": "F07" },
-    "angry": { "expression": "F03", "motion": { "group": "TapBody", "index": 2 } },
-    "surprised": { "expression": "F06", "motion": { "group": "TapBody", "index": 1 } },
-    "embarrassed": { "expression": "F05", "motion": { "group": "TapBody", "index": 4 } },
-    "thinking": { "expression": "F04" },
-    "excited": { "expression": "F02", "motion": { "group": "TapBody", "index": 0 } }
-  },
   "params": {
     "mouthOpen": "ParamMouthOpenY",
     "mouthForm": "ParamMouthForm",
