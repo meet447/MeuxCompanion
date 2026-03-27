@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ModelSettings } from "./ModelSettings";
 
 interface Voice {
   id: string;
@@ -17,7 +18,11 @@ interface TTSPreset {
   needs_key: boolean;
 }
 
-export function Settings({ onClose }: { onClose: () => void }) {
+export function Settings({ onClose, modelId, onPreviewExpression }: {
+  onClose: () => void;
+  modelId?: string;
+  onPreviewExpression?: (expr: string) => void;
+}) {
   const [config, setConfig] = useState<any>(null);
   const [llmPresets, setLlmPresets] = useState<Record<string, LLMPreset>>({});
   const [ttsPresets, setTtsPresets] = useState<Record<string, TTSPreset>>({});
@@ -243,6 +248,19 @@ export function Settings({ onClose }: { onClose: () => void }) {
           ))}
         </select>
       </section>
+
+      {modelId && (
+        <section className="mb-6">
+          <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-3">Expression Mapping</h3>
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <ModelSettings
+              modelId={modelId}
+              onPreviewExpression={onPreviewExpression || (() => {})}
+              onClose={() => {}}
+            />
+          </div>
+        </section>
+      )}
 
       <button
         onClick={handleSave}
