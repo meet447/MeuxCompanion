@@ -58,25 +58,8 @@ def is_configured(model_id: str):
     if not raw_exprs:
         return {"configured": True, "neutral": "neutral"}
 
-    # Check expression_mappings/{model_id}.json
+    # Requires a manually configured expression_mappings/{model_id}.json
     mapping = get_expression_mapping(model_id)
-    if mapping and any(v for v in mapping.values()):
-        neutral = mapping.get("neutral", "neutral")
-        return {"configured": True, "neutral": neutral}
-
-    # No mapping yet — trigger auto-generation (regenerates mapping.json
-    # which now writes expressions to expression_mappings/)
-    from backend.services.character import load_model_mapping, MODELS_DIR
-    model_dir = MODELS_DIR / model_id
-    if model_dir.exists():
-        from backend.services.character import _auto_generate_mapping
-        _auto_generate_mapping(model_dir)
-        # Re-check after generation
-        from backend.services.expressions import _mapping_cache
-        _mapping_cache.pop(model_id, None)
-        mapping = get_expression_mapping(model_id)
-        if mapping and any(v for v in mapping.values()):
-            neutral = mapping.get("neutral", "neutral")
-            return {"configured": True, "neutral": neutral}
-
-    return {"configured": False, "neutral": "neutral"}
+    has_mapping = bool(mapping and any(v for v in mapping.values()))
+    neutral = mapping.get("neutral", "neutral") if mapping else "neutral"
+    return {"configured": has_mapping, "neutral": neutral}
