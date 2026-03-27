@@ -34,12 +34,18 @@ export interface ModelMapping {
   };
 }
 
+export interface AnimationInfo {
+  name: string;
+  path: string;
+}
+
 export interface ModelInfo {
   id: string;
   type: "live2d" | "vrm";
   model_file: string;
   path: string;
   mapping: ModelMapping | null;
+  animations?: AnimationInfo[];
 }
 
 export interface Voice {

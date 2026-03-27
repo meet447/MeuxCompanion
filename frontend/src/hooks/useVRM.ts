@@ -1,8 +1,11 @@
 import { useRef, useCallback, useEffect } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { VRMLoaderPlugin, VRM, VRMExpressionPresetName } from "@pixiv/three-vrm";
+import { mixamoVRMRigMap } from "../utils/mixamoRigMap";
 import type { AudioLevels } from "./useAudioAnalyser";
+import type { AnimationInfo } from "../types";
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -17,38 +20,129 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const animFrameRef = useRef<number>(0);
   const animatingRef = useRef(false);
 
-  // Animation state
+  // Animation mixer
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const clipsRef = useRef<Map<string, THREE.AnimationClip>>(new Map());
+  const currentActionRef = useRef<THREE.AnimationAction | null>(null);
+  const currentClipNameRef = useRef("");
+
+  // Lip sync / expression state
   const lipSyncActiveRef = useRef(false);
   const audioLevelsGetterRef = useRef<(() => AudioLevels) | null>(null);
-  const breathPhaseRef = useRef(0);
-  const breathSpeedRef = useRef(0.03);
   const mouthValueRef = useRef(0);
+  const speakingRef = useRef(false);
+  const speakStartRef = useRef(0);
 
-  // Idle state
+  // Blinking
   const lastBlinkTimeRef = useRef(Date.now());
   const nextBlinkDelayRef = useRef(2000 + Math.random() * 4000);
   const blinkValueRef = useRef(0);
   const blinkClosingRef = useRef(false);
-  const saccadeXRef = useRef(0);
-  const saccadeYRef = useRef(0);
-  const saccadeTargetXRef = useRef(0);
-  const saccadeTargetYRef = useRef(0);
-  const lastSaccadeTimeRef = useRef(Date.now());
-  const bodySwayPhaseRef = useRef(0);
-
-  // Speaking state
-  const speakingRef = useRef(false);
-  const speakStartRef = useRef(0);
 
   useEffect(() => {
     return () => {
-      // Don't destroy WebGL resources here — React strict mode double-invokes
-      // effects which would kill the context. Cleanup happens in loadModel
-      // or when the component is removed from DOM via key change.
       animatingRef.current = false;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, []);
+
+  // Retarget Mixamo FBX animation to VRM skeleton
+  const retargetAnimation = useCallback(
+    (fbxScene: THREE.Group, vrm: VRM, clipName: string): THREE.AnimationClip | null => {
+      const clip = fbxScene.animations[0];
+      if (!clip) return null;
+
+      const tracks: THREE.KeyframeTrack[] = [];
+
+      // Capture rest pose quaternions from the FBX skeleton
+      const restRotations = new Map<string, THREE.Quaternion>();
+      fbxScene.traverse((obj) => {
+        if ((obj as THREE.Bone).isBone) {
+          restRotations.set(obj.name, obj.quaternion.clone());
+        }
+      });
+
+      clip.tracks.forEach((track) => {
+        const splitTrack = track.name.split(".");
+        const mixamoName = splitTrack[0];
+        const property = splitTrack[1];
+
+        const vrmBoneName = mixamoVRMRigMap[mixamoName];
+        if (!vrmBoneName) return;
+
+        const vrmBoneNode = vrm.humanoid?.getNormalizedBoneNode(vrmBoneName as any);
+        if (!vrmBoneNode) return;
+
+        // Skip position tracks except for hips
+        if (property === "position" && vrmBoneName !== "hips") return;
+
+        if (property === "quaternion") {
+          // Get the Mixamo rest pose for this bone
+          const restQuat = restRotations.get(mixamoName);
+
+          if (restQuat) {
+            // Convert absolute Mixamo rotations to deltas from rest pose,
+            // then apply to VRM's identity rest pose
+            const restQuatInv = restQuat.clone().invert();
+            const values = new Float32Array(track.values.length);
+
+            for (let i = 0; i < track.values.length; i += 4) {
+              // Get the animated quaternion
+              const animQuat = new THREE.Quaternion(
+                track.values[i],
+                track.values[i + 1],
+                track.values[i + 2],
+                track.values[i + 3]
+              );
+
+              // Compute delta: delta = restInverse * animated
+              const delta = restQuatInv.clone().multiply(animQuat);
+
+              values[i] = delta.x;
+              values[i + 1] = delta.y;
+              values[i + 2] = delta.z;
+              values[i + 3] = delta.w;
+            }
+
+            tracks.push(
+              new THREE.QuaternionKeyframeTrack(
+                `${vrmBoneNode.name}.quaternion`,
+                track.times as any,
+                values as any
+              )
+            );
+          } else {
+            // No rest pose found — use raw values (fallback)
+            tracks.push(
+              new THREE.QuaternionKeyframeTrack(
+                `${vrmBoneNode.name}.quaternion`,
+                track.times as any,
+                track.values as any
+              )
+            );
+          }
+        } else if (property === "position" && vrmBoneName === "hips") {
+          // Scale from Mixamo cm to VRM meters
+          const scaledValues = new Float32Array(track.values.length);
+          for (let i = 0; i < track.values.length; i++) {
+            scaledValues[i] = track.values[i] * 0.01;
+          }
+          tracks.push(
+            new THREE.VectorKeyframeTrack(
+              `${vrmBoneNode.name}.position`,
+              track.times as any,
+              scaledValues as any
+            )
+          );
+        }
+      });
+
+      if (tracks.length === 0) return null;
+
+      return new THREE.AnimationClip(clipName, clip.duration, tracks);
+    },
+    []
+  );
 
   const startAnimationLoop = useCallback(() => {
     if (animatingRef.current) return;
@@ -71,49 +165,25 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       const delta = clock.getDelta();
       const now = Date.now();
 
-      // --- Rest pose (arms down, natural stance) ---
+      // Update animation mixer
+      mixerRef.current?.update(delta);
+
+      // Post-animation arm correction — bring arms down from T-pose
+      // The animation delta may be near-zero for arms in breathing idle,
+      // so we blend in a natural resting arm rotation
       if (vrm.humanoid) {
         const leftUpperArm = vrm.humanoid.getNormalizedBoneNode("leftUpperArm");
         const rightUpperArm = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
-        const leftLowerArm = vrm.humanoid.getNormalizedBoneNode("leftLowerArm");
-        const rightLowerArm = vrm.humanoid.getNormalizedBoneNode("rightLowerArm");
-
-        // Arms down at sides (rotate from T-pose)
+        // Z rotation brings arms down from T-pose
         if (leftUpperArm) {
-          leftUpperArm.rotation.z = 1.1; // ~63 degrees down
-          leftUpperArm.rotation.x = 0.1; // slight forward
+          leftUpperArm.rotation.z += 0.6;
         }
         if (rightUpperArm) {
-          rightUpperArm.rotation.z = -1.1;
-          rightUpperArm.rotation.x = 0.1;
-        }
-        // Slight elbow bend
-        if (leftLowerArm) {
-          leftLowerArm.rotation.z = 0.15;
-          leftLowerArm.rotation.y = -0.3;
-        }
-        if (rightLowerArm) {
-          rightLowerArm.rotation.z = -0.15;
-          rightLowerArm.rotation.y = 0.3;
+          rightUpperArm.rotation.z -= 0.6;
         }
       }
 
-      // --- Breathing ---
-      breathPhaseRef.current += breathSpeedRef.current;
-      const breathVal = Math.sin(breathPhaseRef.current) * 0.02;
-      if (vrm.humanoid) {
-        const chest = vrm.humanoid.getNormalizedBoneNode("chest");
-        if (chest) chest.rotation.x = breathVal;
-
-        bodySwayPhaseRef.current += 0.01;
-        const spine = vrm.humanoid.getNormalizedBoneNode("spine");
-        if (spine) {
-          spine.rotation.z = Math.sin(bodySwayPhaseRef.current * 0.7) * 0.01;
-          spine.rotation.x = Math.sin(bodySwayPhaseRef.current * 0.3) * 0.005;
-        }
-      }
-
-      // --- Blinking ---
+      // ========== BLINKING ==========
       if (!blinkClosingRef.current) {
         if (now - lastBlinkTimeRef.current > nextBlinkDelayRef.current) {
           blinkClosingRef.current = true;
@@ -126,7 +196,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           blinkValueRef.current = 0;
           blinkClosingRef.current = false;
           lastBlinkTimeRef.current = now;
-          nextBlinkDelayRef.current = 2000 + Math.random() * 4000;
+          nextBlinkDelayRef.current = Math.random() < 0.2
+            ? 150 + Math.random() * 100
+            : 2000 + Math.random() * 4000;
         }
       }
       const blinkWeight = blinkValueRef.current <= 1
@@ -134,48 +206,29 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         : 2 - blinkValueRef.current;
       vrm.expressionManager?.setValue(VRMExpressionPresetName.Blink, blinkWeight);
 
-      // --- Eye saccades ---
-      if (now - lastSaccadeTimeRef.current > 500 + Math.random() * 2000) {
-        lastSaccadeTimeRef.current = now;
-        saccadeTargetXRef.current = (Math.random() - 0.5) * 0.1;
-        saccadeTargetYRef.current = (Math.random() - 0.5) * 0.05;
-      }
-      saccadeXRef.current = lerp(saccadeXRef.current, saccadeTargetXRef.current, 0.1);
-      saccadeYRef.current = lerp(saccadeYRef.current, saccadeTargetYRef.current, 0.1);
-
-      const head = vrm.humanoid?.getNormalizedBoneNode("head");
-      if (head) {
-        head.rotation.y = saccadeXRef.current;
-        head.rotation.x = saccadeYRef.current;
-      }
-
-      // --- Lip sync ---
+      // ========== LIP SYNC ==========
       if (lipSyncActiveRef.current) {
         const getter = audioLevelsGetterRef.current;
         if (getter) {
           const levels = getter();
           mouthValueRef.current = lerp(mouthValueRef.current, levels.mouthOpen, 0.4);
-
           const mouth = mouthValueRef.current;
           const form = levels.mouthForm;
 
-          const aa = mouth * Math.max(0, 1 - Math.abs(form)) * 0.8;
-          const oh = mouth * Math.max(0, -form) * 0.6;
-          const ee = mouth * Math.max(0, form) * 0.5;
-          const ih = mouth * 0.3;
-
-          vrm.expressionManager?.setValue(VRMExpressionPresetName.Aa, Math.min(1, aa));
-          vrm.expressionManager?.setValue(VRMExpressionPresetName.Oh, Math.min(1, oh));
-          vrm.expressionManager?.setValue(VRMExpressionPresetName.Ee, Math.min(1, ee));
-          vrm.expressionManager?.setValue(VRMExpressionPresetName.Ih, Math.min(1, ih));
+          vrm.expressionManager?.setValue(VRMExpressionPresetName.Aa, Math.min(1, mouth * Math.max(0, 1 - Math.abs(form)) * 0.8));
+          vrm.expressionManager?.setValue(VRMExpressionPresetName.Oh, Math.min(1, mouth * Math.max(0, -form) * 0.6));
+          vrm.expressionManager?.setValue(VRMExpressionPresetName.Ee, Math.min(1, mouth * Math.max(0, form) * 0.5));
+          vrm.expressionManager?.setValue(VRMExpressionPresetName.Ih, Math.min(1, mouth * 0.3));
         }
 
-        // Speaking head movement
-        if (speakingRef.current && head) {
-          const elapsed = (now - speakStartRef.current) / 1000;
-          head.rotation.y += Math.sin(elapsed * 1.8) * 0.03;
-          head.rotation.x += Math.sin(elapsed * 2.3) * 0.02;
-          head.rotation.z = Math.sin(elapsed * 1.2) * 0.02;
+        // Speaking head overlay
+        if (speakingRef.current) {
+          const head = vrm.humanoid?.getNormalizedBoneNode("head");
+          if (head) {
+            const elapsed = (now - speakStartRef.current) / 1000;
+            head.rotation.y += Math.sin(elapsed * 1.8) * 0.02;
+            head.rotation.x += Math.sin(elapsed * 2.3) * 0.015;
+          }
         }
       } else {
         mouthValueRef.current = lerp(mouthValueRef.current, 0, 0.3);
@@ -187,15 +240,41 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
       vrm.update(delta);
       renderer.render(scene, camera);
-
       animFrameRef.current = requestAnimationFrame(tick);
     };
 
     animFrameRef.current = requestAnimationFrame(tick);
   }, []);
 
+  const playAnimation = useCallback((name: string, loop = true, crossFadeDuration = 0.5) => {
+    const mixer = mixerRef.current;
+    if (!mixer) return;
+
+    const clip = clipsRef.current.get(name);
+    if (!clip) {
+      console.warn(`[VRM] Animation "${name}" not found`);
+      return;
+    }
+
+    const newAction = mixer.clipAction(clip);
+    newAction.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+    if (!loop) newAction.clampWhenFinished = true;
+
+    if (currentActionRef.current && currentClipNameRef.current !== name) {
+      // Cross-fade from current to new
+      currentActionRef.current.fadeOut(crossFadeDuration);
+      newAction.reset().fadeIn(crossFadeDuration).play();
+    } else if (!currentActionRef.current) {
+      newAction.reset().play();
+    }
+
+    currentActionRef.current = newAction;
+    currentClipNameRef.current = name;
+    console.log(`[VRM] Playing animation: "${name}"`);
+  }, []);
+
   const loadModel = useCallback(
-    async (modelPath: string) => {
+    async (modelPath: string, animations?: AnimationInfo[]) => {
       if (!canvasRef.current) return;
 
       // Stop animation
@@ -205,11 +284,15 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         animFrameRef.current = 0;
       }
 
-      // Clean up previous VRM
+      // Clean up previous
       if (vrmRef.current) {
         vrmRef.current.scene.removeFromParent();
         vrmRef.current = null;
       }
+      mixerRef.current = null;
+      clipsRef.current.clear();
+      currentActionRef.current = null;
+      currentClipNameRef.current = "";
 
       // Create renderer once
       if (!rendererRef.current) {
@@ -226,42 +309,32 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       // Create scene once
       if (!sceneRef.current) {
         const scene = new THREE.Scene();
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(1, 1, 1).normalize();
-        scene.add(directionalLight);
-
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(1, 1, 1).normalize();
+        scene.add(dirLight);
         const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
         fillLight.position.set(-1, 0.5, -1).normalize();
         scene.add(fillLight);
-
         sceneRef.current = scene;
       }
 
       // Create camera once
       if (!cameraRef.current) {
         const canvas = canvasRef.current;
-        const camera = new THREE.PerspectiveCamera(
-          30,
-          canvas.clientWidth / canvas.clientHeight,
-          0.1,
-          20
-        );
-        camera.position.set(0, 1.1, 3.0);
-        camera.lookAt(0, 0.9, 0);
+        const camera = new THREE.PerspectiveCamera(30, canvas.clientWidth / canvas.clientHeight, 0.1, 20);
+        camera.position.set(0, 1.3, 4.5);
+        camera.lookAt(0, 1.0, 0);
         cameraRef.current = camera;
       }
 
       // Load VRM
-      const loader = new GLTFLoader();
-      loader.register((parser) => new VRMLoaderPlugin(parser));
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
 
       try {
         const cacheBust = `${modelPath}${modelPath.includes("?") ? "&" : "?"}t=${Date.now()}`;
-        const gltf = await loader.loadAsync(cacheBust);
+        const gltf = await gltfLoader.loadAsync(cacheBust);
         const vrm = gltf.userData.vrm as VRM;
 
         if (!vrm || !sceneRef.current || !rendererRef.current) {
@@ -273,30 +346,65 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         sceneRef.current.add(vrm.scene);
         vrmRef.current = vrm;
 
-        // Create clock fresh for this model
+        // Create animation mixer
+        const mixer = new THREE.AnimationMixer(vrm.scene);
+        mixerRef.current = mixer;
+
+        // Load FBX animations
+        if (animations && animations.length > 0) {
+          const fbxLoader = new FBXLoader();
+          for (const anim of animations) {
+            try {
+              const fbx = await fbxLoader.loadAsync(anim.path);
+              const clip = retargetAnimation(fbx, vrm, anim.name);
+              if (clip) {
+                clipsRef.current.set(anim.name, clip);
+                console.log(`[VRM] Loaded animation: "${anim.name}" (${clip.duration.toFixed(1)}s)`);
+              }
+            } catch (err) {
+              console.warn(`[VRM] Failed to load animation "${anim.name}":`, err);
+            }
+          }
+
+          // Play idle animation if available
+          const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
+          for (const name of idleNames) {
+            const match = [...clipsRef.current.keys()].find(
+              (k) => k.toLowerCase().includes(name)
+            );
+            if (match) {
+              playAnimation(match);
+              break;
+            }
+          }
+          // If no idle found, play the first animation
+          if (!currentActionRef.current && clipsRef.current.size > 0) {
+            playAnimation(clipsRef.current.keys().next().value!);
+          }
+        }
+
         clockRef.current = new THREE.Clock();
 
         console.log("[VRM] Model loaded:", modelPath);
         console.log("[VRM] Expressions:", Object.keys(vrm.expressionManager?.expressionMap || {}));
+        console.log("[VRM] Animations:", [...clipsRef.current.keys()]);
 
-        // Start animation loop
         startAnimationLoop();
       } catch (err) {
         console.error("[VRM] Failed to load model:", err);
       }
     },
-    [canvasRef, startAnimationLoop]
+    [canvasRef, startAnimationLoop, retargetAnimation, playAnimation]
   );
 
   const setExpression = useCallback((expressionName: string) => {
     const vrm = vrmRef.current;
     if (!vrm?.expressionManager) return;
 
+    // Reset emotion expressions
     const emotionPresets = [
-      VRMExpressionPresetName.Happy,
-      VRMExpressionPresetName.Angry,
-      VRMExpressionPresetName.Sad,
-      VRMExpressionPresetName.Relaxed,
+      VRMExpressionPresetName.Happy, VRMExpressionPresetName.Angry,
+      VRMExpressionPresetName.Sad, VRMExpressionPresetName.Relaxed,
       VRMExpressionPresetName.Surprised,
     ];
     for (const preset of emotionPresets) {
@@ -317,66 +425,70 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       vrm.expressionManager.setValue(preset, 1);
     }
 
-    const fastEmotions = ["excited", "angry", "surprised"];
-    const slowEmotions = ["sad", "relaxed"];
-    const name = expressionName.toLowerCase();
-
-    if (fastEmotions.some(e => name.includes(e))) {
-      breathSpeedRef.current = 0.06;
-    } else if (slowEmotions.some(e => name.includes(e))) {
-      breathSpeedRef.current = 0.02;
-    } else {
-      breathSpeedRef.current = 0.03;
+    // Try to play matching animation if available
+    const matchingAnim = [...clipsRef.current.keys()].find(
+      (k) => k.toLowerCase().includes(expressionName.toLowerCase())
+    );
+    if (matchingAnim) {
+      playAnimation(matchingAnim);
     }
 
     console.log(`[VRM] Expression: "${expressionName}"`);
-  }, []);
+  }, [playAnimation]);
 
   const startLipSync = useCallback((getAudioLevels?: () => AudioLevels) => {
     lipSyncActiveRef.current = true;
     speakingRef.current = true;
     speakStartRef.current = Date.now();
-    if (getAudioLevels) {
-      audioLevelsGetterRef.current = getAudioLevels;
-    }
-  }, []);
+    if (getAudioLevels) audioLevelsGetterRef.current = getAudioLevels;
+
+    // Play talking animation if available
+    const talkAnim = [...clipsRef.current.keys()].find(
+      (k) => k.toLowerCase().includes("talk")
+    );
+    if (talkAnim) playAnimation(talkAnim);
+  }, [playAnimation]);
 
   const stopLipSync = useCallback(() => {
     lipSyncActiveRef.current = false;
     speakingRef.current = false;
     audioLevelsGetterRef.current = null;
     mouthValueRef.current = 0;
-  }, []);
+
+    // Return to idle animation
+    const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
+    for (const name of idleNames) {
+      const match = [...clipsRef.current.keys()].find(
+        (k) => k.toLowerCase().includes(name)
+      );
+      if (match) {
+        playAnimation(match);
+        break;
+      }
+    }
+  }, [playAnimation]);
 
   const setZoom = useCallback((zoom: number) => {
     if (!cameraRef.current) return;
-    cameraRef.current.position.z = 3.0 / zoom;
+    cameraRef.current.position.z = 4.5 / zoom;
   }, []);
 
-  const setTypingReaction = useCallback((isTyping: boolean) => {
-    if (isTyping) {
-      saccadeTargetXRef.current = 0.05;
-      saccadeTargetYRef.current = 0.03;
-    } else {
-      saccadeTargetXRef.current = 0;
-      saccadeTargetYRef.current = 0;
-    }
+  const setTypingReaction = useCallback((_isTyping: boolean) => {
+    // Handled by the animation system — no manual bone manipulation needed
   }, []);
 
-  const triggerMotion = useCallback((_group: string, _index?: number) => {
-    // VRM doesn't have motion groups — no-op
-  }, []);
+  const triggerMotion = useCallback((_group: string, _index?: number) => {}, []);
 
   const getDebug = useCallback(() => ({
     modelLoaded: !!vrmRef.current,
     currentEmotion: "",
     expressionId: "",
-    motionPlaying: "",
+    motionPlaying: currentClipNameRef.current,
     lipSyncActive: lipSyncActiveRef.current,
     mouthValue: Math.round(mouthValueRef.current * 100) / 100,
     mappingEmotions: [],
     availableExpressions: Object.keys(vrmRef.current?.expressionManager?.expressionMap || {}),
-    availableMotionGroups: [],
+    availableMotionGroups: [...clipsRef.current.keys()],
     lastError: "",
   }), []);
 

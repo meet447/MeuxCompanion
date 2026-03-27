@@ -166,7 +166,10 @@ def _auto_generate_mapping(model_dir: Path) -> dict:
         return {"emotions": {}, "params": DEFAULT_PARAMS}
 
     actual_dir = model3_path.parent
-    model_data = json.loads(model3_path.read_text(encoding="utf-8"))
+    try:
+        model_data = json.loads(model3_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        return {"emotions": {}, "params": DEFAULT_PARAMS}
     expressions = model_data.get("FileReferences", {}).get("Expressions", [])
     motions = model_data.get("FileReferences", {}).get("Motions", {})
 
@@ -325,12 +328,22 @@ def list_all_models() -> list[dict]:
             vrm_files = list(subdir.glob("*.vrm"))
             if vrm_files:
                 vrm_file = vrm_files[0]
+                # Scan for animation files
+                animations = []
+                anim_dir = subdir / "animations"
+                if anim_dir.exists():
+                    for anim_file in sorted(anim_dir.glob("*.fbx")):
+                        animations.append({
+                            "name": anim_file.stem,
+                            "path": f"/static/vrm/{subdir.name}/animations/{anim_file.name}",
+                        })
                 models.append({
                     "id": subdir.name,
                     "type": "vrm",
                     "model_file": vrm_file.name,
                     "path": f"/static/vrm/{subdir.name}/{vrm_file.name}",
                     "mapping": None,
+                    "animations": animations,
                 })
 
     return models
