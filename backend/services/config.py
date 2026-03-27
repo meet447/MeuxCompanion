@@ -62,6 +62,8 @@ DEFAULT_CONFIG = {
     "user": {"name": "", "about": ""},
     "llm": {"provider": "", "base_url": "", "api_key": None, "model": ""},
     "tts": {"provider": "tiktok", "api_key": None, "voice": "jp_001"},
+    "llm_providers": {},
+    "tts_providers": {},
     "active_character": "",
     "onboarding_complete": False,
 }
@@ -86,7 +88,25 @@ def load_config() -> dict:
 
 
 def save_config(config: dict) -> None:
-    """Write config to disk."""
+    """Write config to disk. Also persists per-provider settings."""
+    # Auto-save per-provider config when llm/tts section has a provider set
+    llm = config.get("llm", {})
+    if llm.get("provider"):
+        providers = config.setdefault("llm_providers", {})
+        providers[llm["provider"]] = {
+            "base_url": llm.get("base_url", ""),
+            "api_key": llm.get("api_key"),
+            "model": llm.get("model", ""),
+        }
+
+    tts = config.get("tts", {})
+    if tts.get("provider"):
+        providers = config.setdefault("tts_providers", {})
+        providers[tts["provider"]] = {
+            "api_key": tts.get("api_key"),
+            "voice": tts.get("voice", ""),
+        }
+
     CONFIG_PATH.write_text(json.dumps(config, indent=2))
 
 
@@ -99,4 +119,38 @@ def mask_config(config: dict) -> dict:
             masked[section]["api_key"] = key[:4] + "..." + key[-4:]
         elif key:
             masked[section]["api_key"] = "***"
+    # Mask per-provider keys too
+    for store in ("llm_providers", "tts_providers"):
+        for pid, pdata in masked.get(store, {}).items():
+            key = pdata.get("api_key")
+            if key and isinstance(key, str) and len(key) > 8:
+                pdata["api_key"] = key[:4] + "..." + key[-4:]
+            elif key:
+                pdata["api_key"] = "***"
     return masked
+
+
+def get_configured_providers() -> dict:
+    """Return which LLM/TTS providers have been configured."""
+    config = load_config()
+    llm_configured = {}
+    for pid, pdata in config.get("llm_providers", {}).items():
+        has_key = bool(pdata.get("api_key"))
+        preset = LLM_PRESETS.get(pid, {})
+        needs_key = preset.get("needs_key", True)
+        llm_configured[pid] = {
+            "configured": (not needs_key) or has_key,
+            "model": pdata.get("model", ""),
+        }
+
+    tts_configured = {}
+    for pid, pdata in config.get("tts_providers", {}).items():
+        has_key = bool(pdata.get("api_key"))
+        preset = TTS_PRESETS.get(pid, {})
+        needs_key = preset.get("needs_key", True)
+        tts_configured[pid] = {
+            "configured": (not needs_key) or has_key,
+            "voice": pdata.get("voice", ""),
+        }
+
+    return {"llm": llm_configured, "tts": tts_configured}

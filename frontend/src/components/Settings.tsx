@@ -59,6 +59,8 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
   const [saved, setSaved] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [configuredLlm, setConfiguredLlm] = useState<Record<string, { configured: boolean; model: string }>>({});
+  const [configuredTts, setConfiguredTts] = useState<Record<string, { configured: boolean; voice: string }>>({});
 
   const [userName, setUserName] = useState("");
   const [userAbout, setUserAbout] = useState("");
@@ -74,10 +76,13 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
     Promise.all([
       fetch("/api/config").then((r) => r.json()),
       fetch("/api/config/presets").then((r) => r.json()),
-    ]).then(([cfg, presets]) => {
+      fetch("/api/config/configured").then((r) => r.json()),
+    ]).then(([cfg, presets, configured]) => {
       setConfig(cfg);
       setLlmPresets(presets.llm || {});
       setTtsPresets(presets.tts || {});
+      setConfiguredLlm(configured.llm || {});
+      setConfiguredTts(configured.tts || {});
 
       setUserName(cfg.user?.name || "");
       setUserAbout(cfg.user?.about || "");
@@ -102,9 +107,18 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
     const preset = llmPresets[id];
     if (!preset) return;
     setLlmProvider(id);
-    setLlmBaseUrl(preset.base_url);
-    setLlmModel(preset.default_model);
     setTestResult(null);
+    setLlmApiKey("");
+
+    // If this provider was previously configured, restore its saved config
+    const saved = config?.llm_providers?.[id];
+    if (saved) {
+      setLlmBaseUrl(saved.base_url || preset.base_url);
+      setLlmModel(saved.model || preset.default_model);
+    } else {
+      setLlmBaseUrl(preset.base_url);
+      setLlmModel(preset.default_model);
+    }
   };
 
   const testConnection = async () => {
@@ -142,6 +156,15 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(update),
     });
+
+    // Refresh configured status
+    fetch("/api/config/configured").then((r) => r.json()).then((data) => {
+      setConfiguredLlm(data.llm || {});
+      setConfiguredTts(data.tts || {});
+    });
+    // Refresh full config so llm_providers/tts_providers are up-to-date
+    fetch("/api/config").then((r) => r.json()).then(setConfig);
+
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -242,13 +265,23 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
             <button
               key={id}
               onClick={() => selectPreset(id)}
-              className={`px-4 py-3 rounded-2xl text-[13px] font-semibold border transition-all ${
+              className={`relative px-4 py-3 rounded-2xl text-[13px] font-semibold border transition-all ${
                 llmProvider === id
                   ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 hover:-translate-y-0.5"
-                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:shadow-sm"
+                  : configuredLlm[id]?.configured
+                    ? "border-green-200 bg-green-50/30 text-slate-600 hover:border-green-300 hover:shadow-sm"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:shadow-sm"
               }`}
             >
-              {preset.name}
+              <span className="flex items-center justify-center gap-1.5">
+                {preset.name}
+                {configuredLlm[id]?.configured && llmProvider !== id && (
+                  <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                )}
+              </span>
+              {configuredLlm[id]?.configured && llmProvider !== id && (
+                <span className="block text-[10px] text-green-600/70 font-medium mt-0.5">Configured</span>
+              )}
             </button>
           ))}
         </div>
@@ -336,10 +369,17 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
               className={`px-4 py-3 rounded-2xl text-[13px] font-semibold border transition-all ${
                 ttsProvider === id
                   ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 hover:-translate-y-0.5"
-                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:shadow-sm"
+                  : configuredTts[id]?.configured
+                    ? "border-green-200 bg-green-50/30 text-slate-600 hover:border-green-300 hover:shadow-sm"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:shadow-sm"
               }`}
             >
-              {preset.name}
+              <span className="flex items-center gap-1.5">
+                {preset.name}
+                {configuredTts[id]?.configured && ttsProvider !== id && (
+                  <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                )}
+              </span>
             </button>
           ))}
         </div>
