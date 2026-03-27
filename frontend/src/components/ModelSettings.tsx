@@ -54,64 +54,71 @@ export const ModelSettings = memo(function ModelSettings({
   };
 
   return (
-    <div className="w-[400px] flex flex-col bg-stone-900 border-l border-stone-800/60">
+    <div className="flex-1 flex flex-col bg-transparent relative h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-stone-800/60">
-        <h2 className="text-sm font-bold text-stone-200">Expression Mapping</h2>
-        <p className="text-xs text-stone-500 mt-0.5">Model: {modelId || "none"}</p>
+      <div className="px-6 py-5 border-b border-slate-100 bg-white/50 backdrop-blur-sm z-10">
+        <h2 className="text-[15px] font-semibold text-slate-800">Expression Mapping</h2>
+        <p className="text-xs text-slate-500 mt-1">Model: {modelId || "none"}</p>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         {/* Model expressions preview */}
         <div>
-          <div className="text-xs text-stone-400 mb-2">
-            Model Expressions ({modelExpressions.length}) — click to preview
+          <div className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase mb-3">
+            Model Expressions ({modelExpressions.length})
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {modelExpressions.map((expr) => (
               <button
                 key={expr}
                 onClick={() => handlePreview(expr)}
-                className={`text-xs px-2.5 py-1.5 rounded-md transition-all ${
+                className={`text-[13px] px-3 py-1.5 rounded-full font-medium transition-all ${
                   activePreview === expr
-                    ? "bg-amber-700/60 text-amber-100 ring-1 ring-amber-500/50"
-                    : "bg-stone-800 text-stone-300 hover:bg-stone-700"
+                    ? "bg-blue-500 text-white shadow-md shadow-blue-500/20 ring-2 ring-blue-500/30"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60"
                 }`}
               >
                 {expr}
               </button>
             ))}
             {modelExpressions.length === 0 && (
-              <span className="text-xs text-stone-500">No expressions found</span>
+              <span className="text-xs text-slate-500 italic bg-slate-50 px-3 py-1.5 rounded-full">No expressions found</span>
             )}
           </div>
+          <p className="text-[11px] text-slate-400 mt-3 italic flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Click a badge above to preview it on the model
+          </p>
         </div>
 
         {/* Divider */}
-        <div className="border-t border-stone-800/60" />
+        <div className="h-px bg-slate-100 w-full" />
 
         {/* Mapping table */}
         <div>
-          <div className="text-xs text-stone-400 mb-2">
-            Global → Model Mapping
+          <div className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase mb-3">
+            Global to Model Mapping
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {globalExpressions.map((globalName) => (
               <div
                 key={globalName}
-                className="flex items-center gap-2 p-2 rounded-lg bg-stone-800/30"
+                className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50/80 border border-slate-100 transition-colors hover:bg-slate-50"
               >
-                <span className="text-xs text-stone-300 w-24 shrink-0 capitalize font-medium">
-                  {globalName}
-                </span>
-                <span className="text-stone-600 text-xs">→</span>
+                <div className="w-24 shrink-0 flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                  <span className="text-[13px] text-slate-700 font-semibold capitalize">
+                    {globalName}
+                  </span>
+                </div>
+                <span className="text-slate-300 text-sm">→</span>
                 <select
                   value={mapping[globalName] || ""}
                   onChange={(e) => handleMappingChange(globalName, e.target.value)}
-                  className="flex-1 bg-stone-800 text-stone-200 text-xs rounded-md px-2 py-1.5 border border-stone-700/50 outline-none focus:border-amber-700/50 cursor-pointer"
+                  className="flex-1 bg-white text-slate-700 text-[13px] rounded-xl px-3 py-2 border border-slate-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 cursor-pointer shadow-sm shadow-slate-200/20"
                 >
-                  <option value="">-- none --</option>
+                  <option value="">-- select --</option>
                   {modelExpressions.map((expr) => (
                     <option key={expr} value={expr}>
                       {expr}
@@ -122,7 +129,11 @@ export const ModelSettings = memo(function ModelSettings({
                 {mapping[globalName] && (
                   <button
                     onClick={() => handlePreview(mapping[globalName])}
-                    className="text-xs text-stone-500 hover:text-amber-400 transition-colors"
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      activePreview === mapping[globalName]
+                        ? "bg-blue-100 text-blue-600"
+                        : "bg-white text-slate-400 border border-slate-200 hover:text-blue-500 hover:bg-slate-50"
+                    }`}
                     title="Preview this expression"
                   >
                     ▶
@@ -135,19 +146,19 @@ export const ModelSettings = memo(function ModelSettings({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-stone-800/60 flex gap-2">
+      <div className="p-4 bg-white/80 backdrop-blur-md border-t border-slate-100 flex gap-3 z-10">
+        <button
+          onClick={onClose}
+          className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-sm font-semibold transition-colors"
+        >
+          Cancel
+        </button>        
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex-1 bg-amber-800/70 hover:bg-amber-700/70 disabled:bg-stone-800 text-amber-50 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white shadow-md shadow-blue-500/20 rounded-full px-5 py-2.5 text-sm font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0"
         >
           {saving ? "Saving..." : "Save Mapping"}
-        </button>
-        <button
-          onClick={onClose}
-          className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-sm transition-colors"
-        >
-          Back
         </button>
       </div>
     </div>
