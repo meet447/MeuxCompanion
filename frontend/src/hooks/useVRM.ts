@@ -19,6 +19,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const clockRef = useRef<THREE.Clock | null>(null);
   const animFrameRef = useRef<number>(0);
   const animatingRef = useRef(false);
+  const resizeHandlerRef = useRef<(() => void) | null>(null);
 
   // Animation mixer
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
@@ -43,6 +44,10 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     return () => {
       animatingRef.current = false;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (resizeHandlerRef.current) {
+        window.removeEventListener("resize", resizeHandlerRef.current);
+        resizeHandlerRef.current = null;
+      }
     };
   }, []);
 
@@ -148,8 +153,19 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     if (animatingRef.current) return;
     animatingRef.current = true;
 
-    const tick = () => {
+    const TARGET_FPS = 30;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+    let lastFrameTime = 0;
+
+    const tick = (timestamp: number) => {
       if (!animatingRef.current) return;
+
+      const elapsed = timestamp - lastFrameTime;
+      if (elapsed < FRAME_INTERVAL) {
+        animFrameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      lastFrameTime = timestamp - (elapsed % FRAME_INTERVAL);
 
       const renderer = rendererRef.current;
       const scene = sceneRef.current;
@@ -299,10 +315,11 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         const renderer = new THREE.WebGLRenderer({
           canvas: canvasRef.current,
           alpha: true,
-          antialias: true,
+          antialias: false,
+          powerPreference: "low-power",
         });
         renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         rendererRef.current = renderer;
       }
 
@@ -327,14 +344,20 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         camera.lookAt(0, 1.0, 0);
         cameraRef.current = camera;
         
-        window.addEventListener("resize", () => {
+        // Remove previous resize listener if any
+        if (resizeHandlerRef.current) {
+          window.removeEventListener("resize", resizeHandlerRef.current);
+        }
+        const onResize = () => {
           if (!cameraRef.current || !rendererRef.current || !canvasRef.current) return;
           const w = canvasRef.current.parentElement?.clientWidth || canvasRef.current.clientWidth;
           const h = canvasRef.current.parentElement?.clientHeight || canvasRef.current.clientHeight;
           cameraRef.current.aspect = w / h;
           cameraRef.current.updateProjectionMatrix();
           rendererRef.current.setSize(w, h);
-        });
+        };
+        resizeHandlerRef.current = onResize;
+        window.addEventListener("resize", onResize);
       }
 
       // Load VRM
