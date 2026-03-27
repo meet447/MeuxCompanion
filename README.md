@@ -1,37 +1,54 @@
 # MeuxCompanion
 
-A self-hosted AI companion web app with anime-style Live2D and VRM characters. Talk with your companion via text or voice — they respond with expressive facial animations, lip-synced speech, and per-sentence emotional reactions.
+A local-first AI companion app with Live2D and VRM avatars, layered character writing, persistent memory, evolving relationship state, and a backend designed to support multiple clients.
 
-> **Rework of [MeuxVtuber](https://github.com/meuxtw/MeuxVtuber)** — evolved from a YouTube chat VTuber bot into a full interactive companion experience.
+> **Rework of [MeuxVtuber](https://github.com/meuxtw/MeuxVtuber)** — shifted from a stream bot into a reusable companion backend with a richer frontend shell.
 
 ![MeuxCompanion Demo](assets/demo.png)
 
+## What It Does
+
+MeuxCompanion lets you talk to an anime-style companion through text or voice while the backend manages:
+
+- layered character identity
+- session history
+- local long-term memory
+- persistent relationship state
+- expression-aware response streaming
+- TTS playback with per-sentence emotion changes
+
+The frontend is one client for that backend, not the entire product surface.
+
 ## Features
 
-### Core
-- **Live2D & VRM model support** — use 2D (Live2D Cubism) or 3D (VRM) anime characters
-- **Per-sentence expression changes** — character changes facial expression with each sentence, not just once per response
-- **Audio-driven lip sync** — mouth movement follows actual speech audio via Web Audio API frequency analysis
-- **Streaming responses** — text appears word-by-word as the LLM generates, TTS runs in parallel per sentence
+### Companion Core
+
+- **Layered characters** — companions are written as `character.yaml` + `soul.md` + `style.md` + `rules.md` + `context.md` + examples
+- **Local long-term memory** — the backend stores semantic, episodic, and reflection memories in local files
+- **Persistent relationship state** — trust, affection, mood, and energy evolve over time and influence responses
+- **Client-agnostic backend** — memory, state, and character logic live on the server side so future desktop/mobile/web clients can share the same core
 
 ### Interaction
-- **Voice input** — speak via microphone using Web Speech API
-- **Idle chatter** — character greets you on load and initiates conversation if you're quiet
-- **Typing awareness** — character tilts head curiously when you're typing
-- **Idle animations** — breathing, blinking, eye saccades, body sway, random pose shifts
 
-### Customization
-- **Guided onboarding** — step-by-step setup wizard for first-time users (name, LLM provider, character creation)
-- **In-app settings** — configure LLM, TTS, and expression mappings without editing files
-- **Multi-provider support** — switch between configured LLM and TTS providers with saved per-provider settings
-- **Expression mapping UI** — visually preview and assign model expressions to emotions
-- **Customizable backgrounds** — preset gradients or custom colors
-- **Model viewport controls** — zoom, fullscreen, move/reposition, and debug overlays
+- **Streaming chat** — text streams in as the LLM generates
+- **Per-sentence expressions** — emotion tags are parsed live and applied sentence by sentence
+- **Parallel TTS generation** — each sentence can synthesize in parallel while the response is still streaming
+- **Voice input** — microphone input via Web Speech API
+- **Idle chatter** — the companion greets the user and can initiate conversation when the app is quiet
+- **Typing awareness** — model behavior reacts while the user is typing
 
-### Providers
-- **Any OpenAI-compatible LLM** — works with OpenAI, Groq, Ollama, OpenRouter, Nectara, or any custom endpoint
-- **Multiple TTS engines** — TikTok TTS (free, no API key), ElevenLabs, or OpenAI TTS
-- **Zero cost option** — use free TTS (TikTok) + free LLM providers (Nectara, Ollama)
+### Avatar System
+
+- **Live2D support** — Cubism model loading with expression mapping and lip sync
+- **VRM support** — 3D avatars with optional animation support
+- **Expression mapping UI** — assign frontend model expressions to backend emotion names visually
+- **Viewport controls** — zoom, framing, fullscreen, and background customization
+
+### Setup and Authoring
+
+- **Guided onboarding** — first-run setup now creates a layered companion profile instead of only a flat prompt
+- **In-app settings** — configure providers, voices, expression mappings, memory inspection, and state controls
+- **No bundled default companions required** — fresh clones can onboard into a clean local character folder
 
 ## Quick Start
 
@@ -40,19 +57,16 @@ A self-hosted AI companion web app with anime-style Live2D and VRM characters. T
 - Python 3.10+
 - Node.js 18+
 
-### Setup
+### Install
 
 ```bash
-# Clone the repo
 git clone https://github.com/meuxtw/MeuxVtuber.git
 cd MeuxVtuber
 
-# Set up Python environment
 python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Set up frontend
 cd frontend
 npm install
 npm run build
@@ -63,212 +77,362 @@ cd ..
 
 ```bash
 python main_app.py
-# Open http://localhost:8000
 ```
 
-On first launch, the **onboarding wizard** will guide you through:
-1. Setting your name
-2. Choosing an LLM provider and API key
-3. Creating your first companion character
+Then open [http://localhost:8000](http://localhost:8000).
 
-### Development Mode
+## First Launch
+
+On a fresh clone, the intended path is:
+
+1. open the app
+2. complete onboarding
+3. configure your LLM and TTS
+4. generate your first layered companion
+
+Onboarding now collects:
+
+- your user profile
+- LLM provider and model
+- TTS provider and voice
+- companion name
+- core vibe
+- relationship dynamic
+- speech style
+- a layered personality draft you can edit before creation
+
+The generated character is written locally into `characters/` and the runtime state is stored locally under `data/`.
+
+## Development
 
 ```bash
-# Terminal 1: Backend
+# Terminal 1
 python main_app.py
 
-# Terminal 2: Frontend (hot reload)
-cd frontend && npm run dev
-# Open http://localhost:5173
+# Terminal 2
+cd frontend
+npm run dev
 ```
 
-## Configuration
+Frontend dev server runs on [http://localhost:5173](http://localhost:5173).
 
-All configuration is managed through the **in-app Settings panel** — no need to edit files manually.
+## Providers
 
-### LLM Providers
+### LLM
 
-Configure via **Settings > LLM Provider**. Supported providers:
+The backend uses the OpenAI Python SDK against any OpenAI-compatible endpoint.
 
-| Provider | Base URL | API Key Required |
-|----------|----------|:---:|
-| OpenAI | `https://api.openai.com/v1` | Yes |
-| Groq | `https://api.groq.com/openai/v1` | Yes |
-| Ollama (local) | `http://localhost:11434/v1` | No |
-| OpenRouter | `https://openrouter.ai/api/v1` | Yes |
-| Nectara (free) | `https://api-nectara.chipling.xyz/v1` | Yes |
-| Custom | Any OpenAI-compatible URL | Varies |
+Supported presets in-app:
 
-You can configure multiple providers and switch between them — each provider's settings (API key, model) are saved independently.
+| Provider | Base URL | API Key |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | Required |
+| Groq | `https://api.groq.com/openai/v1` | Required |
+| OpenRouter | `https://openrouter.ai/api/v1` | Required |
+| Ollama | `http://localhost:11434/v1` | Not required |
+| Nectara | `https://api-nectara.chipling.xyz/v1` | Required |
+| Custom | Any OpenAI-compatible endpoint | Varies |
 
-### TTS Providers
+### TTS
 
-Configure via **Settings > Voice & TTS**:
+Supported presets in-app:
 
-| Provider | API Key Required | Notes |
-|----------|:---:|-------|
-| TikTok TTS | No | Free, many voices, default |
-| ElevenLabs | Yes | High-quality, natural voices |
-| OpenAI TTS | Yes | alloy, echo, fable, onyx, nova, shimmer |
+| Provider | API Key | Notes |
+|---|---|---|
+| TikTok TTS | Not required | Default local-friendly option |
+| ElevenLabs | Required | High quality cloud voices |
+| OpenAI TTS | Required | OpenAI voice models |
 
-### Characters
+## Character System
 
-Characters are defined as `.md` files in `characters/`:
+Characters are now folder-based and layered.
 
-```markdown
----
-name: Rika
-live2d_model: haru
-voice: jp_001
----
+Example structure:
 
-## Personality
-A tsundere anime girl who loves anime but won't admit it...
-
-## Speech Style
-- Uses "b-baka!" when embarrassed
-- Energetic and dramatic
+```text
+characters/
+  my_companion/
+    character.yaml
+    soul.md
+    style.md
+    rules.md
+    context.md
+    examples/
+      chat_examples.md
 ```
 
-You can also create characters through the **onboarding wizard** or by adding `.md` files directly.
+### Character Layers
 
-### Adding Models
+- `character.yaml` — id, model, voice, default emotion
+- `soul.md` — stable identity and emotional core
+- `style.md` — speech style and verbal texture
+- `rules.md` — behavior constraints and tone boundaries
+- `context.md` — user-specific orientation and relational intent
+- `examples/chat_examples.md` — example conversational flavor
 
-**Live2D models** — drop the model folder into `models/live2d/`:
+Legacy `characters/*.md` files are still supported by the loader for backward compatibility, but onboarding and new character creation now use the layered format.
+
+## Local Memory And State
+
+The backend persists runtime data locally in files.
+
+Example layout:
+
+```text
+data/
+  users/
+    default-user/
+      sessions/
+        my_companion.jsonl
+      memories/
+        my_companion/
+          episodic.jsonl
+          semantic.jsonl
+          reflections.jsonl
+          state.json
+          summary.md
 ```
+
+### What is stored
+
+- **session history** — recent conversation turns per character
+- **semantic memory** — user facts and durable preferences
+- **episodic memory** — notable conversation events
+- **reflection memory** — lightweight relationship observations
+- **state** — trust, affection, mood, energy, relationship summary
+
+### Current retrieval model
+
+The current memory system is intentionally lightweight and local-first:
+
+- heuristic memory extraction after each exchange
+- retrieval by token overlap, tags, importance, and recency
+- relevant memory injection back into the system prompt
+
+This is a practical first step before embeddings or heavier retrieval systems.
+
+## Frontend Support For Memory
+
+The frontend now exposes the new backend systems through Settings:
+
+- inspect stored memories
+- search memory
+- inspect persistent relationship state
+- reset state
+- clear long-term memories
+- clear session conversation history
+
+Chat history is also restored from the backend when switching characters or reloading the app.
+
+## Expression Pipeline
+
+The response pipeline is still built around inline expression tagging:
+
+1. the LLM streams response text
+2. backend parses `<<expression>>` tags
+3. response is split into expression-boundary segments
+4. each segment can synthesize TTS in parallel
+5. SSE events stream text, sentence events, and audio back to the frontend
+6. frontend queues playback and switches avatar expressions as audio progresses
+
+## Adding Models
+
+### Live2D
+
+Drop a Live2D model folder into:
+
+```text
 models/live2d/my_model/
-  model.model3.json
-  model.moc3
-  textures/
-  expressions/
 ```
 
-**VRM models** — drop `.vrm` files into `models/vrm/`:
+Expected files typically include:
+
+```text
+model.model3.json
+model.moc3
+textures/
+expressions/
 ```
+
+### VRM
+
+Drop VRM files into:
+
+```text
 models/vrm/my_model/
-  character.vrm
-  animations/        # Optional Mixamo FBX files
-    idle.fbx
-    talking.fbx
+  avatar.vrm
+  animations/   # optional
 ```
 
-### Expression Mapping
+## Expression Mapping
 
-Open **Settings > Expression Mapping** in the app:
-1. Preview each model expression by clicking it
-2. Map global emotions (happy, sad, angry...) to model-specific expressions
-3. Save — the LLM will tag each sentence with the appropriate expression automatically
+Expression mapping is configured in-app:
 
-> Models with unmapped expressions will show a prompt to configure them before chatting.
+1. open `Settings > Expression Mapping`
+2. preview available model expressions
+3. assign backend emotion names to model-specific expressions
+4. save
+
+Until a model is mapped, the app will prompt the user to configure expressions before chatting.
 
 ## Architecture
 
-```
-Browser                              FastAPI Server
-┌─────────────────────┐              ┌──────────────────┐
-│  Live2D / VRM Canvas│              │  /api/chat/stream│
-│  (PixiJS / Three.js)│◄── SSE ────►│  ├─ LLM (stream) │
-│                     │              │  ├─ Sentence split│
-│  Chat Panel         │              │  └─ TTS (parallel)│
-│  Audio Queue        │              │                  │
-│  Expression System  │              │  /api/config     │
-│  Settings/Onboarding│              │  /api/expressions│
-└─────────────────────┘              └──────────────────┘
+```text
+Frontend Client                          FastAPI Backend
+┌─────────────────────────┐              ┌──────────────────────────┐
+│ React / Vite UI         │              │ /api/chat/stream         │
+│ ├─ ChatPanel            │◄── SSE ────►│ ├─ prompt assembly       │
+│ ├─ Live2D / VRM canvas  │              │ ├─ memory retrieval      │
+│ ├─ Onboarding           │              │ ├─ state prompt injection│
+│ ├─ Settings             │              │ ├─ LLM stream            │
+│ └─ Memory & State UI    │              │ └─ TTS per sentence      │
+└─────────────────────────┘              │                          │
+                                         │ /api/memory              │
+                                         │ /api/state               │
+                                         │ /api/config              │
+                                         │ /api/characters          │
+                                         └──────────────────────────┘
 ```
 
-**Per-sentence reactive pipeline:**
-1. LLM streams tokens with inline `<<expression>>` tags
-2. Backend splits on expression boundaries in real-time
-3. Each sentence gets its own TTS thread (parallel generation)
-4. Audio events are sent via SSE as soon as each TTS completes
-5. Frontend queues audio and plays sequentially, switching expressions at each boundary
+### Backend responsibilities
+
+- character loading
+- prompt assembly
+- session persistence
+- memory extraction and retrieval
+- relationship state updates
+- TTS orchestration
+- expression resolution
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+|---|---|
 | Frontend | React + Vite + TypeScript + Tailwind CSS |
 | Live2D | pixi-live2d-display + PixiJS |
-| VRM/3D | Three.js + @pixiv/three-vrm |
-| Backend | FastAPI (Python) |
-| LLM | OpenAI SDK (any compatible provider) |
+| VRM | Three.js + `@pixiv/three-vrm` |
+| Backend | FastAPI |
+| LLM client | OpenAI SDK against compatible APIs |
 | TTS | TikTok TTS / ElevenLabs / OpenAI TTS |
-| STT | Web Speech API (browser) |
-| Storage | Local `.md` and `.json` files |
+| Voice input | Web Speech API |
+| Storage | Local files: `.json`, `.jsonl`, `.md`, `.yaml` |
 
 ## Project Structure
 
-```
+```text
 MeuxCompanion/
-├── main_app.py              # FastAPI entry point
+├── main_app.py
 ├── requirements.txt
-├── config.json              # Auto-managed app configuration
-├── assets/                  # Screenshots and demo media
+├── config.json                  # auto-managed runtime config (local)
+├── README.md
+├── docs/
+│   └── backend-character-memory-architecture.md
+├── characters/                  # local onboarding-generated companions
+├── data/                        # local session/memory/state data
+├── models/
+│   ├── live2d/
+│   ├── vrm/
+│   └── expression_mappings/
 │
 ├── backend/
-│   ├── api/                 # API endpoints
-│   │   ├── chat.py          # Streaming chat with per-sentence TTS
-│   │   ├── config.py        # Config CRUD, provider switching
-│   │   ├── tts.py           # Text-to-speech
-│   │   ├── characters.py    # Character CRUD
-│   │   └── expressions.py   # Expression mapping
-│   ├── services/            # Business logic
-│   │   ├── config.py        # Multi-provider config management
-│   │   ├── llm.py           # LLM client (OpenAI SDK)
-│   │   ├── tts.py           # TikTok / ElevenLabs / OpenAI TTS
-│   │   ├── character.py     # Character loading with caching
-│   │   └── expressions.py   # Expression mapping system
+│   ├── api/
+│   │   ├── chat.py
+│   │   ├── characters.py
+│   │   ├── config.py
+│   │   ├── expressions.py
+│   │   ├── memory.py
+│   │   └── tts.py
+│   ├── services/
+│   │   ├── character.py
+│   │   ├── config.py
+│   │   ├── expressions.py
+│   │   ├── llm.py
+│   │   ├── memory_engine.py
+│   │   ├── memory_store.py
+│   │   ├── session_store.py
+│   │   ├── state_store.py
+│   │   └── tts.py
 │   └── utils/
-│       └── emotion.py       # Expression tag parsing
+│       └── emotion.py
 │
-├── frontend/src/
-│   ├── App.tsx              # Main app shell & state management
-│   ├── index.css            # Global styles & animations
-│   ├── components/
-│   │   ├── Live2DCanvas.tsx  # Live2D renderer with idle animations
-│   │   ├── VRMCanvas.tsx     # VRM 3D renderer with FBX animations
-│   │   ├── ChatPanel.tsx     # Chat interface with streaming
-│   │   ├── Onboarding.tsx    # First-run setup wizard
-│   │   ├── Settings.tsx      # In-app configuration panel
-│   │   ├── ModelSettings.tsx  # Expression mapping UI
-│   │   ├── CharacterSelect.tsx # Character switcher dropdown
-│   │   ├── LoadingOverlay.tsx  # Loading states
-│   │   └── MicButton.tsx     # Voice input toggle
-│   ├── hooks/
-│   │   ├── useChat.ts        # Streaming chat with SSE
-│   │   ├── useAudioQueue.ts  # Per-sentence audio playback
-│   │   ├── useLive2D.ts      # Live2D animations & viewport
-│   │   ├── useVRM.ts         # VRM animations + FBX loading
-│   │   ├── useVoice.ts       # Voice input (Web Speech API)
-│   │   └── useAudioAnalyser.ts # Audio frequency analysis
-│   └── utils/
-│       └── mixamoRigMap.ts   # Mixamo→VRM bone mapping
-│
-├── characters/               # Character definitions (.md)
-├── models/
-│   ├── live2d/              # Live2D models
-│   ├── vrm/                 # VRM models
-│   └── expression_mappings/ # User expression configs
-└── chats/                   # Chat history storage
+├── frontend/
+│   ├── index.html
+│   └── src/
+│       ├── App.tsx
+│       ├── index.css
+│       ├── components/
+│       │   ├── CharacterSelect.tsx
+│       │   ├── ChatPanel.tsx
+│       │   ├── Live2DCanvas.tsx
+│       │   ├── MemoryStatePanel.tsx
+│       │   ├── ModelSettings.tsx
+│       │   ├── Onboarding.tsx
+│       │   ├── Settings.tsx
+│       │   └── VRMCanvas.tsx
+│       ├── hooks/
+│       │   ├── useAudioQueue.ts
+│       │   ├── useChat.ts
+│       │   ├── useLive2D.ts
+│       │   ├── useVoice.ts
+│       │   └── useVRM.ts
+│       └── types/
 ```
 
 ## API Reference
 
+### Core
+
 | Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/chat/stream` | POST | Stream LLM response with per-sentence TTS |
-| `/api/config` | GET/POST | Read/update app configuration |
-| `/api/config/presets` | GET | List available LLM and TTS presets |
-| `/api/config/configured` | GET | Check which providers are configured |
-| `/api/config/switch-llm` | POST | Quick-switch active LLM provider |
-| `/api/config/switch-tts` | POST | Quick-switch active TTS provider |
-| `/api/config/test-llm` | POST | Test LLM connection |
-| `/api/characters` | GET | List all characters |
-| `/api/characters/create` | POST | Create a new character |
+|---|---|---|
+| `/api/chat/stream` | POST | Stream LLM text, sentence events, and TTS audio |
+| `/api/chat/history/{character_id}` | GET | Load persisted chat history for a character |
+| `/api/chat/clear` | POST | Clear session history for one character or all |
+
+### Config
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/config` | GET/POST | Read or update app config |
+| `/api/config/presets` | GET | List built-in LLM and TTS presets |
+| `/api/config/configured` | GET | Show which providers are configured |
+| `/api/config/switch-llm` | POST | Switch active LLM provider |
+| `/api/config/switch-tts` | POST | Switch active TTS provider |
+| `/api/config/test-llm` | POST | Test provider connectivity |
+
+### Characters
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/characters` | GET | List available characters |
+| `/api/characters/{character_id}` | GET | Get one character |
+| `/api/characters/create` | POST | Create a new layered character |
+| `/api/models` | GET | List available Live2D and VRM models |
+
+### Memory And State
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/memory/{character_id}` | GET | Inspect state and stored memories |
+| `/api/memory/{character_id}/search` | GET | Search relevant memories |
+| `/api/memory/{character_id}/clear` | POST | Clear long-term memories and optionally reset state |
+| `/api/state/{character_id}` | GET | Read persistent relationship state |
+| `/api/state/{character_id}` | POST | Update relationship state manually |
+| `/api/state/{character_id}/reset` | POST | Reset relationship state |
+
+### Expressions And Voice
+
+| Endpoint | Method | Description |
+|---|---|---|
 | `/api/voices/{provider}` | GET | List voices for a TTS provider |
-| `/api/expressions/mapping` | GET/POST | Read/save expression mappings |
-| `/api/expressions/configured/{model}` | GET | Check if model expressions are mapped |
-| `/api/models` | GET | List available Live2D/VRM models |
+| `/api/tts` | POST | Generate speech audio |
+| `/api/expressions/mapping` | GET/POST | Read or save expression mappings |
+| `/api/expressions/configured/{model}` | GET | Check whether a model is mapped |
+
+## Notes
+
+- `characters/` and `data/` are local-first runtime folders.
+- Fresh clones are expected to use onboarding to create the first companion.
+- If you want to inspect the current architecture direction, see [docs/backend-character-memory-architecture.md](docs/backend-character-memory-architecture.md).
 
 ## License
 
