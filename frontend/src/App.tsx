@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Live2DCanvas } from "./components/Live2DCanvas";
-import { VRMCanvas } from "./components/VRMCanvas";
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { ChatPanel } from "./components/ChatPanel";
 import { CharacterSelect } from "./components/CharacterSelect";
 import { useChat } from "./hooks/useChat";
 import { useVoice } from "./hooks/useVoice";
 import type { Character, ModelInfo } from "./types";
+
+// Lazy load renderers — only one is active at a time
+const Live2DCanvas = lazy(() => import("./components/Live2DCanvas").then(m => ({ default: m.Live2DCanvas })));
+const VRMCanvas = lazy(() => import("./components/VRMCanvas").then(m => ({ default: m.VRMCanvas })));
 
 const DEFAULT_BG =
   "linear-gradient(135deg, #2d1b2e 0%, #3d2233 30%, #4a2a2a 60%, #5c3a2e 100%)";
@@ -52,33 +54,38 @@ function App() {
       .catch(console.error);
   }, []);
 
-  const selectedChar = characters.find((c) => c.id === selectedCharId);
+  // Memoize expensive lookups
+  const selectedChar = useMemo(
+    () => characters.find((c) => c.id === selectedCharId),
+    [characters, selectedCharId]
+  );
   selectedCharRef.current = selectedChar;
 
-  const selectedModel = (() => {
+  const selectedModel = useMemo(() => {
     if (!selectedChar?.live2d_model) return null;
     return models.find((m) => m.id === selectedChar.live2d_model) ?? null;
-  })();
+  }, [selectedChar, models]);
 
   const modelPath = selectedModel?.path ?? null;
   const modelType = selectedModel?.type ?? "live2d";
   const modelMapping = selectedModel?.mapping ?? null;
 
-  const handleSend = useCallback(
-    async (text: string) => {
-      if (!selectedCharId) return;
-      resetIdleTimer();
+  // Stable idle timer using ref to break callback chain
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }, []);
 
-      const response = await sendMessage(selectedCharId, text);
-      if (response) {
-        setCurrentExpression(response.expression || "neutral");
-        const voice = selectedCharRef.current?.voice || "jp_001";
-        fetchAndPlayTTS(response.text, voice);
-      }
-      startIdleTimer();
-    },
-    [selectedCharId, sendMessage, fetchAndPlayTTS]
-  );
+  const sendIdleMessageRef = useRef<() => void>(() => {});
+
+  const startIdleTimer = useCallback(() => {
+    resetIdleTimer();
+    idleTimerRef.current = window.setTimeout(() => {
+      sendIdleMessageRef.current();
+    }, IDLE_DELAY_MS);
+  }, [resetIdleTimer]);
 
   const sendIdleMessage = useCallback(async () => {
     if (!selectedCharId || loading) return;
@@ -97,22 +104,29 @@ function App() {
       fetchAndPlayTTS(response.text, voice);
     }
     startIdleTimer();
-  }, [selectedCharId, loading, sendMessage, fetchAndPlayTTS]);
+  }, [selectedCharId, loading, sendMessage, fetchAndPlayTTS, startIdleTimer]);
 
-  const resetIdleTimer = useCallback(() => {
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
-  }, []);
+  useEffect(() => {
+    sendIdleMessageRef.current = sendIdleMessage;
+  }, [sendIdleMessage]);
 
-  const startIdleTimer = useCallback(() => {
-    resetIdleTimer();
-    idleTimerRef.current = window.setTimeout(() => {
-      sendIdleMessage();
-    }, IDLE_DELAY_MS);
-  }, [resetIdleTimer, sendIdleMessage]);
+  const handleSend = useCallback(
+    async (text: string) => {
+      if (!selectedCharId) return;
+      resetIdleTimer();
 
+      const response = await sendMessage(selectedCharId, text);
+      if (response) {
+        setCurrentExpression(response.expression || "neutral");
+        const voice = selectedCharRef.current?.voice || "jp_001";
+        fetchAndPlayTTS(response.text, voice);
+      }
+      startIdleTimer();
+    },
+    [selectedCharId, sendMessage, fetchAndPlayTTS, resetIdleTimer, startIdleTimer]
+  );
+
+  // Greeting on character load
   useEffect(() => {
     if (!selectedCharId || hasGreetedRef.current.has(selectedCharId)) return;
 
@@ -163,8 +177,8 @@ function App() {
     [clearMessages, resetIdleTimer]
   );
 
-  // Common canvas props
-  const canvasProps = {
+  // Memoize canvas props to prevent unnecessary re-renders
+  const canvasProps = useMemo(() => ({
     modelPath,
     expression: currentExpression,
     speaking,
@@ -174,7 +188,9 @@ function App() {
     onZoomChange: setZoom,
     onBackgroundChange: setBackground,
     getAudioLevels,
-  };
+  }), [modelPath, currentExpression, speaking, userTyping, background, zoom, getAudioLevels]);
+
+  const charName = selectedChar?.name || "Companion";
 
   return (
     <div className="h-screen flex flex-col bg-stone-950 text-stone-100">
@@ -192,20 +208,22 @@ function App() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {modelType === "vrm" ? (
-          <VRMCanvas key={`vrm-${selectedCharId}`} {...canvasProps} animations={selectedModel?.animations} />
-        ) : (
-          <Live2DCanvas
-            key={`l2d-${selectedCharId}`}
-            {...canvasProps}
-            modelMapping={modelMapping}
-          />
-        )}
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-stone-900 text-stone-500">Loading model...</div>}>
+          {modelType === "vrm" ? (
+            <VRMCanvas key={`vrm-${selectedCharId}`} {...canvasProps} animations={selectedModel?.animations} />
+          ) : (
+            <Live2DCanvas
+              key={`l2d-${selectedCharId}`}
+              {...canvasProps}
+              modelMapping={modelMapping}
+            />
+          )}
+        </Suspense>
         <ChatPanel
           messages={messages}
           loading={loading}
           streamingText={streamingText}
-          characterName={selectedChar?.name || "Companion"}
+          characterName={charName}
           onSend={handleSend}
           onTypingChange={handleTypingChange}
           listening={listening}
