@@ -573,7 +573,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     } catch {}
   }, []);
 
-  const setViewport = useCallback((zoom: number, framing: "full" | "half") => {
+  const setViewport = useCallback((zoom: number, framing: "full" | "half", offsetX: number = 0, offsetY: number = 0) => {
     const model = modelRef.current;
     if (!model || !appRef.current) return;
     
@@ -590,7 +590,8 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     }
     
     model.scale.set(targetScale);
-    model.y = targetY;
+    model.x = (appRef.current.screen.width / 2) + offsetX;
+    model.y = targetY + offsetY;
   }, []);
 
   // Typing awareness
