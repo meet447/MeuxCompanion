@@ -326,6 +326,15 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         camera.position.set(0, 1.3, 4.5);
         camera.lookAt(0, 1.0, 0);
         cameraRef.current = camera;
+        
+        window.addEventListener("resize", () => {
+          if (!cameraRef.current || !rendererRef.current || !canvasRef.current) return;
+          const w = canvasRef.current.parentElement?.clientWidth || canvasRef.current.clientWidth;
+          const h = canvasRef.current.parentElement?.clientHeight || canvasRef.current.clientHeight;
+          cameraRef.current.aspect = w / h;
+          cameraRef.current.updateProjectionMatrix();
+          rendererRef.current.setSize(w, h);
+        });
       }
 
       // Load VRM
@@ -471,9 +480,18 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
   }, [playAnimation]);
 
-  const setZoom = useCallback((zoom: number) => {
+  const setViewport = useCallback((zoom: number, framing: "full" | "half") => {
     if (!cameraRef.current) return;
-    cameraRef.current.position.z = 4.5 / zoom;
+    
+    let zIdx = 4.5 / zoom;
+    let yPos = 1.3;
+    
+    if (framing === "half") {
+      zIdx = 2.0 / zoom; // zoom into half body
+      yPos = 1.5; // shift camera up slightly
+    }
+    
+    cameraRef.current.position.set(0, yPos, zIdx);
   }, []);
 
   const setTypingReaction = useCallback((_isTyping: boolean) => {
@@ -501,7 +519,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     startLipSync,
     stopLipSync,
     triggerMotion,
-    setZoom,
+    setViewport,
     setTypingReaction,
     getDebug,
   };

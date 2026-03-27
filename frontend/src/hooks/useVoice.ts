@@ -4,6 +4,7 @@ import { useAudioAnalyser } from "./useAudioAnalyser";
 export function useVoice() {
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [ttsLoading, setTtsLoading] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -98,6 +99,7 @@ export function useVoice() {
 
   const fetchAndPlayTTS = useCallback(
     async (text: string, voice: string): Promise<void> => {
+      setTtsLoading(true);
       try {
         const res = await fetch("/api/tts", {
           method: "POST",
@@ -113,6 +115,8 @@ export function useVoice() {
         }
       } catch (err) {
         console.error("TTS error:", err);
+      } finally {
+        setTtsLoading(false);
       }
     },
     [playAudio]
@@ -121,6 +125,7 @@ export function useVoice() {
   return {
     listening,
     speaking,
+    ttsLoading,
     startListening,
     stopListening,
     fetchAndPlayTTS,

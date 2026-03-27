@@ -319,6 +319,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
           backgroundAlpha: 0,
           resolution: window.devicePixelRatio || 1,
           autoDensity: true,
+          resizeTo: canvasRef.current.parentElement || window,
         });
         appRef.current = app;
       }
@@ -572,10 +573,20 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     } catch {}
   }, []);
 
-  const setZoom = useCallback((zoom: number) => {
+  const setViewport = useCallback((zoom: number, framing: "full" | "half") => {
     const model = modelRef.current;
-    if (!model) return;
-    model.scale.set(baseScaleRef.current * zoom);
+    if (!model || !appRef.current) return;
+    
+    let targetScale = baseScaleRef.current * zoom;
+    let targetY = appRef.current.screen.height / 2;
+    
+    if (framing === "half") {
+      targetScale *= 1.8; // zoom in
+      targetY += (model.height * targetScale) * 0.25; // shift down
+    }
+    
+    model.scale.set(targetScale);
+    model.y = targetY;
   }, []);
 
   // Typing awareness
@@ -625,7 +636,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     startLipSync,
     stopLipSync,
     triggerMotion,
-    setZoom,
+    setViewport,
     setTypingReaction,
     getDebug,
   };
