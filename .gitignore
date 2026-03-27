@@ -16,6 +16,7 @@ frontend/dist/
 *.swp
 *.swo
 *~
+.claude/
 
 # OS
 .DS_Store
@@ -25,20 +26,20 @@ Thumbs.db
 chats/
 *.mp3
 
-# Live2D models — ignore all except haru (default)
+# Live2D models — ignore all except haru (default sample)
 models/live2d/*
 !models/live2d/haru/
 
 # VRM models — user-provided
 models/vrm/*
 
-# Expression mappings — user-configured
+# Expression mappings — user-configured per model
 models/expression_mappings/
 
-# Characters — ignore all except rika (default)
+# Characters — ignore all except rika (default sample)
 characters/*
 !characters/rika.md
 
-# Env
+# Environment — secrets
 .env
 .env.local
