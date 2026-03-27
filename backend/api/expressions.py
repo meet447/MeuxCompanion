@@ -43,7 +43,20 @@ def save_mapping(req: SaveMappingRequest):
 
 @router.get("/api/expressions/configured/{model_id}")
 def is_configured(model_id: str):
-    """Check if a model has expression mapping configured."""
+    """Check if a model has expression mapping configured.
+    VRM models and models with no expressions don't need mapping."""
+    from backend.services.character import _detect_model_type
+
+    # VRM models use blend shapes directly — no mapping needed
+    model_type = _detect_model_type(model_id)
+    if model_type == "vrm":
+        return {"configured": True, "neutral": "neutral"}
+
+    # Live2D models with no expressions don't need mapping
+    raw_exprs = get_model_raw_expressions(model_id)
+    if not raw_exprs:
+        return {"configured": True, "neutral": "neutral"}
+
     mapping = get_expression_mapping(model_id)
     has_mapping = bool(mapping and any(v for v in mapping.values()))
     neutral = mapping.get("neutral", "neutral") if mapping else "neutral"
