@@ -12,18 +12,7 @@ export interface ChatMessage {
   expression?: string;
 }
 
-export interface MotionConfig {
-  group: string;
-  index: number;
-}
-
-export interface EmotionConfig {
-  expression: string;
-  motion?: MotionConfig;
-}
-
 export interface ModelMapping {
-  emotions: Record<string, EmotionConfig>;
   params: {
     mouthOpen: string;
     mouthForm: string;
