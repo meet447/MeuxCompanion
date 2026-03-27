@@ -317,17 +317,19 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
           width: canvasRef.current.clientWidth,
           height: canvasRef.current.clientHeight,
           backgroundAlpha: 0,
-          resolution: window.devicePixelRatio || 1,
+          resolution: Math.min(window.devicePixelRatio || 1, 2),
           autoDensity: true,
           resizeTo: canvasRef.current.parentElement || window,
         });
+        // Cap PIXI ticker to 30 FPS
+        app.ticker.maxFPS = 30;
         appRef.current = app;
       }
 
       try {
         const cacheBust = `${modelPath}${modelPath.includes("?") ? "&" : "?"}t=${Date.now()}`;
         const model = await Live2DModel.from(cacheBust, {
-          motionPreload: "ALL" as any,
+          motionPreload: "IDLE" as any,
         });
 
         modelRef.current = model;

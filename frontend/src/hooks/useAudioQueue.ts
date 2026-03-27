@@ -32,20 +32,39 @@ export function useAudioQueue() {
       return new Promise((resolve) => {
         disconnectRef.current();
 
-        const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+        // Convert base64 to Blob URL to avoid keeping large strings in JS memory
+        const byteChars = atob(base64Audio);
+        const byteArray = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) {
+          byteArray[i] = byteChars.charCodeAt(i);
+        }
+        const blob = new Blob([byteArray], { type: "audio/mp3" });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const audio = new Audio(blobUrl);
         audio.crossOrigin = "anonymous";
+
+        const cleanup = () => {
+          disconnectRef.current();
+          URL.revokeObjectURL(blobUrl);
+          audio.oncanplay = null;
+          audio.onended = null;
+          audio.onerror = null;
+          audio.src = "";
+          audio.load(); // Release internal audio resources
+        };
 
         audio.oncanplay = () => {
           connectRef.current(audio);
         };
 
         audio.onended = () => {
-          disconnectRef.current();
+          cleanup();
           resolve();
         };
 
         audio.onerror = () => {
-          disconnectRef.current();
+          cleanup();
           resolve();
         };
 
