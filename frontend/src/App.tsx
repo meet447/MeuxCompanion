@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { ChatPanel } from "./components/ChatPanel";
 import { CharacterSelect } from "./components/CharacterSelect";
+import { ModelSettings } from "./components/ModelSettings";
 import { useChat } from "./hooks/useChat";
 import { useAudioQueue } from "./hooks/useAudioQueue";
 import { useVoice } from "./hooks/useVoice";
@@ -22,12 +23,14 @@ function App() {
   const [currentExpression, setCurrentExpression] = useState("neutral");
   const [background, setBackground] = useState(DEFAULT_BG);
   const [zoom, setZoom] = useState(1.2);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [expressionsConfigured, setExpressionsConfigured] = useState(true);
   const [userTyping, setUserTyping] = useState(false);
 
   const { messages, loading, streamingText, sendMessage, clearMessages, setOnSentence, setOnAudio } =
     useChat();
   const { listening, startListening, stopListening } = useVoice();
-  const { speaking, addSentence, addAudio, clearQueue, getAudioLevels, setOnExpressionChange } =
+  const { speaking, addSentence, addAudio, clearQueue, getAudioLevels, setOnExpressionChange, setNeutralExpression } =
     useAudioQueue();
 
   const idleTimerRef = useRef<number | null>(null);
@@ -81,6 +84,18 @@ function App() {
   const modelType = selectedModel?.type ?? "live2d";
   const modelMapping = selectedModel?.mapping ?? null;
 
+  // Check if expression mapping is configured for current model
+  useEffect(() => {
+    if (!selectedModel?.id) return;
+    fetch(`/api/expressions/configured/${selectedModel.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setExpressionsConfigured(data.configured);
+        if (data.neutral) setNeutralExpression(data.neutral);
+      })
+      .catch(() => setExpressionsConfigured(false));
+  }, [selectedModel?.id]);
+
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) {
       clearTimeout(idleTimerRef.current);
@@ -129,7 +144,7 @@ function App() {
 
   // Greeting on character load
   useEffect(() => {
-    if (!selectedCharId || hasGreetedRef.current.has(selectedCharId)) return;
+    if (!selectedCharId || !expressionsConfigured || hasGreetedRef.current.has(selectedCharId)) return;
 
     const timer = setTimeout(async () => {
       hasGreetedRef.current.add(selectedCharId);
@@ -141,7 +156,7 @@ function App() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [selectedCharId, sendMessage, startIdleTimer]);
+  }, [selectedCharId, expressionsConfigured, sendMessage, startIdleTimer]);
 
   const handleTypingChange = useCallback(
     (isTyping: boolean) => {
@@ -192,6 +207,16 @@ function App() {
       <header className="flex items-center justify-between px-4 py-2 bg-stone-900 border-b border-stone-800/60">
         <h1 className="text-lg font-bold text-amber-300/90">MeuxCompanion</h1>
         <div className="flex gap-2">
+          <button
+            onClick={() => setSettingsOpen(!settingsOpen)}
+            className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+              settingsOpen
+                ? "bg-amber-800/60 text-amber-200"
+                : "bg-stone-800 hover:bg-stone-700 text-stone-300"
+            }`}
+          >
+            {settingsOpen ? "Chat" : "Settings"}
+          </button>
           <CharacterSelect
             characters={characters}
             selected={selectedCharId}
@@ -214,16 +239,50 @@ function App() {
             />
           )}
         </Suspense>
-        <ChatPanel
-          messages={messages}
-          loading={loading}
-          streamingText={streamingText}
-          characterName={charName}
-          onSend={handleSend}
-          onTypingChange={handleTypingChange}
-          listening={listening}
-          onMicToggle={handleMicToggle}
-        />
+        {settingsOpen ? (
+          <ModelSettings
+            modelId={selectedModel?.id || ""}
+            onPreviewExpression={(expr) => setCurrentExpression(expr)}
+            onClose={() => {
+              setSettingsOpen(false);
+              // Re-check configuration
+              if (selectedModel?.id) {
+                fetch(`/api/expressions/configured/${selectedModel.id}`)
+                  .then((r) => r.json())
+                  .then((data) => {
+                    setExpressionsConfigured(data.configured);
+                    if (data.neutral) setNeutralExpression(data.neutral);
+                  });
+              }
+            }}
+          />
+        ) : !expressionsConfigured ? (
+          <div className="w-[400px] flex flex-col items-center justify-center bg-stone-900 border-l border-stone-800/60 p-6 text-center">
+            <div className="text-amber-400 text-3xl mb-4">!</div>
+            <h3 className="text-stone-200 font-medium text-sm mb-2">Expression Mapping Required</h3>
+            <p className="text-stone-500 text-xs mb-4 leading-relaxed">
+              This model's expressions need to be mapped before chatting.
+              Open Settings to preview each expression and assign them to emotions.
+            </p>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="bg-amber-800/70 hover:bg-amber-700/70 text-amber-50 rounded-lg px-5 py-2 text-sm font-medium transition-colors"
+            >
+              Configure Expressions
+            </button>
+          </div>
+        ) : (
+          <ChatPanel
+            messages={messages}
+            loading={loading}
+            streamingText={streamingText}
+            characterName={charName}
+            onSend={handleSend}
+            onTypingChange={handleTypingChange}
+            listening={listening}
+            onMicToggle={handleMicToggle}
+          />
+        )}
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ export function useChat() {
                 displayText += data.text;
                 // Strip expression tags for display
                 const cleanDisplay = displayText
-                  .replace(/<<[^>]+>>\s*/g, "")
+                  .replace(/<<\/?[^>]*>>\s*/g, "")
                   .replace(/\[expression:\s*[^\]]+\]\s*/g, "");
                 setStreamingText(cleanDisplay);
               } else if (data.type === "sentence") {
@@ -76,7 +76,7 @@ export function useChat() {
 
         // Strip tags from final display text
         const cleanFull = displayText
-          .replace(/<<[^>]+>>\s*/g, "")
+          .replace(/<<\/?[^>]*>>\s*/g, "")
           .replace(/\[expression:\s*[^\]]+\]\s*/g, "");
         const assistantMsg: ChatMessage = {
           role: "assistant",

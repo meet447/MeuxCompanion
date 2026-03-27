@@ -80,29 +80,62 @@ def _detect_model_type(model_id: str) -> str | None:
     return None
 
 
-def get_model_expressions(model_id: str) -> list[str]:
-    """Get available expression names from a model (Live2D or VRM)."""
+def _are_names_readable(names: list[str]) -> bool:
+    """Check if expression names are human-readable."""
+    if not names:
+        return False
+    for name in names:
+        if len(name) <= 2 and name.isascii():
+            return False
+    return True
+
+
+def get_model_expressions(model_id: str) -> tuple[list[str], dict[str, str] | None]:
+    """Get expression names for the LLM and an optional mapping to actual IDs.
+
+    Returns (llm_names, mapping_dict).
+    - llm_names: what the LLM sees and picks from
+    - mapping_dict: if not None, maps llm_name -> actual expression ID for the frontend
+    """
     if not model_id:
-        return []
+        return DEFAULT_EXPRESSIONS, None
 
     model_type = _detect_model_type(model_id)
 
     if model_type == "vrm":
-        return VRM_EXPRESSIONS
+        return VRM_EXPRESSIONS, None
 
     if model_type == "live2d":
         model_dir = MODELS_DIR / model_id
         model3_path = _find_model3_json(model_dir)
         if not model3_path:
-            return []
+            return DEFAULT_EXPRESSIONS, None
         try:
             model_data = json.loads(model3_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, ValueError):
-            return []
+            return DEFAULT_EXPRESSIONS, None
         expressions = model_data.get("FileReferences", {}).get("Expressions", [])
-        return [e.get("Name", "") for e in expressions if e.get("Name")]
+        names = [e.get("Name", "") for e in expressions if e.get("Name")]
 
-    return []
+        if _are_names_readable(names):
+            # Names like 圈圈眼, happy, F01 — LLM can use directly
+            return names, None
+
+        # Names like 0, y, 7 — LLM uses readable names, we map back
+        mapping = load_model_mapping(model_dir.name)
+        emotion_map = mapping.get("emotions", {})
+        # Build reverse map: readable name -> actual expression ID
+        reverse = {}
+        for emo_name, config in emotion_map.items():
+            if config.get("expression"):
+                reverse[emo_name] = config["expression"]
+
+        if reverse:
+            return list(reverse.keys()), reverse
+
+        return DEFAULT_EXPRESSIONS, None
+
+    return DEFAULT_EXPRESSIONS, None
 
 
 DEFAULT_EXPRESSIONS = ["neutral", "happy", "sad", "angry", "surprised", "embarrassed", "thinking", "excited"]
@@ -117,13 +150,16 @@ def build_system_prompt(character: dict, expressions: list[str] | None = None) -
     expressions_str = ", ".join(available)
 
     return (
-        f"You are {name}. Stay in character at all times.\n"
-        f"You can change your expression at any point by inserting a tag: <<expression_name>>\n"
-        f"Available expressions: {expressions_str}\n"
-        f"Use expressions naturally throughout your response to match the emotion of each sentence.\n"
-        f"You MUST start your response with an expression tag.\n"
-        f"Example: <<happy>> Hey, that's great! <<surprised>> Wait, really? <<happy>> Hehe, just kidding!\n"
-        f"IMPORTANT: Use EXACTLY the expression names listed above inside << >> tags. Do not invent new ones.\n\n"
+        f"You are {name}. Stay in character at all times.\n\n"
+        f"EXPRESSION RULES:\n"
+        f"- Insert <<name>> tags to change your facial expression as you speak.\n"
+        f"- Available: {expressions_str}\n"
+        f"- Start EVERY response with an expression tag.\n"
+        f"- Change expression multiple times to match the emotion of each part.\n"
+        f"- Tags are opening only. NEVER use closing tags like <</name>>.\n"
+        f"- Use ONLY the exact names listed above.\n\n"
+        f"Example response:\n"
+        f"<<happy>> Hey, that's awesome! <<surprised>> Wait, you did that all by yourself? <<happy>> I'm so proud of you!\n\n"
         f"{body}"
     )
 
