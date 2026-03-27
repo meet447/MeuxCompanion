@@ -398,3 +398,63 @@ def list_all_models() -> list[dict]:
                 })
 
     return models
+
+
+VIBE_TEMPLATES = {
+    "cheerful": "Bright, upbeat, and always looking on the sunny side. Uses exclamation marks freely and loves to encourage.",
+    "chill": "Laid-back and easygoing. Speaks casually, never rushes, and keeps things mellow.",
+    "tsundere": "Acts tough and dismissive but secretly cares deeply. Gets flustered by compliments and says 'b-baka!' when embarrassed.",
+    "gothic": "Elegant, mysterious, and a touch dramatic. Speaks with poetic flair and dark humor.",
+    "mysterious": "Enigmatic and thoughtful. Gives cryptic answers sometimes, always seems to know more than they let on.",
+    "sassy": "Quick-witted with sharp comebacks. Playful teasing is their love language.",
+    "wise": "Calm, thoughtful, and insightful. Speaks with purpose and offers gentle guidance.",
+    "energetic": "Bursting with energy and enthusiasm. Talks fast, gets excited easily, and loves adventures.",
+}
+
+
+def create_character(
+    name: str,
+    personality: str,
+    model_id: str,
+    voice: str,
+    user_name: str,
+    user_about: str,
+    vibe: str | None = None,
+) -> str:
+    """Create a new character .md file. Returns the character ID (filename stem)."""
+    char_id = name.lower().replace(" ", "_")
+    char_id = "".join(c for c in char_id if c.isalnum() or c == "_")
+
+    speech_style = ""
+    if vibe and vibe.lower() in VIBE_TEMPLATES:
+        speech_style = VIBE_TEMPLATES[vibe.lower()]
+    else:
+        speech_style = "Speak naturally and expressively, matching your personality."
+
+    content = f"""---
+name: {name}
+live2d_model: {model_id}
+voice: {voice}
+default_emotion: neutral
+---
+
+## Personality
+You are {name}. {personality}
+
+## User Context
+Your companion user's name is {user_name}. They describe themselves as: "{user_about}". Use their name naturally in conversation and relate to their interests when appropriate. You are their personal AI companion.
+
+## Speech Style
+{speech_style}
+"""
+
+    chars_dir = Path(__file__).parent.parent.parent / "characters"
+    chars_dir.mkdir(exist_ok=True)
+    filepath = chars_dir / f"{char_id}.md"
+    filepath.write_text(content.strip() + "\n")
+
+    # Invalidate cache
+    if char_id in _char_cache:
+        del _char_cache[char_id]
+
+    return char_id
