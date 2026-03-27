@@ -500,6 +500,7 @@ The repo now has the first two phases partially implemented:
 - local memory storage for episodic, semantic, and reflection memories
 - lightweight retrieval-based memory prompt injection
 - persistent character state with trust, affection, mood, and energy
+- prompt composition extracted into a reusable backend `prompt_builder` service
 - backend APIs to inspect memories and state
 
 Current backend routes now include:

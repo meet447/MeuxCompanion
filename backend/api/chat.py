@@ -8,24 +8,16 @@ from queue import Queue, Empty
 
 from backend.services.llm import chat_stream
 from backend.services.tts import generate_tts_auto
-from backend.services.character import load_character, build_system_prompt
+from backend.services.character import load_character
 from backend.services.expressions import GLOBAL_EXPRESSIONS, resolve_expression
-from backend.services.memory_engine import (
-    format_memory_prompt,
-    remember_exchange,
-    retrieve_relevant_memories,
-)
-from backend.services.memory_store import ensure_memory_store
+from backend.services.memory_engine import remember_exchange
+from backend.services.prompt_builder import build_chat_prompt
 from backend.services.session_store import (
     append_session_message,
     clear_session_history,
     load_session_history,
 )
-from backend.services.state_store import (
-    format_state_prompt,
-    load_character_state,
-    update_character_state_from_exchange,
-)
+from backend.services.state_store import update_character_state_from_exchange
 from backend.utils.emotion import _validate_expression
 
 router = APIRouter()
@@ -64,23 +56,13 @@ def get_history(character_id: str, limit: int = 50):
 
 @router.post("/api/chat/stream")
 def stream_message(req: ChatRequest):
-    character = load_character(req.character_id)
-    if not character:
+    if not load_character(req.character_id):
         raise HTTPException(status_code=404, detail="Character not found")
 
+    prompt = build_chat_prompt(req.character_id, req.message)
+    character = prompt["character"]
+    messages = prompt["messages"]
     model_id = character.get("live2d_model", "")
-    system_prompt = build_system_prompt(character, GLOBAL_EXPRESSIONS)
-    ensure_memory_store(req.character_id)
-    state_prompt = format_state_prompt(load_character_state(req.character_id))
-    relevant_memories = retrieve_relevant_memories(req.character_id, req.message, limit=4)
-    memory_prompt = format_memory_prompt(relevant_memories)
-    history = load_session_history(req.character_id, limit=20)
-    messages = [{"role": "system", "content": system_prompt}]
-    messages.append({"role": "system", "content": state_prompt})
-    if memory_prompt:
-        messages.append({"role": "system", "content": memory_prompt})
-    messages.extend(history)
-    messages.append({"role": "user", "content": req.message})
     append_session_message(req.character_id, "user", req.message)
 
     available = GLOBAL_EXPRESSIONS
