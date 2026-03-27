@@ -27,3 +27,9 @@ def text_to_speech(req: TTSRequest):
 @router.get("/api/voices")
 def get_voices():
     return list_voices()
+
+
+@router.get("/api/voices/{provider}")
+def get_voices_for_provider(provider: str):
+    from backend.services.tts import list_voices_for_provider
+    return list_voices_for_provider(provider)
