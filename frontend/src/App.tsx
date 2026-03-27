@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { ChatPanel } from "./components/ChatPanel";
 import { CharacterSelect } from "./components/CharacterSelect";
-import { ModelSettings } from "./components/ModelSettings";
+import { Onboarding } from "./components/Onboarding";
+import { Settings } from "./components/Settings";
 import { useChat } from "./hooks/useChat";
 import { useAudioQueue } from "./hooks/useAudioQueue";
 import { useVoice } from "./hooks/useVoice";
@@ -22,6 +23,7 @@ function App() {
   const [zoom, setZoom] = useState(1.1);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [expressionsConfigured, setExpressionsConfigured] = useState(true);
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [userTyping, setUserTyping] = useState(false);
 
   const { messages, loading, streamingText, sendMessage, clearMessages, setOnSentence, setOnAudio } =
@@ -64,6 +66,15 @@ function App() {
       .then((r) => r.json())
       .then(setModels)
       .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((data) => {
+        setOnboardingComplete(data.onboarding_complete ?? false);
+      })
+      .catch(() => setOnboardingComplete(false));
   }, []);
 
   const selectedChar = useMemo(
@@ -203,6 +214,35 @@ function App() {
 
   const charName = selectedChar?.name || "Companion";
 
+  if (onboardingComplete === null) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+        <div className="text-slate-400 font-medium">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!onboardingComplete) {
+    return (
+      <Onboarding
+        onComplete={() => {
+          setOnboardingComplete(true);
+          fetch("/api/characters").then((r) => r.json()).then((data) => {
+            setCharacters(data);
+            fetch("/api/config").then((r) => r.json()).then((cfg) => {
+              if (cfg.active_character) {
+                setSelectedCharId(cfg.active_character);
+              } else if (data.length > 0) {
+                setSelectedCharId(data[0].id);
+              }
+            });
+          });
+          fetch("/api/models").then((r) => r.json()).then(setModels);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col font-sans text-slate-800" style={{ backgroundColor: "transparent" }}>
       {/* Wavy background for header */}
@@ -258,19 +298,10 @@ function App() {
 
         <div className="w-[420px] rounded-[2rem] bg-white border border-slate-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] shadow-blue-900/5 my-2 mr-2 flex flex-col overflow-hidden relative backdrop-blur-3xl bg-white/95">
           {settingsOpen ? (
-            <ModelSettings
-              modelId={selectedModel?.id || ""}
-              onPreviewExpression={(expr) => setCurrentExpression(expr)}
+            <Settings
               onClose={() => {
                 setSettingsOpen(false);
-                if (selectedModel?.id) {
-                  fetch(`/api/expressions/configured/${selectedModel.id}`)
-                    .then((r) => r.json())
-                    .then((data) => {
-                      setExpressionsConfigured(data.configured);
-                      if (data.neutral) setNeutralExpression(data.neutral);
-                    });
-                }
+                fetch("/api/characters").then((r) => r.json()).then(setCharacters);
               }}
             />
           ) : !expressionsConfigured ? (
