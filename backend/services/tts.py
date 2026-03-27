@@ -5,6 +5,8 @@ import threading
 import time
 from typing import Optional
 
+from backend.services.config import load_config
+
 VOICES = {
     "en_au_001": "English AU - Female",
     "en_au_002": "English AU - Male",
@@ -156,3 +158,85 @@ def generate_tts(text: str, voice: str = "jp_001") -> Optional[str]:
 
 def list_voices() -> list[dict]:
     return [{"id": k, "name": v} for k, v in VOICES.items()]
+
+
+# ========================================
+# PROVIDER ABSTRACTION
+# ========================================
+
+ELEVENLABS_VOICES = {
+    "21m00Tcm4TlvDq8ikWAM": "Rachel",
+    "AZnzlk1XvdvUeBnXmlld": "Domi",
+    "EXAVITQu4vr4xnSDxMaL": "Bella",
+    "ErXwobaYiN019PkySvjV": "Antoni",
+    "MF3mGyEYCl7XYWbV9V6O": "Elli",
+    "TxGEqnHWrfWFTfGW9XjX": "Josh",
+    "VR6AewLTigWG4xSOukaG": "Arnold",
+    "pNInz6obpgDQGcFmaJgB": "Adam",
+}
+
+OPENAI_TTS_VOICES = {
+    "alloy": "Alloy",
+    "echo": "Echo",
+    "fable": "Fable",
+    "onyx": "Onyx",
+    "nova": "Nova",
+    "shimmer": "Shimmer",
+}
+
+
+def _generate_elevenlabs(text: str, voice: str, api_key: str) -> Optional[str]:
+    """Generate TTS via ElevenLabs API."""
+    try:
+        resp = _session.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice}",
+            headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+            json={"text": text, "model_id": "eleven_monolingual_v1"},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            return base64.b64encode(resp.content).decode("utf-8")
+    except requests.RequestException:
+        pass
+    return None
+
+
+def _generate_openai_tts(text: str, voice: str, api_key: str) -> Optional[str]:
+    """Generate TTS via OpenAI TTS API."""
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice=voice,
+            input=text,
+        )
+        return base64.b64encode(response.content).decode("utf-8")
+    except Exception:
+        return None
+
+
+def generate_tts_auto(text: str) -> Optional[str]:
+    """Generate TTS using the provider configured in config.json."""
+    config = load_config()
+    tts_config = config.get("tts", {})
+    provider = tts_config.get("provider", "tiktok")
+    voice = tts_config.get("voice", "jp_001")
+    api_key = tts_config.get("api_key")
+
+    if provider == "elevenlabs" and api_key:
+        return _generate_elevenlabs(text, voice, api_key)
+    elif provider == "openai_tts" and api_key:
+        return _generate_openai_tts(text, voice, api_key)
+    else:
+        return generate_tts(text, voice)
+
+
+def list_voices_for_provider(provider: str) -> list[dict]:
+    """Return voice list for a given TTS provider."""
+    if provider == "elevenlabs":
+        return [{"id": k, "name": v} for k, v in ELEVENLABS_VOICES.items()]
+    elif provider == "openai_tts":
+        return [{"id": k, "name": v} for k, v in OPENAI_TTS_VOICES.items()]
+    else:
+        return list_voices()
