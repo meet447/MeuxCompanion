@@ -9,6 +9,7 @@ env/
 # Node
 node_modules/
 frontend/dist/
+characters/rika.md
 
 # IDE
 .vscode/
