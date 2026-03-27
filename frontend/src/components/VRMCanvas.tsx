@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { useVRM } from "../hooks/useVRM";
 import type { DebugInfo } from "../hooks/useLive2D";
+import type { AnimationInfo } from "../types";
 
 const BG_PRESETS = [
   { name: "Warm Sunset", value: "linear-gradient(135deg, #2d1b2e 0%, #3d2233 30%, #4a2a2a 60%, #5c3a2e 100%)" },
@@ -13,6 +14,7 @@ const BG_PRESETS = [
 
 interface Props {
   modelPath: string | null;
+  animations?: AnimationInfo[];
   expression: string;
   speaking: boolean;
   userTyping: boolean;
@@ -25,6 +27,7 @@ interface Props {
 
 export function VRMCanvas({
   modelPath,
+  animations,
   expression,
   speaking,
   userTyping,
@@ -46,9 +49,9 @@ export function VRMCanvas({
   useEffect(() => {
     if (modelPath && modelPath !== prevModelPath.current) {
       prevModelPath.current = modelPath;
-      loadModel(modelPath);
+      loadModel(modelPath, animations);
     }
-  }, [modelPath, loadModel]);
+  }, [modelPath, animations, loadModel]);
 
   useEffect(() => {
     if (expression && expression !== prevExpression.current) {
