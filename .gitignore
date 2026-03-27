@@ -17,7 +17,7 @@ frontend/dist/
 *.swo
 *~
 .claude/
-docs
+
 
 # OS
 .DS_Store
@@ -46,3 +46,4 @@ models/expression_mappings/
 # Environment — secrets
 .env
 .env.local
+config.json
