@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.chat import router as chat_router
 from backend.api.tts import router as tts_router
 from backend.api.characters import router as characters_router
+from backend.api.expressions import router as expressions_router
 
 app = FastAPI(title="MeuxCompanion")
 
@@ -23,6 +24,7 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(tts_router)
 app.include_router(characters_router)
+app.include_router(expressions_router)
 
 # Serve Live2D models as static files
 models_dir = Path(__file__).parent / "models" / "live2d"

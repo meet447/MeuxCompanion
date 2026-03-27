@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
 import { useAudioAnalyser } from "./useAudioAnalyser";
 
 export interface SentenceTask {
@@ -9,8 +9,7 @@ export interface SentenceTask {
 
 interface QueueEntry {
   task: SentenceTask;
-  audio: string | null;  // null = waiting for audio
-  resolved: boolean;
+  audio: string | null;
 }
 
 export function useAudioQueue() {
@@ -19,62 +18,34 @@ export function useAudioQueue() {
   const nextToPlayRef = useRef(0);
   const playingRef = useRef(false);
   const onExpressionChangeRef = useRef<((expr: string) => void) | null>(null);
+  const neutralExpressionRef = useRef("neutral");
   const { connectAudio, getAudioLevels, disconnect } = useAudioAnalyser();
 
-  const tryPlayNext = useCallback(async () => {
-    if (playingRef.current) return;
-
-    const entries = entriesRef.current;
-    const nextIdx = nextToPlayRef.current;
-    const entry = entries.get(nextIdx);
-
-    // Need both the sentence AND its audio to play
-    if (!entry || entry.audio === null) return;
-
-    playingRef.current = true;
-    setSpeaking(true);
-
-    // Set expression for this sentence
-    onExpressionChangeRef.current?.(entry.task.expression);
-
-    // Play the audio
-    if (entry.audio) {
-      await playAudioChunk(entry.audio);
-    }
-
-    // Clean up and move to next
-    entries.delete(nextIdx);
-    nextToPlayRef.current = nextIdx + 1;
-    playingRef.current = false;
-
-    // Check if more sentences are ready
-    const nextEntry = entries.get(nextToPlayRef.current);
-    if (nextEntry && nextEntry.audio !== null) {
-      tryPlayNext();
-    } else {
-      setSpeaking(false);
-    }
-  }, []);
+  // Store connect/disconnect in refs to avoid stale closures
+  const connectRef = useRef(connectAudio);
+  const disconnectRef = useRef(disconnect);
+  useEffect(() => { connectRef.current = connectAudio; }, [connectAudio]);
+  useEffect(() => { disconnectRef.current = disconnect; }, [disconnect]);
 
   const playAudioChunk = useCallback(
     (base64Audio: string): Promise<void> => {
       return new Promise((resolve) => {
-        disconnect();
+        disconnectRef.current();
 
         const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
         audio.crossOrigin = "anonymous";
 
         audio.oncanplay = () => {
-          connectAudio(audio);
+          connectRef.current(audio);
         };
 
         audio.onended = () => {
-          disconnect();
+          disconnectRef.current();
           resolve();
         };
 
         audio.onerror = () => {
-          disconnect();
+          disconnectRef.current();
           resolve();
         };
 
@@ -89,40 +60,70 @@ export function useAudioQueue() {
         });
       });
     },
-    [connectAudio, disconnect]
-  );
-
-  const addSentence = useCallback(
-    (task: SentenceTask) => {
-      entriesRef.current.set(task.index, {
-        task,
-        audio: null,  // waiting for audio
-        resolved: false,
-      });
-    },
     []
   );
 
-  const addAudio = useCallback(
-    (index: number, audio: string) => {
-      const entry = entriesRef.current.get(index);
-      if (entry) {
-        entry.audio = audio;
-        // Try to play if this is the next in line
-        if (index === nextToPlayRef.current && !playingRef.current) {
-          tryPlayNext();
-        }
-      } else {
-        // Audio arrived before sentence (unlikely but handle it)
-        entriesRef.current.set(index, {
-          task: { index, expression: "neutral", text: "" },
-          audio,
-          resolved: false,
-        });
-      }
-    },
-    [tryPlayNext]
-  );
+  const processQueue = useCallback(async () => {
+    if (playingRef.current) return;
+
+    const entries = entriesRef.current;
+    const nextIdx = nextToPlayRef.current;
+    const entry = entries.get(nextIdx);
+
+    if (!entry || entry.audio === null) return;
+
+    playingRef.current = true;
+    setSpeaking(true);
+
+    // Play all ready entries sequentially
+    while (true) {
+      const idx = nextToPlayRef.current;
+      const e = entriesRef.current.get(idx);
+      if (!e || e.audio === null) break;
+
+      // Set expression
+      onExpressionChangeRef.current?.(e.task.expression);
+
+      // Play audio
+      await playAudioChunk(e.audio);
+
+      // Advance
+      entriesRef.current.delete(idx);
+      nextToPlayRef.current = idx + 1;
+    }
+
+    playingRef.current = false;
+    setSpeaking(false);
+    // Reset to neutral after all sentences finish
+    onExpressionChangeRef.current?.(neutralExpressionRef.current);
+  }, [playAudioChunk]);
+
+  // Store processQueue in ref so addAudio always has latest
+  const processQueueRef = useRef(processQueue);
+  useEffect(() => { processQueueRef.current = processQueue; }, [processQueue]);
+
+  const addSentence = useCallback((task: SentenceTask) => {
+    entriesRef.current.set(task.index, {
+      task,
+      audio: null,
+    });
+  }, []);
+
+  const addAudio = useCallback((index: number, audio: string) => {
+    const entry = entriesRef.current.get(index);
+    if (entry) {
+      entry.audio = audio;
+    } else {
+      entriesRef.current.set(index, {
+        task: { index, expression: "neutral", text: "" },
+        audio,
+      });
+    }
+    // Try to play if not already playing
+    if (!playingRef.current) {
+      processQueueRef.current();
+    }
+  }, []);
 
   const clearQueue = useCallback(() => {
     entriesRef.current.clear();
@@ -135,6 +136,10 @@ export function useAudioQueue() {
     onExpressionChangeRef.current = cb;
   }, []);
 
+  const setNeutralExpression = useCallback((expr: string) => {
+    neutralExpressionRef.current = expr;
+  }, []);
+
   return {
     speaking,
     addSentence,
@@ -142,5 +147,6 @@ export function useAudioQueue() {
     clearQueue,
     getAudioLevels,
     setOnExpressionChange,
+    setNeutralExpression,
   };
 }
