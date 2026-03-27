@@ -1,5 +1,7 @@
-fastapi==0.115.0
-uvicorn==0.30.0
-pyyaml==6.0.1
-requests==2.32.3
-python-multipart==0.0.9
+fastapi>=0.115.0
+uvicorn>=0.30.0
+pyyaml>=6.0.1
+requests>=2.32.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+openai>=1.0.0
