@@ -277,7 +277,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
 
       if (mapping) {
         mappingRef.current = mapping;
-        debugRef.current.mappingEmotions = Object.keys(mapping.emotions || {});
+        debugRef.current.mappingEmotions = [];
       }
 
       // Clean up previous model
