@@ -17,19 +17,15 @@ export const LoadingOverlay = memo(function LoadingOverlay({
 
   const variantStyles = {
     default: {
-      icon: "⟳",
       color: "text-blue-500",
     },
     model: {
-      icon: "🎭",
       color: "text-indigo-500",
     },
     chat: {
-      icon: "💬",
       color: "text-sky-500",
     },
     tts: {
-      icon: "🔊",
       color: "text-emerald-500",
     },
   };

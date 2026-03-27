@@ -20,12 +20,30 @@ interface TTSPreset {
 
 type SettingsPage = null | "profile" | "llm" | "tts" | "expressions";
 
-const MENU_ITEMS: { id: SettingsPage & string; label: string; description: string; icon: string }[] = [
-  { id: "profile", label: "Your Profile", description: "Name and about yourself", icon: "\u{1F464}" },
-  { id: "llm", label: "LLM Provider", description: "AI model and API connection", icon: "\u{1F9E0}" },
-  { id: "tts", label: "Voice & TTS", description: "Text-to-speech provider and voice", icon: "\u{1F50A}" },
-  { id: "expressions", label: "Expression Mapping", description: "Map emotions to model expressions", icon: "\u{1F3AD}" },
+const ProfileIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+);
+const BrainIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+);
+const SpeakerIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+);
+const MaskIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+);
+
+const MENU_ITEMS: { id: SettingsPage & string; label: string; description: string; icon: () => JSX.Element }[] = [
+  { id: "profile", label: "Your Profile", description: "Name and about yourself", icon: ProfileIcon },
+  { id: "llm", label: "LLM Provider", description: "AI model and API connection", icon: BrainIcon },
+  { id: "tts", label: "Voice & TTS", description: "Text-to-speech provider and voice", icon: SpeakerIcon },
+  { id: "expressions", label: "Expression Mapping", description: "Map emotions to model expressions", icon: MaskIcon },
 ];
+
+const inputClass = "w-full px-5 py-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/50 text-slate-700 text-[15px] outline-none transition-all placeholder-slate-400 border border-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 mb-5";
+const labelClass = "block text-sm font-semibold text-slate-700 tracking-wide mb-2 pl-1";
+const buttonClass = "w-full py-3.5 rounded-2xl bg-blue-500 text-white text-[15px] font-semibold hover:bg-blue-600 shadow-md shadow-blue-500/20 disabled:opacity-50 hover:-translate-y-0.5 transition-all active:translate-y-0";
+const secondaryBtnClass = "w-full py-3.5 rounded-2xl bg-white border border-slate-200 text-slate-600 text-[15px] font-medium hover:bg-slate-50 hover:border-slate-300 shadow-sm disabled:opacity-50 transition-all mb-3";
 
 export function Settings({ onClose, modelId, onPreviewExpression }: {
   onClose: () => void;
@@ -133,41 +151,43 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
 
   // ========== SUB-PAGE HEADER ==========
   const SubHeader = ({ title }: { title: string }) => (
-    <div className="flex items-center gap-3 mb-6">
+    <div className="flex items-center gap-4 mb-8">
       <button
         onClick={() => setPage(null)}
-        className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+        className="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm shadow-blue-900/5 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center text-slate-500 hover:text-blue-500 transition-all"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </button>
-      <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+      <h2 className="text-xl font-bold text-slate-800 tracking-tight">{title}</h2>
     </div>
   );
 
   // ========== MENU LIST ==========
   if (page === null) {
     return (
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-bold text-slate-800">Settings</h2>
-          <button onClick={onClose} className="text-sm text-slate-500 hover:text-slate-700">
-            Close
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Settings</h2>
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm shadow-blue-900/5 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center text-slate-500 hover:text-red-500 transition-all">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3L13 13M13 3L3 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           {MENU_ITEMS.map((item) => (
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
-              className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/80 transition-all text-left group"
+              className="w-full flex items-center gap-5 px-5 py-4 rounded-3xl border border-slate-100/80 bg-white shadow-sm shadow-blue-900/5 hover:border-blue-100 hover:shadow-md hover:-translate-y-0.5 transition-all text-left group"
             >
-              <span className="text-2xl w-8 text-center">{item.icon}</span>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-slate-700 group-hover:text-slate-900">{item.label}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{item.description}</div>
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 group-hover:bg-blue-50 flex items-center justify-center text-slate-500 group-hover:text-blue-500 transition-colors shadow-sm">
+                <item.icon />
               </div>
-              <svg className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors" fill="none" viewBox="0 0 16 16"><path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <div className="flex-1 min-w-0">
+                <div className="text-[15px] font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">{item.label}</div>
+                <div className="text-sm text-slate-400 mt-1">{item.description}</div>
+              </div>
+              <svg className="w-5 h-5 text-slate-300 group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 16 16"><path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           ))}
         </div>
@@ -178,33 +198,33 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
   // ========== PROFILE PAGE ==========
   if (page === "profile") {
     return (
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         <SubHeader title="Your Profile" />
 
-        <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
+        <label className={labelClass}>Your Name</label>
         <input
           type="text"
           value={userName}
           onChange={(e) => setUserName(e.target.value)}
           placeholder="What should your companion call you?"
-          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className={inputClass}
         />
 
-        <label className="block text-sm font-medium text-slate-700 mb-1">About Yourself</label>
+        <label className={labelClass}>About Yourself</label>
         <textarea
           value={userAbout}
           onChange={(e) => setUserAbout(e.target.value)}
           placeholder="Tell your companion about yourself — interests, what you do, what you enjoy..."
           rows={5}
-          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm resize-none mb-6 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className={`${inputClass} resize-none mb-8 rounded-3xl`}
         />
 
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-50 transition-colors"
+          className={buttonClass}
         >
-          {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+          {saving ? "Saving..." : saved ? "Saved!" : "Save Profile"}
         </button>
       </div>
     );
@@ -213,19 +233,19 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
   // ========== LLM PAGE ==========
   if (page === "llm") {
     return (
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         <SubHeader title="LLM Provider" />
 
-        <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
-        <div className="grid grid-cols-3 gap-1.5 mb-4">
+        <label className={labelClass}>Provider</label>
+        <div className="grid grid-cols-2 gap-2 mb-6">
           {Object.entries(llmPresets).map(([id, preset]) => (
             <button
               key={id}
               onClick={() => selectPreset(id)}
-              className={`px-2.5 py-2 rounded-xl text-xs font-medium border transition-colors ${
+              className={`px-4 py-3 rounded-2xl text-[13px] font-semibold border transition-all ${
                 llmProvider === id
-                  ? "border-blue-400 bg-blue-50 text-blue-700"
-                  : "border-slate-200 text-slate-500 hover:border-slate-300"
+                  ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 hover:-translate-y-0.5"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:shadow-sm"
               }`}
             >
               {preset.name}
@@ -234,38 +254,38 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
         </div>
 
         {llmProvider && (
-          <>
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             {llmPresets[llmProvider]?.needs_key !== false && (
               <>
-                <label className="block text-sm font-medium text-slate-700 mb-1">API Key</label>
+                <label className={labelClass}>API Key</label>
                 <input
                   type="password"
                   value={llmApiKey}
                   onChange={(e) => { setLlmApiKey(e.target.value); setTestResult(null); }}
-                  placeholder="Paste your API key (blank = keep current)"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Paste your API key (blank to keep current)"
+                  className={inputClass}
                 />
               </>
             )}
 
-            <label className="block text-sm font-medium text-slate-700 mb-1">Model</label>
+            <label className={labelClass}>Model</label>
             <input
               type="text"
               value={llmModel}
               onChange={(e) => { setLlmModel(e.target.value); setTestResult(null); }}
               placeholder="e.g. gpt-4o"
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              className={inputClass}
             />
 
             {llmProvider === "custom" && (
               <>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Base URL</label>
+                <label className={labelClass}>Base URL</label>
                 <input
                   type="text"
                   value={llmBaseUrl}
                   onChange={(e) => { setLlmBaseUrl(e.target.value); setTestResult(null); }}
                   placeholder="https://api.example.com/v1"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  className={inputClass}
                 />
               </>
             )}
@@ -273,16 +293,16 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
             <button
               onClick={testConnection}
               disabled={testing}
-              className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 disabled:opacity-50 transition-colors mb-2"
+              className={secondaryBtnClass}
             >
-              {testing ? "Testing..." : "Test Connection"}
+              {testing ? "Testing Connection..." : "Test Connection"}
             </button>
 
             {testResult && (
-              <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm ${
+              <div className={`mb-6 px-5 py-4 rounded-2xl text-sm font-medium ${
                 testResult.success
-                  ? "bg-green-50 text-green-700 border border-green-200"
-                  : "bg-red-50 text-red-700 border border-red-200"
+                  ? "bg-green-50 text-green-700 border border-green-200/50 shadow-sm"
+                  : "bg-red-50 text-red-700 border border-red-200/50 shadow-sm"
               }`}>
                 {testResult.success ? "Connected successfully!" : testResult.error || "Connection failed"}
               </div>
@@ -291,11 +311,11 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-50 transition-colors mt-2"
+              className={buttonClass}
             >
-              {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+              {saving ? "Saving..." : saved ? "Saved!" : "Save Configuration"}
             </button>
-          </>
+          </div>
         )}
       </div>
     );
@@ -304,19 +324,19 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
   // ========== TTS PAGE ==========
   if (page === "tts") {
     return (
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         <SubHeader title="Voice & TTS" />
 
-        <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
-        <div className="flex gap-2 mb-4">
+        <label className={labelClass}>Provider</label>
+        <div className="flex flex-wrap gap-2 mb-6">
           {Object.entries(ttsPresets).map(([id, preset]) => (
             <button
               key={id}
               onClick={() => setTtsProvider(id)}
-              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${
+              className={`px-4 py-3 rounded-2xl text-[13px] font-semibold border transition-all ${
                 ttsProvider === id
-                  ? "border-blue-400 bg-blue-50 text-blue-700"
-                  : "border-slate-200 text-slate-500 hover:border-slate-300"
+                  ? "border-blue-400 bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/10 hover:-translate-y-0.5"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:shadow-sm"
               }`}
             >
               {preset.name}
@@ -324,37 +344,44 @@ export function Settings({ onClose, modelId, onPreviewExpression }: {
           ))}
         </div>
 
-        {ttsPresets[ttsProvider]?.needs_key && (
-          <>
-            <label className="block text-sm font-medium text-slate-700 mb-1">API Key</label>
-            <input
-              type="password"
-              value={ttsApiKey}
-              onChange={(e) => setTtsApiKey(e.target.value)}
-              placeholder="Paste your API key (blank = keep current)"
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-          </>
-        )}
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          {ttsPresets[ttsProvider]?.needs_key && (
+            <>
+              <label className={labelClass}>API Key</label>
+              <input
+                type="password"
+                value={ttsApiKey}
+                onChange={(e) => setTtsApiKey(e.target.value)}
+                placeholder="Paste your API key (blank to keep current)"
+                className={inputClass}
+              />
+            </>
+          )}
 
-        <label className="block text-sm font-medium text-slate-700 mb-1">Voice</label>
-        <select
-          value={ttsVoice}
-          onChange={(e) => setTtsVoice(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm mb-6 focus:outline-none focus:ring-2 focus:ring-blue-300"
-        >
-          {voices.map((v) => (
-            <option key={v.id} value={v.id}>{v.name}</option>
-          ))}
-        </select>
+          <label className={labelClass}>Voice</label>
+          <div className="relative mb-8">
+            <select
+              value={ttsVoice}
+              onChange={(e) => setTtsVoice(e.target.value)}
+              className={`${inputClass} appearance-none cursor-pointer mb-0`}
+            >
+              {voices.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-50 transition-colors"
-        >
-          {saving ? "Saving..." : saved ? "Saved!" : "Save"}
-        </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={buttonClass}
+          >
+            {saving ? "Saving..." : saved ? "Saved!" : "Save Configuration"}
+          </button>
+        </div>
       </div>
     );
   }

@@ -56,9 +56,9 @@ export const ModelSettings = memo(function ModelSettings({
   return (
     <div className="flex-1 flex flex-col bg-transparent relative h-full">
       {/* Header */}
-      <div className="px-6 py-5 border-b border-slate-100 bg-white/50 backdrop-blur-sm z-10">
-        <h2 className="text-[15px] font-semibold text-slate-800">Expression Mapping</h2>
-        <p className="text-xs text-slate-500 mt-1">Model: {modelId || "none"}</p>
+      <div className="px-6 py-5 border-b border-slate-100/80 bg-gradient-to-r from-white/80 to-blue-50/30 backdrop-blur-sm z-10">
+        <h2 className="text-[16px] font-bold text-slate-800 tracking-tight">Expression Mapping</h2>
+        <p className="text-xs text-slate-400 mt-1 font-medium">Model: <span className="text-blue-500">{modelId || "none"}</span></p>
       </div>
 
       {/* Content */}
@@ -146,17 +146,17 @@ export const ModelSettings = memo(function ModelSettings({
       </div>
 
       {/* Footer */}
-      <div className="p-4 bg-white/80 backdrop-blur-md border-t border-slate-100 flex gap-3 z-10">
+      <div className="p-5 bg-white/80 backdrop-blur-md border-t border-slate-100/80 flex gap-3 z-10">
         <button
           onClick={onClose}
-          className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-sm font-semibold transition-colors"
+          className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 rounded-2xl text-[14px] font-semibold shadow-sm transition-all"
         >
           Cancel
         </button>        
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white shadow-md shadow-blue-500/20 rounded-full px-5 py-2.5 text-sm font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0"
+          className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white shadow-md shadow-blue-500/20 rounded-2xl px-5 py-3 text-[14px] font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0"
         >
           {saving ? "Saving..." : "Save Mapping"}
         </button>
