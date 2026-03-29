@@ -11,6 +11,7 @@ import { useWindow } from "./hooks/useWindow";
 import {
   getConfig,
   listCharacters,
+  listModels,
   getState,
   getExpressions,
   getChatHistory,
@@ -31,8 +32,7 @@ function App() {
   const { isMiniMode, toggleMini } = useWindow();
 
   const [characters, setCharacters] = useState<Character[]>([]);
-  // TODO: populate models once a models_list Tauri command is available
-  const [models] = useState<ModelInfo[]>([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [selectedCharId, setSelectedCharId] = useState("");
   const [charSelectOpen, setCharSelectOpen] = useState(false);
   const [currentExpression, setCurrentExpression] = useState("neutral");
@@ -134,8 +134,9 @@ function App() {
       })
       .catch(console.error);
 
-    // TODO: add models_list Tauri command for listing available Live2D/VRM models on disk
-    // For now, models state stays empty; model info is derived from character data below
+    listModels()
+      .then((data) => setModels(data as ModelInfo[]))
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -377,7 +378,9 @@ function App() {
                 .catch(console.error);
             })
             .catch(console.error);
-          // TODO: fetch models once models_list Tauri command is available
+          listModels()
+            .then((data) => setModels(data as ModelInfo[]))
+            .catch(console.error);
         }}
       />
     );

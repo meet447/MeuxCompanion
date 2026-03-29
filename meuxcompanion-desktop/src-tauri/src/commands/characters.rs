@@ -1,5 +1,5 @@
 use crate::AppState;
-use meux_core::character::types::{Character, CharacterSummary};
+use meux_core::character::types::{Character, CharacterSummary, ModelInfo};
 use std::sync::Arc;
 use tauri::State;
 
@@ -30,4 +30,9 @@ pub fn characters_create(
         .characters
         .create_character(&name, &personality, &model_id, &voice, &user_name, &user_about)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn models_list(state: State<Arc<AppState>>) -> Result<Vec<ModelInfo>, String> {
+    meux_core::character::list_models(&state.data_dir).map_err(|e| e.to_string())
 }

@@ -44,6 +44,11 @@ export async function createCharacter(data: {
   });
 }
 
+// Models
+export async function listModels() {
+  return invoke<any[]>("models_list");
+}
+
 // Chat
 export async function sendChat(characterId: string, message: string) {
   return invoke("chat_send", { characterId, message });
@@ -75,6 +80,10 @@ export async function getState(characterId: string) {
   return invoke<unknown>("state_get", { characterId });
 }
 
+export async function resetState(characterId: string) {
+  return invoke<any>("state_reset", { characterId });
+}
+
 // Expressions
 export async function getExpressions(modelId: string) {
   return invoke<Record<string, string>>("expressions_get", { modelId });
@@ -90,6 +99,10 @@ export async function saveExpressions(
 // TTS
 export async function getVoices(provider: string) {
   return invoke<{ id: string; name: string }[]>("tts_voices", { provider });
+}
+
+export async function previewVoice(provider: string, voice: string, apiKey?: string, text?: string) {
+  return invoke<number[]>("tts_preview", { provider, voice, apiKey: apiKey || null, text: text || null });
 }
 
 // Window

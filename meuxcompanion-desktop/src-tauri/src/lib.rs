@@ -9,10 +9,12 @@ use meux_core::llm::OpenAiCompatClient;
 use meux_core::memory::store::MemoryStore;
 use meux_core::session::SessionStore;
 use meux_core::state::StateStore;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
 
 pub struct AppState {
+    pub data_dir: PathBuf,
     pub config: ConfigManager,
     pub characters: CharacterLoader,
     pub sessions: SessionStore,
@@ -33,6 +35,7 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
 
             let state = AppState {
+                data_dir: data_dir.clone(),
                 config: ConfigManager::new(&data_dir),
                 characters: CharacterLoader::new(&data_dir),
                 sessions: SessionStore::new(&data_dir),
@@ -56,6 +59,7 @@ pub fn run() {
             commands::characters::characters_list,
             commands::characters::characters_get,
             commands::characters::characters_create,
+            commands::characters::models_list,
             commands::chat::chat_send,
             commands::chat::chat_history,
             commands::chat::chat_clear,
@@ -63,9 +67,11 @@ pub fn run() {
             commands::memory::memory_search,
             commands::memory::memory_clear,
             commands::state::state_get,
+            commands::state::state_reset,
             commands::expressions::expressions_get,
             commands::expressions::expressions_save,
             commands::tts::tts_voices,
+            commands::tts::tts_preview,
             window::window_toggle_mini,
             window::window_expand,
         ])

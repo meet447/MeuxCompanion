@@ -380,6 +380,90 @@ fn build_prompt_sections_body(name: &str, sections: &PromptSections) -> String {
     format!("# {name}\n\n{}", parts.join("\n\n"))
 }
 
+/// List available Live2D and VRM models on disk.
+pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
+    let mut models = Vec::new();
+    let models_dir = data_dir.join("models");
+
+    // Scan live2d models
+    let live2d_dir = models_dir.join("live2d");
+    if live2d_dir.exists() {
+        if let Ok(entries) = fs::read_dir(&live2d_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let id = path.file_name().unwrap().to_string_lossy().to_string();
+                    let model_file =
+                        find_model3_json(&path).unwrap_or_else(|| format!("{}.model3.json", id));
+                    models.push(ModelInfo {
+                        id: id.clone(),
+                        model_type: "live2d".to_string(),
+                        model_file,
+                        path: format!("/models/live2d/{}", id),
+                    });
+                }
+            }
+        }
+    }
+
+    // Scan vrm models
+    let vrm_dir = models_dir.join("vrm");
+    if vrm_dir.exists() {
+        if let Ok(entries) = fs::read_dir(&vrm_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let id = path.file_name().unwrap().to_string_lossy().to_string();
+                    models.push(ModelInfo {
+                        id: id.clone(),
+                        model_type: "vrm".to_string(),
+                        model_file: "model.vrm".to_string(),
+                        path: format!("/models/vrm/{}", id),
+                    });
+                } else if path.extension().map_or(false, |e| e == "vrm") {
+                    let id = path.file_stem().unwrap().to_string_lossy().to_string();
+                    models.push(ModelInfo {
+                        id: id.clone(),
+                        model_type: "vrm".to_string(),
+                        model_file: path.file_name().unwrap().to_string_lossy().to_string(),
+                        path: format!("/models/vrm/{}", id),
+                    });
+                }
+            }
+        }
+    }
+
+    models.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(models)
+}
+
+fn find_model3_json(dir: &Path) -> Option<String> {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.ends_with(".model3.json") {
+                return Some(name);
+            }
+        }
+    }
+    // Check one level of subdirs
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                if let Ok(sub_entries) = fs::read_dir(entry.path()) {
+                    for sub in sub_entries.flatten() {
+                        let name = sub.file_name().to_string_lossy().to_string();
+                        if name.ends_with(".model3.json") {
+                            return Some(name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

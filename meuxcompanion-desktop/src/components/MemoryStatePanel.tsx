@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getMemory, searchMemory, clearMemory, getState, clearChat } from "../api/tauri";
+import { getMemory, searchMemory, clearMemory, getState, resetState as resetStateApi, clearChat } from "../api/tauri";
 import type { CharacterState, MemoryRecord } from "../types";
 
 interface Props {
@@ -118,10 +117,7 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
     if (!characterId) return;
     setBusyAction("state");
     try {
-      // TODO: implement Tauri command — state_reset does not exist yet
-      await invoke("state_reset", { characterId }).catch(() => {
-        console.warn("state_reset command not implemented yet");
-      });
+      await resetStateApi(characterId);
       await refresh();
       onStateChanged?.();
     } finally {
