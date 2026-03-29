@@ -94,6 +94,7 @@ pub fn run() {
             commands::expressions::expressions_save,
             commands::tts::tts_voices,
             commands::tts::tts_preview,
+            commands::voice::voice_transcribe,
             window::window_toggle_mini,
             window::window_expand,
             get_data_dir,
