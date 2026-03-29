@@ -1,10 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 
-// Asset paths — uses custom appdata:// protocol registered in Rust
-// Converts a path relative to app data dir into a loadable URL
+// Asset paths — serves files from app data directory
+// In dev mode: Vite middleware serves from /static/
+// In production: TODO — use Tauri asset protocol or embed
 export function toAssetUrl(relativePath: string): string {
   const clean = relativePath.replace(/^\/+/, "");
-  return `appdata://localhost/${clean}`;
+  return `/static/${clean}`;
 }
 
 // Config

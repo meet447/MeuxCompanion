@@ -45,45 +45,6 @@ fn resolve_asset_path(state: tauri::State<Arc<AppState>>, path: String) -> Resul
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .register_uri_scheme_protocol("appdata", |ctx, request| {
-            let uri = request.uri().to_string();
-            // URI format: appdata://localhost/models/live2d/haru/Haru.model3.json
-            let path = uri
-                .strip_prefix("appdata://localhost/")
-                .or_else(|| uri.strip_prefix("appdata:///"))
-                .unwrap_or("");
-            let path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
-
-            let data_dir = ctx.app_handle().path().app_data_dir().unwrap_or_default();
-            let file_path = data_dir.join(path.as_ref());
-
-            if !file_path.exists() {
-                return http::Response::builder()
-                    .status(404)
-                    .body(Vec::new())
-                    .unwrap();
-            }
-
-            let content = std::fs::read(&file_path).unwrap_or_default();
-
-            let mime = match file_path.extension().and_then(|e| e.to_str()) {
-                Some("json") => "application/json",
-                Some("moc3") => "application/octet-stream",
-                Some("png") => "image/png",
-                Some("jpg" | "jpeg") => "image/jpeg",
-                Some("mp3") => "audio/mpeg",
-                Some("vrm" | "glb" | "gltf") => "model/gltf-binary",
-                Some("fbx") => "application/octet-stream",
-                _ => "application/octet-stream",
-            };
-
-            http::Response::builder()
-                .status(200)
-                .header("Content-Type", mime)
-                .header("Access-Control-Allow-Origin", "*")
-                .body(content)
-                .unwrap()
-        })
         .setup(|app| {
             let data_dir = app
                 .path()
