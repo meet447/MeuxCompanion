@@ -1,5 +1,4 @@
 import { useState, useEffect, memo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { getExpressions, saveExpressions } from "../api/tauri";
 
 interface Props {
