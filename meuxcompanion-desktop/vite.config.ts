@@ -18,8 +18,11 @@ function appDataStaticPlugin() {
     name: "serve-appdata",
     configureServer(server: any) {
       server.middlewares.use("/static", (req: any, res: any, next: any) => {
-        const filePath = path.join(appDataDir, decodeURIComponent(req.url || ""));
+        // Strip query string from URL before resolving file path
+        const urlPath = (req.url || "").split("?")[0];
+        const filePath = path.join(appDataDir, decodeURIComponent(urlPath));
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+          const stat = fs.statSync(filePath);
           const ext = path.extname(filePath).toLowerCase();
           const mimeTypes: Record<string, string> = {
             ".json": "application/json",
@@ -32,10 +35,18 @@ function appDataStaticPlugin() {
             ".glb": "application/octet-stream",
             ".gltf": "application/json",
             ".fbx": "application/octet-stream",
-            ".exp3.json": "application/json",
           };
           res.setHeader("Content-Type", mimeTypes[ext] || "application/octet-stream");
+          res.setHeader("Content-Length", stat.size);
           res.setHeader("Access-Control-Allow-Origin", "*");
+          res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+          res.setHeader("Access-Control-Allow-Headers", "*");
+          res.setHeader("Cache-Control", "no-cache");
+          if (req.method === "OPTIONS") {
+            res.statusCode = 204;
+            res.end();
+            return;
+          }
           fs.createReadStream(filePath).pipe(res);
         } else {
           next();
