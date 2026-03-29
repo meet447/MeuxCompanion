@@ -1,5 +1,5 @@
 import { useState, useEffect, memo } from "react";
-import { getExpressions, saveExpressions } from "../api/tauri";
+import { getExpressions, getModelExpressions, saveExpressions } from "../api/tauri";
 
 interface Props {
   modelId: string;
@@ -33,23 +33,24 @@ export const ModelSettings = memo(function ModelSettings({
   useEffect(() => {
     if (!modelId) return;
 
-    // Global expressions are constants; model expressions and mapping come from Tauri
     setGlobalExpressions(GLOBAL_EXPRESSIONS);
 
-    // Get the saved mapping — its keys give us model-specific expression names
-    getExpressions(modelId)
-      .then((saved) => {
-        const m = saved || {};
-        setMapping(m);
-        // Derive model expression list from mapping values (unique, non-empty)
-        const modelExprs = [...new Set(Object.values(m).filter(Boolean))];
-        setModelExpressions(modelExprs.length > 0 ? modelExprs : []);
+    // Fetch model's available expressions from the model3.json file
+    getModelExpressions(modelId)
+      .then((exprs) => {
+        setModelExpressions(exprs);
       })
       .catch((err) => {
-        console.error("Failed to load expressions:", err);
-        setMapping({});
+        console.error("Failed to load model expressions:", err);
         setModelExpressions([]);
       });
+
+    // Get saved mapping
+    getExpressions(modelId)
+      .then((saved) => {
+        setMapping(saved || {});
+      })
+      .catch(() => setMapping({}));
   }, [modelId]);
 
   const handlePreview = (expr: string) => {

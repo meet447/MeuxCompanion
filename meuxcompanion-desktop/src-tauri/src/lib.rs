@@ -86,6 +86,7 @@ pub fn run() {
             commands::memory::memory_clear,
             commands::state::state_get,
             commands::state::state_reset,
+            commands::expressions::expressions_model_list,
             commands::expressions::expressions_get,
             commands::expressions::expressions_save,
             commands::tts::tts_voices,
