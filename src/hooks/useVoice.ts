@@ -1,5 +1,39 @@
 import { useState, useCallback, useRef } from "react";
 import { useAudioAnalyser } from "./useAudioAnalyser";
+import { transcribeVoice } from "../api/tauri";
+
+function pickRecordingMimeType(): string {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg",
+  ];
+
+  for (const mimeType of candidates) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mimeType)) {
+      return mimeType;
+    }
+  }
+
+  return "";
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("Failed to read voice blob"));
+        return;
+      }
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read voice blob"));
+    reader.readAsDataURL(blob);
+  });
+}
 
 export function useVoice() {
   const [listening, setListening] = useState(false);
@@ -7,10 +41,19 @@ export function useVoice() {
   const [ttsLoading, setTtsLoading] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const onResultRef = useRef<((text: string) => void) | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { connectAudio, getAudioLevels, disconnect } = useAudioAnalyser();
 
-  const startListening = useCallback(
+  const stopMediaTracks = useCallback(() => {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  }, []);
+
+  const startSpeechRecognitionFallback = useCallback(
     (onResult: (text: string) => void) => {
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -30,7 +73,8 @@ export function useVoice() {
         setListening(false);
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event?.error ?? "unknown");
         setListening(false);
       };
 
@@ -45,10 +89,89 @@ export function useVoice() {
     []
   );
 
+  const startListening = useCallback(
+    async (onResult: (text: string) => void) => {
+      if (listening) return;
+
+      if (
+        !navigator.mediaDevices?.getUserMedia ||
+        typeof MediaRecorder === "undefined"
+      ) {
+        startSpeechRecognitionFallback(onResult);
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = pickRecordingMimeType();
+        const recorder = mimeType
+          ? new MediaRecorder(stream, { mimeType })
+          : new MediaRecorder(stream);
+
+        mediaStreamRef.current = stream;
+        mediaRecorderRef.current = recorder;
+        recordedChunksRef.current = [];
+        onResultRef.current = onResult;
+
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunksRef.current.push(event.data);
+          }
+        };
+
+        recorder.onerror = (event) => {
+          console.error("MediaRecorder error:", event);
+          stopMediaTracks();
+          mediaRecorderRef.current = null;
+          setListening(false);
+        };
+
+        recorder.onstop = async () => {
+          const chunks = recordedChunksRef.current;
+          recordedChunksRef.current = [];
+          stopMediaTracks();
+          mediaRecorderRef.current = null;
+          setListening(false);
+
+          if (chunks.length === 0) return;
+
+          try {
+            const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
+            const audioBase64 = await blobToBase64(blob);
+            const transcript = await transcribeVoice(
+              audioBase64,
+              blob.type || recorder.mimeType || mimeType || "audio/webm",
+            );
+
+            if (transcript.trim()) {
+              onResultRef.current?.(transcript.trim());
+            }
+          } catch (err) {
+            console.error("Voice transcription error:", err);
+          }
+        };
+
+        recorder.start();
+        setListening(true);
+      } catch (err) {
+        console.error("Microphone access failed, trying speech recognition fallback:", err);
+        stopMediaTracks();
+        mediaRecorderRef.current = null;
+        startSpeechRecognitionFallback(onResult);
+      }
+    },
+    [listening, startSpeechRecognitionFallback, stopMediaTracks]
+  );
+
   const stopListening = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      return;
+    }
     recognitionRef.current?.stop();
+    stopMediaTracks();
     setListening(false);
-  }, []);
+  }, [stopMediaTracks]);
 
   const playAudio = useCallback(
     (base64Audio: string): Promise<void> => {

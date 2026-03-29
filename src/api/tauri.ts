@@ -84,6 +84,10 @@ export async function clearChat(characterId: string) {
   return invoke("chat_clear", { characterId });
 }
 
+export async function transcribeVoice(audioBase64: string, mimeType: string) {
+  return invoke<string>("voice_transcribe", { audioBase64, mimeType });
+}
+
 // Memory
 export async function getMemory(characterId: string) {
   return invoke<unknown[]>("memory_get", { characterId });

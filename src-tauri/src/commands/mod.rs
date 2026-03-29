@@ -5,3 +5,4 @@ pub mod expressions;
 pub mod memory;
 pub mod state;
 pub mod tts;
+pub mod voice;
