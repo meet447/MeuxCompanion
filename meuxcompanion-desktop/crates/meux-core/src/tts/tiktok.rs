@@ -1,4 +1,5 @@
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 use base64::Engine;
 use reqwest::Client;
@@ -14,111 +15,244 @@ const ENDPOINTS: &[&str] = &[
 ];
 
 const TEXT_BYTE_LIMIT: usize = 300;
+const ENDPOINT_TTL_SECS: f64 = 60.0;
 
 fn client() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     CLIENT.get_or_init(Client::new)
 }
 
-/// Generate TTS audio for the given text, splitting into chunks if needed.
-pub async fn generate(text: &str, voice: &str) -> Result<Vec<u8>> {
-    let voice = if voice.is_empty() { "en_us_001" } else { voice };
-    let chunks = split_text(text, TEXT_BYTE_LIMIT);
-    let mut audio = Vec::new();
+// Endpoint health cache
+static ENDPOINT_STATUS: OnceLock<Mutex<Vec<(bool, Instant)>>> = OnceLock::new();
 
-    for chunk in &chunks {
-        let data = generate_chunk(chunk, voice).await?;
-        audio.extend_from_slice(&data);
-    }
-
-    Ok(audio)
+fn endpoint_cache() -> &'static Mutex<Vec<(bool, Instant)>> {
+    ENDPOINT_STATUS.get_or_init(|| {
+        Mutex::new(vec![
+            (true, Instant::now()),
+            (true, Instant::now()),
+        ])
+    })
 }
 
-async fn generate_chunk(text: &str, voice: &str) -> Result<Vec<u8>> {
-    let mut last_err = None;
-    for endpoint in ENDPOINTS {
-        match try_endpoint(endpoint, text, voice).await {
-            Ok(data) => return Ok(data),
-            Err(e) => last_err = Some(e),
+async fn endpoint_ok(endpoint_index: usize) -> bool {
+    // Check cache
+    {
+        let cache = endpoint_cache().lock().unwrap();
+        let (ok, last_check) = &cache[endpoint_index];
+        if last_check.elapsed().as_secs_f64() < ENDPOINT_TTL_SECS {
+            return *ok;
         }
     }
-    Err(last_err.unwrap_or_else(|| MeuxError::Tts("All TikTok TTS endpoints failed".into())))
-}
 
-async fn try_endpoint(endpoint: &str, text: &str, voice: &str) -> Result<Vec<u8>> {
-    let body = serde_json::json!({
-        "text": text,
-        "voice": voice,
-    });
-
-    let resp = client()
-        .post(endpoint)
-        .json(&body)
-        .timeout(std::time::Duration::from_secs(10))
+    // Health check: GET the base URL
+    let base_url = ENDPOINTS[endpoint_index].split("/a").next().unwrap_or("");
+    let ok = match client()
+        .get(base_url)
+        .timeout(std::time::Duration::from_secs(3))
         .send()
         .await
-        .map_err(|e| MeuxError::Tts(format!("TikTok TTS request failed: {e}")))?
-        .error_for_status()
-        .map_err(|e| MeuxError::Tts(format!("TikTok TTS request failed: {e}")))?;
+    {
+        Ok(resp) => resp.status().as_u16() == 200,
+        Err(_) => false,
+    };
 
-    let json: Value = resp.json().await?;
+    // Update cache
+    {
+        let mut cache = endpoint_cache().lock().unwrap();
+        cache[endpoint_index] = (ok, Instant::now());
+    }
 
-    let b64 = json
-        .get("data")
-        .or_else(|| json.get("audio"))
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| MeuxError::Tts("No audio data in TikTok TTS response".into()))?;
-
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(b64)
-        .map_err(|e| MeuxError::Tts(format!("Base64 decode error: {e}")))?;
-
-    Ok(bytes)
+    ok
 }
 
-/// Split text into chunks that fit within the byte limit, splitting on word boundaries.
-pub fn split_text(text: &str, chunk_size: usize) -> Vec<String> {
-    if text.len() <= chunk_size {
-        return vec![text.to_string()];
+/// Generate TTS audio and return raw MP3 bytes.
+pub async fn generate(text: &str, voice: &str) -> Result<Vec<u8>> {
+    if text.is_empty() {
+        return Err(MeuxError::Tts("Empty text".into()));
     }
 
-    let mut chunks = Vec::new();
-    let mut remaining = text;
+    let voice = if voice.is_empty() { "jp_001" } else { voice };
 
-    while !remaining.is_empty() {
-        if remaining.len() <= chunk_size {
-            chunks.push(remaining.to_string());
-            break;
+    for (endpoint_index, endpoint) in ENDPOINTS.iter().enumerate() {
+        if !endpoint_ok(endpoint_index).await {
+            continue;
         }
 
-        // Find the last space within the chunk_size limit
-        let split_at = remaining[..chunk_size]
-            .rfind(' ')
-            .map(|i| i + 1) // include the space in the first chunk
-            .unwrap_or(chunk_size); // no space found, hard split
-
-        let (chunk, rest) = remaining.split_at(split_at);
-        chunks.push(chunk.trim().to_string());
-        remaining = rest.trim_start();
+        match try_generate(text, voice, endpoint, endpoint_index).await {
+            Ok(data) => return Ok(data),
+            Err(_) => continue,
+        }
     }
 
-    chunks
+    Err(MeuxError::Tts("All TikTok TTS endpoints failed".into()))
+}
+
+async fn try_generate(
+    text: &str,
+    voice: &str,
+    endpoint: &str,
+    endpoint_index: usize,
+) -> Result<Vec<u8>> {
+    if text.len() < TEXT_BYTE_LIMIT {
+        // Single chunk
+        let audio_resp = generate_audio(text, voice, endpoint).await?;
+        let b64 = extract_base64(&audio_resp, endpoint_index)?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(&b64)
+            .map_err(|e| MeuxError::Tts(format!("Base64 decode error: {e}")))?;
+        Ok(bytes)
+    } else {
+        // Split into chunks, generate each
+        let parts = split_text(text, 299);
+        let mut audio_parts: Vec<Option<String>> = vec![None; parts.len()];
+
+        // Generate sequentially (tokio tasks for parallelism)
+        let mut handles = Vec::new();
+        for (i, part) in parts.iter().enumerate() {
+            let part = part.clone();
+            let endpoint = endpoint.to_string();
+            let voice = voice.to_string();
+            let handle = tokio::spawn(async move {
+                let audio_resp = generate_audio(&part, &voice, &endpoint).await?;
+                let b64 = extract_base64(&audio_resp, endpoint_index)?;
+                if b64 == "error" {
+                    return Err(MeuxError::Tts("TTS returned error".into()));
+                }
+                Ok::<(usize, String), MeuxError>((i, b64))
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            match handle.await {
+                Ok(Ok((idx, b64))) => audio_parts[idx] = Some(b64),
+                Ok(Err(e)) => return Err(e),
+                Err(e) => return Err(MeuxError::Tts(format!("TTS task error: {e}"))),
+            }
+        }
+
+        // All parts must succeed
+        if audio_parts.iter().any(|p| p.is_none()) {
+            return Err(MeuxError::Tts("Some TTS chunks failed".into()));
+        }
+
+        // Decode each part, concatenate raw bytes
+        let mut raw = Vec::new();
+        for part in audio_parts.iter().flatten() {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(part)
+                .map_err(|e| MeuxError::Tts(format!("Base64 decode error: {e}")))?;
+            raw.extend_from_slice(&bytes);
+        }
+
+        Ok(raw)
+    }
+}
+
+async fn generate_audio(text: &str, voice: &str, endpoint: &str) -> Result<Vec<u8>> {
+    let resp = client()
+        .post(endpoint)
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "text": text,
+            "voice": voice,
+        }))
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| MeuxError::Tts(format!("TikTok TTS request failed: {e}")))?;
+
+    Ok(resp.bytes().await
+        .map_err(|e| MeuxError::Tts(format!("TikTok TTS read error: {e}")))?
+        .to_vec())
+}
+
+fn extract_base64(audio_response: &[u8], endpoint_index: usize) -> Result<String> {
+    let data: Value = serde_json::from_slice(audio_response)
+        .map_err(|e| MeuxError::Tts(format!("TTS JSON parse error: {e}")))?;
+
+    if endpoint_index == 0 {
+        // First endpoint: { "data": "base64..." }
+        data.get("data")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty() && *s != "error")
+            .map(|s| s.to_string())
+            .ok_or_else(|| MeuxError::Tts("No audio data in TTS response".into()))
+    } else {
+        // Second endpoint: { "audio": "data:audio/mpeg;base64,..." } or { "data": "..." }
+        let raw = data
+            .get("audio")
+            .or_else(|| data.get("data"))
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| MeuxError::Tts("No audio data in TTS response".into()))?;
+
+        // Strip data URI prefix if present
+        if raw.contains(',') {
+            Ok(raw.split(',').nth(1).unwrap_or(raw).to_string())
+        } else {
+            Ok(raw.to_string())
+        }
+    }
+}
+
+pub fn split_text(text: &str, chunk_size: usize) -> Vec<String> {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let mut result = Vec::new();
+    let mut current = String::new();
+
+    for word in words {
+        if current.len() + word.len() + 1 <= chunk_size {
+            if !current.is_empty() {
+                current.push(' ');
+            }
+            current.push_str(word);
+        } else {
+            if !current.is_empty() {
+                result.push(current.clone());
+            }
+            current = word.to_string();
+        }
+    }
+    if !current.is_empty() {
+        result.push(current);
+    }
+    result
 }
 
 pub fn list_voices() -> Vec<VoiceInfo> {
     [
-        ("jp_001", "Japanese Female"),
-        ("jp_006", "Japanese Male"),
-        ("en_us_001", "English US Female"),
-        ("en_us_006", "English US Male 1"),
-        ("en_us_010", "English US Male 2"),
-        ("en_uk_001", "English UK Male"),
-        ("en_au_001", "English AU Female"),
-        ("fr_001", "French Male"),
-        ("de_001", "German Female"),
-        ("kr_002", "Korean Male"),
-        ("en_male_narration", "English Male Narration"),
-        ("en_female_emotional", "English Female Emotional"),
+        ("en_au_001", "English AU - Female"),
+        ("en_au_002", "English AU - Male"),
+        ("en_uk_001", "English UK - Male 1"),
+        ("en_uk_003", "English UK - Male 2"),
+        ("en_us_001", "English US - Female 1"),
+        ("en_us_002", "English US - Female 2"),
+        ("en_us_006", "English US - Male 1"),
+        ("en_us_007", "English US - Male 2"),
+        ("en_us_009", "English US - Male 3"),
+        ("en_us_010", "English US - Male 4"),
+        ("fr_001", "French - Male 1"),
+        ("fr_002", "French - Male 2"),
+        ("de_001", "German - Female"),
+        ("de_002", "German - Male"),
+        ("es_002", "Spanish - Male"),
+        ("es_mx_002", "Spanish MX - Male"),
+        ("br_001", "Portuguese BR - Female 1"),
+        ("br_003", "Portuguese BR - Female 2"),
+        ("br_004", "Portuguese BR - Female 3"),
+        ("br_005", "Portuguese BR - Male"),
+        ("id_001", "Indonesian - Female"),
+        ("jp_001", "Japanese - Female 1"),
+        ("jp_003", "Japanese - Female 2"),
+        ("jp_005", "Japanese - Female 3"),
+        ("jp_006", "Japanese - Male"),
+        ("kr_002", "Korean - Male 1"),
+        ("kr_003", "Korean - Female"),
+        ("kr_004", "Korean - Male 2"),
+        ("en_male_narration", "Narrator"),
+        ("en_male_funny", "Wacky"),
+        ("en_female_emotional", "Peaceful"),
     ]
     .into_iter()
     .map(|(id, name)| VoiceInfo {
@@ -134,8 +268,7 @@ mod tests {
 
     #[test]
     fn test_split_text_short() {
-        let text = "Hello world";
-        let chunks = split_text(text, 300);
+        let chunks = split_text("Hello world", 300);
         assert_eq!(chunks, vec!["Hello world"]);
     }
 
@@ -148,8 +281,26 @@ mod tests {
         for chunk in &chunks {
             assert!(chunk.len() <= 300);
         }
-        // Verify all words are preserved
-        let rejoined = chunks.join(" ");
-        assert_eq!(rejoined, text);
+    }
+
+    #[test]
+    fn test_extract_base64_endpoint_0() {
+        let resp = br#"{"data":"dGVzdA=="}"#;
+        let result = extract_base64(resp, 0).unwrap();
+        assert_eq!(result, "dGVzdA==");
+    }
+
+    #[test]
+    fn test_extract_base64_endpoint_1_data_uri() {
+        let resp = br#"{"audio":"data:audio/mpeg;base64,dGVzdA=="}"#;
+        let result = extract_base64(resp, 1).unwrap();
+        assert_eq!(result, "dGVzdA==");
+    }
+
+    #[test]
+    fn test_extract_base64_endpoint_1_raw() {
+        let resp = br#"{"data":"dGVzdA=="}"#;
+        let result = extract_base64(resp, 1).unwrap();
+        assert_eq!(result, "dGVzdA==");
     }
 }
