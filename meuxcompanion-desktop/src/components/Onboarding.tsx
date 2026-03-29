@@ -161,7 +161,7 @@ function SelectionCard({
 export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
   const [voices, setVoices] = useState<Voice[]>([]);
-  const [models, setModels] = useState<Model[]>([]);
+  const [models, _setModels] = useState<Model[]>([]);
   const [testResult, setTestResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -190,9 +190,9 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
     // TODO: add Tauri command for models_list (listing available Live2D/VRM models on disk)
     // For now, use characters_list as a placeholder to populate the model selector
     invoke<any[]>("characters_list")
-      .then((data: any[]) => {
+      .then((_data: any[]) => {
         // Characters don't map 1:1 to models, so we leave models empty for now
-        // Once a models_list command exists, populate setModels here
+        // Once a models_list command exists, populate _setModels here
       })
       .catch(console.error);
   }, []);
