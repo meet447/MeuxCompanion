@@ -63,7 +63,10 @@ export function useAudioQueue() {
           resolve();
         };
 
-        audio.play().catch(() => {
+        audio.play().then(() => {
+          console.log("[AudioQueue] Playing audio");
+        }).catch((err) => {
+          console.warn("[AudioQueue] Autoplay blocked, waiting for interaction:", err);
           const resumePlay = () => {
             audio.play().catch(() => {});
             document.removeEventListener("click", resumePlay);
@@ -124,6 +127,7 @@ export function useAudioQueue() {
   }, []);
 
   const addAudio = useCallback((index: number, audio: number[]) => {
+    console.log(`[AudioQueue] addAudio index=${index}, bytes=${audio.length}`);
     const entry = entriesRef.current.get(index);
     if (entry) {
       entry.audio = audio;
