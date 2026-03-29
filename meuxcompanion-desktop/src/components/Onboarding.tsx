@@ -45,7 +45,7 @@ const LLM_PRESETS: Record<string, LLMPreset> = {
   groq: { name: "Groq", base_url: "https://api.groq.com/openai/v1", needs_key: true, default_model: "llama-3.3-70b-versatile" },
   openrouter: { name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", needs_key: true, default_model: "openai/gpt-4o" },
   ollama: { name: "Ollama", base_url: "http://localhost:11434/v1", needs_key: false, default_model: "llama3" },
-  nectara: { name: "Nectara", base_url: "https://api.nectara.ai/v1", needs_key: true, default_model: "nectara-v1" },
+  nectara: { name: "Nectara", base_url: "https://api-nectara.chipling.xyz/v1", needs_key: true, default_model: "auto" },
   custom: { name: "Custom", base_url: "", needs_key: true, default_model: "" },
 };
 
