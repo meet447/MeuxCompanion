@@ -78,6 +78,8 @@ pub fn run() {
             commands::characters::characters_get,
             commands::characters::characters_create,
             commands::characters::models_list,
+            commands::characters::models_import_live2d_dialog,
+            commands::characters::models_import_vrm_dialog,
             commands::chat::chat_send,
             commands::chat::chat_history,
             commands::chat::chat_clear,

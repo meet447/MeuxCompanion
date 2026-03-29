@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { ChatPanel } from "./components/ChatPanel";
+import { AddCharacterModal } from "./components/AddCharacterModal";
 import { CharacterSelect } from "./components/CharacterSelect";
 import { Onboarding } from "./components/Onboarding";
 import { Settings } from "./components/Settings";
@@ -35,6 +36,7 @@ function App() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [selectedCharId, setSelectedCharId] = useState("");
   const [charSelectOpen, setCharSelectOpen] = useState(false);
+  const [addCharacterOpen, setAddCharacterOpen] = useState(false);
   const [currentExpression, setCurrentExpression] = useState("neutral");
   const [background, setBackground] = useState("transparent");
   const [zoom, setZoom] = useState(1.1);
@@ -106,6 +108,30 @@ function App() {
     [setMessages]
   );
 
+  const refreshCharacters = useCallback(
+    async (preferredId?: string) => {
+      try {
+        const data = await listCharacters();
+        const chars = data as Character[];
+        setCharacters(chars);
+
+        if (preferredId && chars.some((char) => char.id === preferredId)) {
+          setSelectedCharId(preferredId);
+          return;
+        }
+
+        if (!selectedCharId && chars.length > 0) {
+          setSelectedCharId(chars[0].id);
+        } else if (selectedCharId && !chars.some((char) => char.id === selectedCharId) && chars.length > 0) {
+          setSelectedCharId(chars[0].id);
+        }
+      } catch (err) {
+        console.error("Character list load error:", err);
+      }
+    },
+    [selectedCharId]
+  );
+
   // Wire audio queue events to model
   useEffect(() => {
     setOnExpressionChange((expr: string) => {
@@ -124,18 +150,11 @@ function App() {
   }, [setOnSentence, setOnAudio, addSentence, addAudio]);
 
   useEffect(() => {
-    listCharacters()
-      .then((data) => {
-        const chars = data as Character[];
-        setCharacters(chars);
-        if (chars.length > 0) setSelectedCharId(chars[0].id);
-      })
-      .catch(console.error);
-
+    refreshCharacters();
     listModels()
       .then((data) => setModels(data as ModelInfo[]))
       .catch(console.error);
-  }, []);
+  }, [refreshCharacters]);
 
   useEffect(() => {
     getConfig()
@@ -236,6 +255,24 @@ function App() {
     [setMessages, clearQueue]
   );
 
+  const handleCharacterCreated = useCallback(
+    async (characterId: string) => {
+      try {
+        const data = await listModels();
+        setModels(data as ModelInfo[]);
+      } catch (err) {
+        console.error("Model list load error:", err);
+      }
+      await refreshCharacters(characterId);
+      setMessages([]);
+      clearQueue();
+      setCurrentExpression("neutral");
+      setZoom(1.1);
+      setSettingsOpen(false);
+    },
+    [refreshCharacters, setMessages, clearQueue]
+  );
+
   const [framing, setFraming] = useState<"full" | "half">("full");
 
   const canvasProps = useMemo(
@@ -314,22 +351,12 @@ function App() {
       <Onboarding
         onComplete={() => {
           setOnboardingComplete(true);
-          listCharacters()
-            .then((data) => {
-              const chars = data as Character[];
-              setCharacters(chars);
-              getConfig()
-                .then((cfg) => {
-                  const config = cfg as { active_character?: string };
-                  if (config.active_character) {
-                    setSelectedCharId(config.active_character);
-                  } else if (chars.length > 0) {
-                    setSelectedCharId(chars[0].id);
-                  }
-                })
-                .catch(console.error);
+          getConfig()
+            .then((cfg) => {
+              const config = cfg as { active_character?: string };
+              refreshCharacters(config.active_character);
             })
-            .catch(console.error);
+            .catch(() => refreshCharacters());
           listModels()
             .then((data) => setModels(data as ModelInfo[]))
             .catch(console.error);
@@ -402,6 +429,7 @@ function App() {
             characters={characters}
             selected={selectedCharId}
             onSelect={handleCharacterChange}
+            onAddCharacter={() => setAddCharacterOpen(true)}
             open={charSelectOpen}
             onToggle={() => setCharSelectOpen(!charSelectOpen)}
           />
@@ -430,9 +458,7 @@ function App() {
               }}
               onClose={() => {
                 setSettingsOpen(false);
-                listCharacters()
-                  .then((data) => setCharacters(data as Character[]))
-                  .catch(console.error);
+                refreshCharacters();
                 if (selectedCharId) {
                   loadHistory(selectedCharId);
                   refreshCharacterState(selectedCharId);
@@ -487,6 +513,11 @@ function App() {
           )}
         </div>
       </div>
+      <AddCharacterModal
+        open={addCharacterOpen}
+        onClose={() => setAddCharacterOpen(false)}
+        onCreated={handleCharacterCreated}
+      />
     </div>
   );
 }
