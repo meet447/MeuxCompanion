@@ -50,9 +50,9 @@ fn derive_user_id(config: &meux_core::config::types::AppConfig) -> String {
     }
 }
 
-/// Strip expression tags (<<tag>> and <</tag>>) from text.
+/// Strip expression tags (<<tag>> and [expression:tag]) from text.
 fn clean_text(text: &str) -> String {
-    let re = Regex::new(r"<</?[^>]*>>").expect("invalid regex");
+    let re = Regex::new(r"(<</?[^>]*>>)|(\[expression:\s*[^\]]+\])").expect("invalid regex");
     re.replace_all(text, "").to_string()
 }
 
@@ -128,9 +128,10 @@ async fn run_chat_stream(
     // 4. Stream LLM response
     let mut stream = state.llm.stream_chat(prompt_result.messages, &llm_config);
 
-    // 5. Expression tag regex
+    // 5. Expression tag regexes
     let open_re = Regex::new(r"<<([^/>][^>]*)>>").expect("invalid regex");
     let close_re = Regex::new(r"<</[^>]*>>").expect("invalid regex");
+    let square_re = Regex::new(r"\[expression:\s*([^\]]+)\]").expect("invalid regex");
 
     let mut full_response = String::new();
     let mut buffer = String::new();
@@ -261,6 +262,44 @@ async fn run_chat_stream(
                 // Reset expression to neutral after closing tag
                 current_expression = "neutral".to_string();
                 buffer = buffer[close_match.end()..].to_string();
+                continue;
+            }
+
+            // Look for bracketed expression tag [expression:name]
+            if let Some(sq_match) = square_re.find(&buffer) {
+                let before_tag = buffer[..sq_match.start()].to_string();
+                let tag_content = square_re
+                    .captures(&buffer)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().trim().to_string())
+                    .unwrap_or_default();
+
+                let clean = clean_text(&before_tag).trim().to_string();
+                if !clean.is_empty() {
+                    let resolved = state.expressions.resolve(&model_id, &current_expression);
+                    let _ = app.emit("chat:sentence", SentenceEvent {
+                        index: sentence_index,
+                        text: clean.clone(),
+                        expression: resolved,
+                    });
+
+                    // TTS
+                    let tts_cfg = tts_config.clone();
+                    let app_tts = app.clone();
+                    let idx = sentence_index;
+                    let tts_text = clean;
+                    tokio::spawn(async move {
+                        if let Ok(audio_data) = meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
+                             use base64::Engine;
+                             let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
+                             let _ = app_tts.emit("chat:audio", AudioEvent { index: idx, data: b64 });
+                        }
+                    });
+                    sentence_index += 1;
+                }
+
+                current_expression = tag_content;
+                buffer = buffer[sq_match.end()..].to_string();
                 continue;
             }
 

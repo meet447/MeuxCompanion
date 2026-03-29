@@ -27,7 +27,6 @@ const VRMCanvas = lazy(() =>
   import("./components/VRMCanvas").then((m) => ({ default: m.VRMCanvas }))
 );
 
-const IDLE_DELAY_MS = 60_000;
 
 function App() {
   const { isMiniMode, toggleMini } = useWindow();
@@ -51,8 +50,6 @@ function App() {
   const { speaking, addSentence, addAudio, clearQueue, getAudioLevels, setOnExpressionChange, setNeutralExpression } =
     useAudioQueue();
 
-  const idleTimerRef = useRef<number | null>(null);
-  const hasGreetedRef = useRef<Set<string>>(new Set());
   const selectedCharRef = useRef<Character | undefined>(undefined);
 
   // Map internal messages (content field) to ChatMessage type (text field) for ChatPanel
@@ -190,52 +187,17 @@ function App() {
       .catch(() => setExpressionsConfigured(false));
   }, [expressionModelId, setNeutralExpression]);
 
-  const resetIdleTimer = useCallback(() => {
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
-  }, []);
 
-  const sendIdleMessageRef = useRef<() => void>(() => {});
-
-  const startIdleTimer = useCallback(() => {
-    resetIdleTimer();
-    idleTimerRef.current = window.setTimeout(() => {
-      sendIdleMessageRef.current();
-    }, IDLE_DELAY_MS);
-  }, [resetIdleTimer]);
-
-  const sendIdleMessage = useCallback(async () => {
-    if (!selectedCharId || isStreaming || !expressionsConfigured) return;
-
-    const idlePrompts = [
-      "Say something to get the user's attention since they've been quiet. Be playful and in-character.",
-      "The user hasn't said anything in a while. Say something casual or share a thought, staying in character.",
-      "Initiate a conversation topic you'd be interested in, staying in character.",
-    ];
-    const prompt = idlePrompts[Math.floor(Math.random() * idlePrompts.length)];
-
-    await send(selectedCharId, `[system: ${prompt}]`);
-    await refreshCharacterState(selectedCharId);
-    startIdleTimer();
-  }, [selectedCharId, isStreaming, expressionsConfigured, send, startIdleTimer, refreshCharacterState]);
-
-  useEffect(() => {
-    sendIdleMessageRef.current = sendIdleMessage;
-  }, [sendIdleMessage]);
 
   const handleSend = useCallback(
     async (text: string) => {
       if (!selectedCharId || !expressionsConfigured) return;
-      resetIdleTimer();
       clearQueue();
 
       await send(selectedCharId, text);
       await refreshCharacterState(selectedCharId);
-      startIdleTimer();
     },
-    [selectedCharId, expressionsConfigured, send, resetIdleTimer, startIdleTimer, clearQueue, refreshCharacterState]
+    [selectedCharId, expressionsConfigured, send, clearQueue, refreshCharacterState]
   );
 
   useEffect(() => {
@@ -245,29 +207,12 @@ function App() {
     refreshCharacterState(selectedCharId);
   }, [selectedCharId, loadHistory, setMessages, refreshCharacterState]);
 
-  // Greeting on character load — only fires once expressionsConfigured is confirmed true
-  useEffect(() => {
-    if (!selectedCharId || expressionsConfigured !== true || hasGreetedRef.current.has(selectedCharId) || messages.length > 0) return;
-
-    const timer = setTimeout(async () => {
-      hasGreetedRef.current.add(selectedCharId);
-      await send(
-        selectedCharId,
-        "[system: The user just opened the app. Greet them warmly and in-character. Keep it short — 1-2 sentences.]"
-      );
-      await refreshCharacterState(selectedCharId);
-      startIdleTimer();
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [selectedCharId, expressionsConfigured, messages.length, send, startIdleTimer, refreshCharacterState]);
 
   const handleTypingChange = useCallback(
     (isTyping: boolean) => {
       setUserTyping(isTyping);
-      if (isTyping) resetIdleTimer();
     },
-    [resetIdleTimer]
+    []
   );
 
   const handleMicToggle = useCallback(() => {
@@ -287,9 +232,8 @@ function App() {
       clearQueue();
       setCurrentExpression("neutral");
       setZoom(1.1);
-      resetIdleTimer();
     },
-    [setMessages, clearQueue, resetIdleTimer]
+    [setMessages, clearQueue]
   );
 
   const [framing, setFraming] = useState<"full" | "half">("full");
