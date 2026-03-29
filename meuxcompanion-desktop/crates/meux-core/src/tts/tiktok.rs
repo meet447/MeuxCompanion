@@ -44,7 +44,7 @@ async fn endpoint_ok(endpoint_index: usize) -> bool {
         }
     }
 
-    // Health check: GET the base URL
+    // Health check: GET the base URL (follows redirects like Python requests)
     let base_url = ENDPOINTS[endpoint_index].split("/a").next().unwrap_or("");
     let ok = match client()
         .get(base_url)
@@ -52,7 +52,7 @@ async fn endpoint_ok(endpoint_index: usize) -> bool {
         .send()
         .await
     {
-        Ok(resp) => resp.status().as_u16() == 200,
+        Ok(resp) => resp.status().is_success(),
         Err(_) => false,
     };
 
@@ -162,9 +162,11 @@ async fn generate_audio(text: &str, voice: &str, endpoint: &str) -> Result<Vec<u
         .await
         .map_err(|e| MeuxError::Tts(format!("TikTok TTS request failed: {e}")))?;
 
-    Ok(resp.bytes().await
-        .map_err(|e| MeuxError::Tts(format!("TikTok TTS read error: {e}")))?
-        .to_vec())
+    // Don't check status code — just read body like the Python version
+    let bytes = resp.bytes().await
+        .map_err(|e| MeuxError::Tts(format!("TikTok TTS read error: {e}")))?;
+
+    Ok(bytes.to_vec())
 }
 
 fn extract_base64(audio_response: &[u8], endpoint_index: usize) -> Result<String> {
