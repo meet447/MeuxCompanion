@@ -340,9 +340,10 @@ fn build_system_prompt_from_sections(
         .join("\n");
     let expression_block = format!(
         "## EXPRESSION RULES\n\n\
-         You MUST include an expression tag in every response.\n\
+         You MUST include an expression tag at the start of your response to set your physical reaction.\n\
          Available expressions:\n{expr_list}\n\n\
-         Format: [expression:NAME] placed at the start of your response."
+         Format: [expression:NAME] or <<NAME>>. Use ONE tag at the very beginning.\n\
+         Example: [expression:blush] Oh, stop it! You're making me shy."
     );
     parts.push(expression_block);
 

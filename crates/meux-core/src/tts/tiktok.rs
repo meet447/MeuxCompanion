@@ -15,7 +15,6 @@ const ENDPOINTS: &[&str] = &[
 ];
 
 const TEXT_BYTE_LIMIT: usize = 300;
-const ENDPOINT_TTL_SECS: f64 = 60.0;
 
 fn client() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
@@ -28,50 +27,7 @@ fn client() -> &'static Client {
     })
 }
 
-// Endpoint health cache
-static ENDPOINT_STATUS: OnceLock<Mutex<Vec<(bool, Instant)>>> = OnceLock::new();
-
-fn endpoint_cache() -> &'static Mutex<Vec<(bool, Instant)>> {
-    ENDPOINT_STATUS.get_or_init(|| {
-        Mutex::new(vec![
-            (true, Instant::now()),
-            (true, Instant::now()),
-        ])
-    })
-}
-
-async fn endpoint_ok(endpoint_index: usize) -> bool {
-    // Check cache
-    {
-        let cache = endpoint_cache().lock().unwrap();
-        let (ok, last_check) = &cache[endpoint_index];
-        if last_check.elapsed().as_secs_f64() < ENDPOINT_TTL_SECS {
-            return *ok;
-        }
-    }
-
-    // Health check: GET the base URL (follows redirects like Python requests)
-    let base_url = ENDPOINTS[endpoint_index].split("/a").next().unwrap_or("");
-    let ok = match client()
-        .get(base_url)
-        .timeout(std::time::Duration::from_secs(3))
-        .send()
-        .await
-    {
-        Ok(resp) => resp.status().is_success(),
-        Err(_) => false,
-    };
-
-    // Update cache
-    {
-        let mut cache = endpoint_cache().lock().unwrap();
-        cache[endpoint_index] = (ok, Instant::now());
-    }
-
-    ok
-}
-
-/// Generate TTS audio and return raw MP3 bytes.
+// Generate TTS audio and return raw MP3 bytes.
 pub async fn generate(text: &str, voice: &str) -> Result<Vec<u8>> {
     if text.is_empty() {
         return Err(MeuxError::Tts("Empty text".into()));

@@ -7,6 +7,7 @@ pub fn create_mini_widget(app: &AppHandle) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "mini", WebviewUrl::App("index.html?mode=mini".into()))
         .title("MeuxCompanion")
         .inner_size(200.0, 300.0)
+        .transparent(true)
         .decorations(false)
         .always_on_top(true)
         .resizable(false)
@@ -54,6 +55,7 @@ pub fn window_expand(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn cycle_window_state(app: &AppHandle) {
     let main_visible = app
         .get_webview_window("main")
