@@ -16,6 +16,7 @@ import {
   getExpressions,
   getChatHistory,
   clearChat,
+  toAssetUrl,
 } from "./api/tauri";
 import type { Character, CharacterState, ModelInfo, ChatMessage } from "./types";
 
@@ -162,7 +163,7 @@ function App() {
     return models.find((m) => m.id === selectedChar.live2d_model) ?? null;
   }, [selectedChar, models]);
 
-  const modelPath = selectedModel?.path ?? null;
+  const modelPath = selectedModel?.path ? toAssetUrl(selectedModel.path) : null;
   const modelType = selectedModel?.type ?? "live2d";
   const modelMapping = selectedModel?.mapping ?? null;
 

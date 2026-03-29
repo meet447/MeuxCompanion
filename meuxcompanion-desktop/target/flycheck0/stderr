@@ -1,0 +1,109 @@
+   0.360620041s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint: stale: changed "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core/src/tts/tiktok.rs"
+   0.360653375s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint:           (vs) "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/target/debug/.fingerprint/meux-core-2f9dba603fb67eee/dep-lib-meux_core"
+   0.360659791s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1774784430, nanos: 908866798 } < FileTime { seconds: 1774784965, nanos: 228227836 }
+   0.363107250s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint: fingerprint dirty for meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("meux_core", ["lib"], "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core/src/lib.rs", Edition2021) }
+   0.363143416s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(ChangedFile { reference: "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/target/debug/.fingerprint/meux-core-2f9dba603fb67eee/dep-lib-meux_core", reference_mtime: FileTime { seconds: 1774784430, nanos: 908866798 }, stale: "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core/src/tts/tiktok.rs", stale_mtime: FileTime { seconds: 1774784965, nanos: 228227836 } }))
+   0.413218875s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint: stale: changed "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core/src/character/mod.rs"
+   0.413227666s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint:           (vs) "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/target/debug/.fingerprint/meux-core-93fbb7125c48a111/dep-test-lib-meux_core"
+   0.413229666s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1774784430, nanos: 908776089 } < FileTime { seconds: 1774785545, nanos: 231515918 }
+   0.413289000s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint: fingerprint dirty for meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("meux_core", ["lib"], "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core/src/lib.rs", Edition2021) }
+   0.413298541s  INFO prepare_target{force=false package_id=meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core) target="meux_core"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(ChangedFile { reference: "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/target/debug/.fingerprint/meux-core-93fbb7125c48a111/dep-test-lib-meux_core", reference_mtime: FileTime { seconds: 1774784430, nanos: 908776089 }, stale: "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core/src/character/mod.rs", stale_mtime: FileTime { seconds: 1774785545, nanos: 231515918 } }))
+   0.433552625s  INFO prepare_target{force=false package_id=meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri) target="meuxcompanion_desktop"}: cargo::core::compiler::fingerprint: fingerprint error for meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("meuxcompanion_desktop", ["lib"], "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri/src/lib.rs", Edition2021) }
+   0.433570625s  INFO prepare_target{force=false package_id=meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri) target="meuxcompanion_desktop"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/target/debug/.fingerprint/meuxcompanion-desktop-de31a69c04cc2a7c/lib-meuxcompanion_desktop`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   0.456173291s  INFO prepare_target{force=false package_id=meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri) target="meuxcompanion_desktop"}: cargo::core::compiler::fingerprint: fingerprint error for meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("meuxcompanion_desktop", ["lib"], "/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri/src/lib.rs", Edition2021) }
+   0.456185375s  INFO prepare_target{force=false package_id=meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri) target="meuxcompanion_desktop"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/target/debug/.fingerprint/meuxcompanion-desktop-28c801e3a2996e2d/test-lib-meuxcompanion_desktop`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   0.457215875s  INFO prepare_target{force=false package_id=meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri) target="meuxcompanion-desktop"}: cargo::core::compiler::fingerprint: fingerprint error for meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri)/Check { test: false }/TargetInner { name: "meuxcompanion-desktop", doc: true, ..: with_path("/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri/src/main.rs", Edition2021) }
+   0.457223541s  INFO prepare_target{force=false package_id=meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri) target="meuxcompanion-desktop"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/target/debug/.fingerprint/meuxcompanion-desktop-bb6d2626d4338f17/bin-meuxcompanion-desktop`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   0.458112125s  INFO prepare_target{force=false package_id=meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri) target="meuxcompanion-desktop"}: cargo::core::compiler::fingerprint: fingerprint error for meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri)/Check { test: true }/TargetInner { name: "meuxcompanion-desktop", doc: true, ..: with_path("/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri/src/main.rs", Edition2021) }
+   0.458117583s  INFO prepare_target{force=false package_id=meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri) target="meuxcompanion-desktop"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/target/debug/.fingerprint/meuxcompanion-desktop-61b615784c77ed9f/test-bin-meuxcompanion-desktop`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+    Checking meux-core v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/crates/meux-core)
+    Checking meuxcompanion-desktop v0.1.0 (/Users/meetsonawane/Code/project/MeuxVtuber/meuxcompanion-desktop/src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.09s
