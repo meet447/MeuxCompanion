@@ -44,10 +44,10 @@ export async function createCharacter(data: {
   return invoke<string>("characters_create", {
     name: data.name,
     personality: data.personality,
-    model_id: data.modelId,
+    modelId: data.modelId,
     voice: data.voice,
-    user_name: data.userName,
-    user_about: data.userAbout,
+    userName: data.userName,
+    userAbout: data.userAbout,
   });
 }
 
@@ -109,7 +109,7 @@ export async function getVoices(provider: string) {
 }
 
 export async function previewVoice(provider: string, voice: string, apiKey?: string, text?: string) {
-  return invoke<number[]>("tts_preview", { provider, voice, api_key: apiKey || null, text: text || null });
+  return invoke<number[]>("tts_preview", { provider, voice, apiKey: apiKey || null, text: text || null });
 }
 
 // Window
