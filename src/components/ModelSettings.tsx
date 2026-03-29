@@ -1,5 +1,10 @@
 import { useState, useEffect, memo } from "react";
-import { getExpressions, getModelExpressions, saveExpressions } from "../api/tauri";
+import {
+  getExpressions,
+  getModelExpressions,
+  getSupportedExpressions,
+  saveExpressions,
+} from "../api/tauri";
 
 interface Props {
   modelId: string;
@@ -7,16 +12,19 @@ interface Props {
   onClose: () => void;
 }
 
-// Global expression names used across all models
-const GLOBAL_EXPRESSIONS = [
+const FALLBACK_EXPRESSIONS = [
   "neutral",
   "happy",
   "sad",
   "angry",
   "surprised",
-  "thinking",
+  "excited",
   "embarrassed",
-  "love",
+  "thinking",
+  "blush",
+  "smirk",
+  "scared",
+  "disgusted",
 ];
 
 export const ModelSettings = memo(function ModelSettings({
@@ -33,7 +41,12 @@ export const ModelSettings = memo(function ModelSettings({
   useEffect(() => {
     if (!modelId) return;
 
-    setGlobalExpressions(GLOBAL_EXPRESSIONS);
+    getSupportedExpressions()
+      .then((exprs) => setGlobalExpressions(exprs.length > 0 ? exprs : FALLBACK_EXPRESSIONS))
+      .catch((err) => {
+        console.error("Failed to load supported expressions:", err);
+        setGlobalExpressions(FALLBACK_EXPRESSIONS);
+      });
 
     // Fetch model's available expressions from the model3.json file
     getModelExpressions(modelId)

@@ -4,6 +4,14 @@ use std::sync::Arc;
 use tauri::State;
 
 #[tauri::command]
+pub fn expressions_supported() -> Vec<String> {
+    meux_core::expressions::GLOBAL_EXPRESSIONS
+        .iter()
+        .map(|expr| expr.to_string())
+        .collect()
+}
+
+#[tauri::command]
 pub fn expressions_model_list(
     state: State<Arc<AppState>>,
     model_id: String,

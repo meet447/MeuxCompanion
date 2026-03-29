@@ -19,6 +19,19 @@ pub const GLOBAL_EXPRESSIONS: &[&str] = &[
     "disgusted",
 ];
 
+fn fallback_candidates(name: &str) -> &'static [&'static str] {
+    match name {
+        "blush" => &["embarrassed", "happy", "neutral"],
+        "embarrassed" => &["blush", "happy", "sad", "neutral"],
+        "smirk" => &["happy", "neutral"],
+        "thinking" => &["neutral", "sad"],
+        "excited" => &["happy", "surprised", "neutral"],
+        "scared" => &["surprised", "sad", "neutral"],
+        "disgusted" => &["angry", "sad", "neutral"],
+        _ => &["neutral"],
+    }
+}
+
 /// Manages expression mappings between global expression names and model-specific names.
 pub struct ExpressionManager {
     mappings_dir: PathBuf,
@@ -85,10 +98,23 @@ impl ExpressionManager {
     /// Returns the mapped name if one exists, otherwise returns the global name as fallback.
     pub fn resolve(&self, model_id: &str, global_name: &str) -> String {
         let mapping = self.get_mapping(model_id);
+        let normalized = global_name.trim().to_lowercase();
+
+        if let Some(mapped) = mapping.get(&normalized).filter(|value| !value.is_empty()) {
+            return mapped.clone();
+        }
+
+        for candidate in fallback_candidates(&normalized) {
+            if let Some(mapped) = mapping.get(*candidate).filter(|value| !value.is_empty()) {
+                return mapped.clone();
+            }
+        }
+
         mapping
-            .get(global_name)
+            .get("neutral")
+            .filter(|value| !value.is_empty())
             .cloned()
-            .unwrap_or_else(|| global_name.to_string())
+            .unwrap_or_else(|| normalized)
     }
 
     /// Validate an expression name against a list of available expressions.
@@ -159,5 +185,20 @@ mod tests {
             ExpressionManager::validate_expression("confused", &available),
             None
         );
+    }
+
+    #[test]
+    fn test_resolve_uses_fallback_mapping() {
+        let tmp = TempDir::new().unwrap();
+        let mgr = ExpressionManager::new(tmp.path());
+
+        let mut mapping = HashMap::new();
+        mapping.insert("embarrassed".to_string(), "shy_pose".to_string());
+        mapping.insert("neutral".to_string(), "idle_pose".to_string());
+
+        mgr.save_mapping("model_a", mapping).unwrap();
+
+        assert_eq!(mgr.resolve("model_a", "blush"), "shy_pose");
+        assert_eq!(mgr.resolve("model_a", "unknown_expression"), "idle_pose");
     }
 }

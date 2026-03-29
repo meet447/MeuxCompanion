@@ -38,7 +38,7 @@ export function useChat() {
   const cleanExpressionTags = (text: string) =>
     text
       .replace(/<<\/?[^>]*>>\s*/g, "")
-      .replace(/\[expression:\s*[^\]]+\]\s*/g, "");
+      .replace(/\[(?:expression:\s*)?[a-zA-Z0-9_\-]+\]\s*/g, "");
 
   const send = useCallback(
     async (characterId: string, message: string) => {

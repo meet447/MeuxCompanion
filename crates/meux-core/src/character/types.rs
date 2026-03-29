@@ -56,9 +56,13 @@ pub const DEFAULT_EXPRESSIONS: &[&str] = &[
     "sad",
     "angry",
     "surprised",
+    "excited",
     "embarrassed",
     "thinking",
-    "excited",
+    "blush",
+    "smirk",
+    "scared",
+    "disgusted",
 ];
 
 pub const VRM_EXPRESSIONS: &[&str] = &["happy", "angry", "sad", "relaxed", "surprised"];

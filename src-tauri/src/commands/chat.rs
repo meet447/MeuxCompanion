@@ -50,10 +50,234 @@ fn derive_user_id(config: &meux_core::config::types::AppConfig) -> String {
     }
 }
 
-/// Strip expression tags (<<tag>> and [expression:tag]) from text.
+/// Strip expression tags (<<tag>>, [expression:tag], or [tag]) from text.
 fn clean_text(text: &str) -> String {
-    let re = Regex::new(r"(<</?[^>]*>>)|(\[expression:\s*[^\]]+\])").expect("invalid regex");
+    let re = Regex::new(r"(<</?[^>]*>>)|(\[expression:\s*[^\]]+\])|(\[[a-zA-Z0-9_\-]+\])").expect("invalid regex");
     re.replace_all(text, "").to_string()
+}
+
+#[derive(Debug, Clone)]
+enum TagAction {
+    SetExpression(String),
+    ResetExpression,
+}
+
+#[derive(Debug, Clone)]
+struct TagMatch {
+    start: usize,
+    end: usize,
+    action: TagAction,
+}
+
+fn find_next_tag(
+    buffer: &str,
+    open_re: &Regex,
+    close_re: &Regex,
+    square_re: &Regex,
+) -> Option<TagMatch> {
+    let mut earliest: Option<TagMatch> = None;
+
+    if let Some(captures) = open_re.captures(buffer) {
+        if let (Some(full), Some(name)) = (captures.get(0), captures.get(1)) {
+            earliest = Some(TagMatch {
+                start: full.start(),
+                end: full.end(),
+                action: TagAction::SetExpression(name.as_str().trim().to_string()),
+            });
+        }
+    }
+
+    if let Some(full) = close_re.find(buffer) {
+        let candidate = TagMatch {
+            start: full.start(),
+            end: full.end(),
+            action: TagAction::ResetExpression,
+        };
+        if earliest
+            .as_ref()
+            .map(|existing| candidate.start < existing.start)
+            .unwrap_or(true)
+        {
+            earliest = Some(candidate);
+        }
+    }
+
+    if let Some(captures) = square_re.captures(buffer) {
+        if let (Some(full), Some(name)) = (captures.get(0), captures.get(1)) {
+            let candidate = TagMatch {
+                start: full.start(),
+                end: full.end(),
+                action: TagAction::SetExpression(name.as_str().trim().to_string()),
+            };
+            if earliest
+                .as_ref()
+                .map(|existing| candidate.start < existing.start)
+                .unwrap_or(true)
+            {
+                earliest = Some(candidate);
+            }
+        }
+    }
+
+    earliest
+}
+
+fn find_sentence_boundary(text: &str, allow_end_boundary: bool) -> Option<usize> {
+    let mut chars = text.char_indices().peekable();
+
+    while let Some((idx, ch)) = chars.next() {
+        if !matches!(ch, '.' | '!' | '?' | '…') {
+            continue;
+        }
+
+        let mut end = idx + ch.len_utf8();
+        while let Some(&(next_idx, next_ch)) = chars.peek() {
+            if matches!(next_ch, '"' | '\'' | ')' | ']' | '}' | '”' | '’') {
+                end = next_idx + next_ch.len_utf8();
+                chars.next();
+            } else {
+                break;
+            }
+        }
+
+        match chars.peek() {
+            Some((_, next_ch)) if next_ch.is_whitespace() || matches!(next_ch, '<' | '[') => {
+                return Some(end);
+            }
+            None if allow_end_boundary => return Some(end),
+            _ => {}
+        }
+    }
+
+    None
+}
+
+fn spawn_tts_for_sentence(
+    app: &AppHandle,
+    tts_config: &meux_core::config::types::TtsConfig,
+    index: u32,
+    text: String,
+) {
+    let tts_cfg = tts_config.clone();
+    let app_tts = app.clone();
+
+    tokio::spawn(async move {
+        match meux_core::tts::generate_tts_auto(&text, &tts_cfg).await {
+            Ok(audio_data) => {
+                use base64::Engine;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
+                let _ = app_tts.emit(
+                    "chat:audio",
+                    AudioEvent {
+                        index,
+                        data: b64,
+                    },
+                );
+            }
+            Err(e) => {
+                eprintln!("TTS error for sentence {}: {}", index, e);
+            }
+        }
+    });
+}
+
+fn emit_sentence_chunk(
+    app: &AppHandle,
+    state: &Arc<AppState>,
+    model_id: &str,
+    current_expression: &str,
+    tts_config: &meux_core::config::types::TtsConfig,
+    sentence_index: &mut u32,
+    raw_text: &str,
+) {
+    let clean = clean_text(raw_text).trim().to_string();
+    if clean.is_empty() {
+        return;
+    }
+
+    let resolved = state.expressions.resolve(model_id, current_expression);
+    let idx = *sentence_index;
+
+    let _ = app.emit(
+        "chat:sentence",
+        SentenceEvent {
+            index: idx,
+            text: clean.clone(),
+            expression: resolved,
+        },
+    );
+
+    spawn_tts_for_sentence(app, tts_config, idx, clean);
+    *sentence_index += 1;
+}
+
+fn emit_ready_sentences(
+    app: &AppHandle,
+    state: &Arc<AppState>,
+    model_id: &str,
+    current_expression: &str,
+    tts_config: &meux_core::config::types::TtsConfig,
+    sentence_index: &mut u32,
+    text: &str,
+    allow_end_boundary: bool,
+    force_flush_remainder: bool,
+) {
+    let mut remaining = text.trim_start().to_string();
+
+    while let Some(boundary) = find_sentence_boundary(&remaining, allow_end_boundary) {
+        let sentence = remaining[..boundary].to_string();
+        emit_sentence_chunk(
+            app,
+            state,
+            model_id,
+            current_expression,
+            tts_config,
+            sentence_index,
+            &sentence,
+        );
+        remaining = remaining[boundary..].trim_start().to_string();
+    }
+
+    if force_flush_remainder {
+        emit_sentence_chunk(
+            app,
+            state,
+            model_id,
+            current_expression,
+            tts_config,
+            sentence_index,
+            &remaining,
+        );
+    }
+}
+
+fn drain_buffer_sentences(
+    app: &AppHandle,
+    state: &Arc<AppState>,
+    model_id: &str,
+    current_expression: &str,
+    tts_config: &meux_core::config::types::TtsConfig,
+    sentence_index: &mut u32,
+    buffer: &mut String,
+    allow_end_boundary: bool,
+) {
+    let mut working = buffer.trim_start().to_string();
+
+    while let Some(boundary) = find_sentence_boundary(&working, allow_end_boundary) {
+        let sentence = working[..boundary].to_string();
+        emit_sentence_chunk(
+            app,
+            state,
+            model_id,
+            current_expression,
+            tts_config,
+            sentence_index,
+            &sentence,
+        );
+        working = working[boundary..].trim_start().to_string();
+    }
+
+    *buffer = working;
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +355,8 @@ async fn run_chat_stream(
     // 5. Expression tag regexes
     let open_re = Regex::new(r"<<([^/>][^>]*)>>").expect("invalid regex");
     let close_re = Regex::new(r"<</[^>]*>>").expect("invalid regex");
-    let square_re = Regex::new(r"\[expression:\s*([^\]]+)\]").expect("invalid regex");
+    // Matches [expression:name] or just [name]
+    let square_re = Regex::new(r"\[(?:expression:\s*)?([a-zA-Z0-9_\-]+)\]").expect("invalid regex");
 
     let mut full_response = String::new();
     let mut buffer = String::new();
@@ -150,156 +375,45 @@ async fn run_chat_stream(
         full_response.push_str(token);
         buffer.push_str(token);
 
+        // Flush any sentence that already looks complete, even before the next tag arrives.
+        drain_buffer_sentences(
+            &app,
+            &state,
+            &model_id,
+            &current_expression,
+            &tts_config,
+            &mut sentence_index,
+            &mut buffer,
+            false,
+        );
+
         // Check for expression tags in buffer
         loop {
-            // Look for opening expression tag
-            if let Some(open_match) = open_re.find(&buffer) {
-                let before_tag = buffer[..open_match.start()].to_string();
-                let tag_content = open_re
-                    .captures(&buffer)
-                    .and_then(|c| c.get(1))
-                    .map(|m| m.as_str().to_string())
-                    .unwrap_or_default();
+            if let Some(tag_match) = find_next_tag(&buffer, &open_re, &close_re, &square_re) {
+                let before_tag = buffer[..tag_match.start].to_string();
 
-                // Flush text before the tag as a sentence
-                let clean = clean_text(&before_tag).trim().to_string();
-                if !clean.is_empty() {
-                    let resolved = state
-                        .expressions
-                        .resolve(&model_id, &current_expression);
+                emit_ready_sentences(
+                    &app,
+                    &state,
+                    &model_id,
+                    &current_expression,
+                    &tts_config,
+                    &mut sentence_index,
+                    &before_tag,
+                    true,
+                    true,
+                );
 
-                    let _ = app.emit(
-                        "chat:sentence",
-                        SentenceEvent {
-                            index: sentence_index,
-                            text: clean.clone(),
-                            expression: resolved.clone(),
-                        },
-                    );
-
-                    // Spawn TTS task
-                    let tts_cfg = tts_config.clone();
-                    let app_tts = app.clone();
-                    let idx = sentence_index;
-                    let tts_text = clean;
-                    tokio::spawn(async move {
-                        match meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
-                            Ok(audio_data) => {
-                                use base64::Engine;
-                                let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
-                                let _ = app_tts.emit(
-                                    "chat:audio",
-                                    AudioEvent {
-                                        index: idx,
-                                        data: b64,
-                                    },
-                                );
-                            }
-                            Err(e) => {
-                                eprintln!("TTS error for sentence {}: {}", idx, e);
-                            }
-                        }
-                    });
-
-                    sentence_index += 1;
+                match tag_match.action {
+                    TagAction::SetExpression(tag_content) => {
+                        current_expression = tag_content;
+                    }
+                    TagAction::ResetExpression => {
+                        current_expression = "neutral".to_string();
+                    }
                 }
 
-                // Update current expression
-                current_expression = tag_content;
-
-                // Remove everything up to and including the tag from buffer
-                buffer = buffer[open_match.end()..].to_string();
-                continue;
-            }
-
-            // Look for closing expression tag
-            if let Some(close_match) = close_re.find(&buffer) {
-                let before_tag = buffer[..close_match.start()].to_string();
-
-                // Flush text before closing tag as a sentence
-                let clean = clean_text(&before_tag).trim().to_string();
-                if !clean.is_empty() {
-                    let resolved = state
-                        .expressions
-                        .resolve(&model_id, &current_expression);
-
-                    let _ = app.emit(
-                        "chat:sentence",
-                        SentenceEvent {
-                            index: sentence_index,
-                            text: clean.clone(),
-                            expression: resolved.clone(),
-                        },
-                    );
-
-                    // Spawn TTS task
-                    let tts_cfg = tts_config.clone();
-                    let app_tts = app.clone();
-                    let idx = sentence_index;
-                    let tts_text = clean;
-                    tokio::spawn(async move {
-                        match meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
-                            Ok(audio_data) => {
-                                use base64::Engine;
-                                let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
-                                let _ = app_tts.emit(
-                                    "chat:audio",
-                                    AudioEvent {
-                                        index: idx,
-                                        data: b64,
-                                    },
-                                );
-                            }
-                            Err(e) => {
-                                eprintln!("TTS error for sentence {}: {}", idx, e);
-                            }
-                        }
-                    });
-
-                    sentence_index += 1;
-                }
-
-                // Reset expression to neutral after closing tag
-                current_expression = "neutral".to_string();
-                buffer = buffer[close_match.end()..].to_string();
-                continue;
-            }
-
-            // Look for bracketed expression tag [expression:name]
-            if let Some(sq_match) = square_re.find(&buffer) {
-                let before_tag = buffer[..sq_match.start()].to_string();
-                let tag_content = square_re
-                    .captures(&buffer)
-                    .and_then(|c| c.get(1))
-                    .map(|m| m.as_str().trim().to_string())
-                    .unwrap_or_default();
-
-                let clean = clean_text(&before_tag).trim().to_string();
-                if !clean.is_empty() {
-                    let resolved = state.expressions.resolve(&model_id, &current_expression);
-                    let _ = app.emit("chat:sentence", SentenceEvent {
-                        index: sentence_index,
-                        text: clean.clone(),
-                        expression: resolved,
-                    });
-
-                    // TTS
-                    let tts_cfg = tts_config.clone();
-                    let app_tts = app.clone();
-                    let idx = sentence_index;
-                    let tts_text = clean;
-                    tokio::spawn(async move {
-                        if let Ok(audio_data) = meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
-                             use base64::Engine;
-                             let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
-                             let _ = app_tts.emit("chat:audio", AudioEvent { index: idx, data: b64 });
-                        }
-                    });
-                    sentence_index += 1;
-                }
-
-                current_expression = tag_content;
-                buffer = buffer[sq_match.end()..].to_string();
+                buffer = buffer[tag_match.end..].to_string();
                 continue;
             }
 
@@ -308,45 +422,17 @@ async fn run_chat_stream(
     }
 
     // 7. Flush remaining buffer
-    let remaining = clean_text(&buffer).trim().to_string();
-    if !remaining.is_empty() {
-        let resolved = state
-            .expressions
-            .resolve(&model_id, &current_expression);
-
-        let _ = app.emit(
-            "chat:sentence",
-            SentenceEvent {
-                index: sentence_index,
-                text: remaining.clone(),
-                expression: resolved.clone(),
-            },
-        );
-
-        // TTS for final sentence
-        let tts_cfg = tts_config.clone();
-        let app_tts = app.clone();
-        let idx = sentence_index;
-        let tts_text = remaining;
-        tokio::spawn(async move {
-            match meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
-                Ok(audio_data) => {
-                    use base64::Engine;
-                    let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
-                    let _ = app_tts.emit(
-                        "chat:audio",
-                        AudioEvent {
-                            index: idx,
-                            data: b64,
-                        },
-                    );
-                }
-                Err(e) => {
-                    eprintln!("TTS error for sentence {}: {}", idx, e);
-                }
-            }
-        });
-    }
+    emit_ready_sentences(
+        &app,
+        &state,
+        &model_id,
+        &current_expression,
+        &tts_config,
+        &mut sentence_index,
+        &buffer,
+        true,
+        true,
+    );
 
     // 8. Save to session
     let cleaned_response = clean_text(&full_response);
@@ -385,6 +471,31 @@ async fn run_chat_stream(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_sentence_boundary;
+
+    #[test]
+    fn finds_sentence_before_next_text() {
+        assert_eq!(find_sentence_boundary("Hello there. Next", false), Some(12));
+    }
+
+    #[test]
+    fn waits_for_more_if_sentence_ends_at_buffer_end() {
+        assert_eq!(find_sentence_boundary("Hello there.", false), None);
+    }
+
+    #[test]
+    fn allows_terminal_boundary_when_flushing() {
+        assert_eq!(find_sentence_boundary("Hello there.", true), Some(12));
+    }
+
+    #[test]
+    fn handles_quote_after_punctuation() {
+        assert_eq!(find_sentence_boundary("She said hi.\" Next", false), Some(13));
+    }
 }
 
 // ---------------------------------------------------------------------------
