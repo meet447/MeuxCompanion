@@ -22,6 +22,7 @@ fn client() -> &'static Client {
     CLIENT.get_or_init(|| {
         Client::builder()
             .redirect(reqwest::redirect::Policy::limited(10))
+            .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
             .build()
             .unwrap_or_else(|_| Client::new())
     })
