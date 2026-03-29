@@ -88,6 +88,10 @@ export async function transcribeVoice(audioBase64: string, mimeType: string) {
   return invoke<string>("voice_transcribe", { audioBase64, mimeType });
 }
 
+export async function transcribeVoiceLocal(pcmBase64: string) {
+  return invoke<string>("voice_transcribe_local", { pcmBase64 });
+}
+
 // Memory
 export async function getMemory(characterId: string) {
   return invoke<unknown[]>("memory_get", { characterId });

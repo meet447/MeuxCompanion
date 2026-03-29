@@ -12,6 +12,7 @@ use meux_core::state::StateStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
+use whisper_rs::{WhisperContext, WhisperContextParameters};
 
 pub struct AppState {
     pub data_dir: PathBuf,
@@ -22,6 +23,7 @@ pub struct AppState {
     pub memories: MemoryStore,
     pub expressions: ExpressionManager,
     pub llm: OpenAiCompatClient,
+    pub whisper_ctx: Option<Arc<WhisperContext>>,
 }
 
 // Command to get the app data directory path
@@ -42,6 +44,36 @@ fn resolve_asset_path(state: tauri::State<Arc<AppState>>, path: String) -> Resul
     }
 }
 
+fn load_whisper_model(data_dir: &PathBuf) -> Option<Arc<WhisperContext>> {
+    // Search for model in multiple locations
+    let candidates = [
+        data_dir.join("models/whisper/ggml-tiny.bin"),
+        PathBuf::from("models/whisper/ggml-tiny.bin"),
+        PathBuf::from("../models/whisper/ggml-tiny.bin"),
+    ];
+
+    for path in &candidates {
+        if path.exists() {
+            let path_str = path.to_string_lossy().to_string();
+            match WhisperContext::new_with_params(
+                &path_str,
+                WhisperContextParameters::default(),
+            ) {
+                Ok(ctx) => {
+                    println!("Whisper model loaded from: {path_str}");
+                    return Some(Arc::new(ctx));
+                }
+                Err(e) => {
+                    eprintln!("Failed to load whisper model from {path_str}: {e}");
+                }
+            }
+        }
+    }
+
+    eprintln!("Whisper model not found. Local transcription disabled.");
+    None
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -52,6 +84,8 @@ pub fn run() {
                 .expect("Failed to get app data directory");
             std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
 
+            let whisper_ctx = load_whisper_model(&data_dir);
+
             let state = AppState {
                 data_dir: data_dir.clone(),
                 config: ConfigManager::new(&data_dir),
@@ -61,6 +95,7 @@ pub fn run() {
                 memories: MemoryStore::new(data_dir.clone()),
                 expressions: ExpressionManager::new(&data_dir),
                 llm: OpenAiCompatClient::new(),
+                whisper_ctx,
             };
 
             app.manage(Arc::new(state));
@@ -95,6 +130,7 @@ pub fn run() {
             commands::tts::tts_voices,
             commands::tts::tts_preview,
             commands::voice::voice_transcribe,
+            commands::voice::voice_transcribe_local,
             window::window_toggle_mini,
             window::window_expand,
             get_data_dir,
