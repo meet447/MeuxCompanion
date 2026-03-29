@@ -328,6 +328,7 @@ export function useLive2D(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
 
       try {
         const cacheBust = `${modelPath}${modelPath.includes("?") ? "&" : "?"}t=${Date.now()}`;
+        console.log("[Live2D] Loading from URL:", cacheBust);
         const model = await Live2DModel.from(cacheBust, {
           motionPreload: "IDLE" as any,
         });
