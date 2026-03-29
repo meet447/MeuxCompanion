@@ -1,0 +1,10 @@
+CharacterSelect.tsx
+ChatPanel.tsx
+Live2DCanvas.tsx
+LoadingOverlay.tsx
+MemoryStatePanel.tsx
+MicButton.tsx
+ModelSettings.tsx
+Onboarding.tsx
+Settings.tsx
+VRMCanvas.tsx
