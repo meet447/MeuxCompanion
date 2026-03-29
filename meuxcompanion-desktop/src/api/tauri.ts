@@ -93,6 +93,10 @@ export async function resetState(characterId: string) {
 }
 
 // Expressions
+export async function getModelExpressions(modelId: string) {
+  return invoke<string[]>("expressions_model_list", { modelId });
+}
+
 export async function getExpressions(modelId: string) {
   return invoke<Record<string, string>>("expressions_get", { modelId });
 }

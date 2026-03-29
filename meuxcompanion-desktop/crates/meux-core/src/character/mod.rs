@@ -438,6 +438,53 @@ pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
     Ok(models)
 }
 
+/// Read the available expression names from a Live2D model's model3.json file
+pub fn get_model_expressions(data_dir: &Path, model_id: &str) -> Result<Vec<String>> {
+    let models_dir = data_dir.join("models");
+
+    // Try live2d first
+    let live2d_dir = models_dir.join("live2d").join(model_id);
+    if live2d_dir.exists() {
+        if let Some(model_file) = find_model3_json(&live2d_dir) {
+            let content = fs::read_to_string(live2d_dir.join(&model_file))?;
+            let json: serde_json::Value = serde_json::from_str(&content)?;
+
+            let mut expressions = Vec::new();
+            if let Some(exprs) = json.pointer("/FileReferences/Expressions") {
+                if let Some(arr) = exprs.as_array() {
+                    for expr in arr {
+                        if let Some(file) = expr.get("File").and_then(|f| f.as_str()) {
+                            // Extract name from path like "expressions/F01.exp3.json" -> "F01"
+                            let name = file
+                                .rsplit('/')
+                                .next()
+                                .unwrap_or(file)
+                                .trim_end_matches(".exp3.json");
+                            expressions.push(name.to_string());
+                        }
+                    }
+                }
+            }
+            return Ok(expressions);
+        }
+    }
+
+    // Try VRM
+    let vrm_dir = models_dir.join("vrm").join(model_id);
+    if vrm_dir.exists() || models_dir.join("vrm").join(format!("{}.vrm", model_id)).exists() {
+        // VRM models have standard blend shape expressions
+        return Ok(vec![
+            "happy".to_string(),
+            "angry".to_string(),
+            "sad".to_string(),
+            "relaxed".to_string(),
+            "surprised".to_string(),
+        ]);
+    }
+
+    Ok(Vec::new())
+}
+
 fn find_model3_json(dir: &Path) -> Option<String> {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
