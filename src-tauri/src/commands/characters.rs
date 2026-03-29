@@ -1,5 +1,9 @@
 use crate::AppState;
 use meux_core::character::types::{Character, CharacterSummary, ModelInfo};
+use meux_core::character::slugify;
+use rfd::FileDialog;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
 
@@ -23,16 +27,184 @@ pub fn characters_create(
     personality: String,
     model_id: String,
     voice: String,
+    vibe: String,
+    relationship_style: String,
+    speech_style: String,
     user_name: String,
     user_about: String,
 ) -> Result<String, String> {
     state
         .characters
-        .create_character(&name, &personality, &model_id, &voice, &user_name, &user_about)
+        .create_character(
+            &name,
+            &personality,
+            &model_id,
+            &voice,
+            &vibe,
+            &relationship_style,
+            &speech_style,
+            &user_name,
+            &user_about,
+        )
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn models_list(state: State<Arc<AppState>>) -> Result<Vec<ModelInfo>, String> {
     meux_core::character::list_models(&state.data_dir).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn models_import_live2d_dialog(
+    state: State<'_, Arc<AppState>>,
+) -> Result<Option<ModelInfo>, String> {
+    let data_dir = state.data_dir.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let Some(source_dir) = FileDialog::new().set_title("Select Live2D Model Folder").pick_folder() else {
+            return Ok(None);
+        };
+
+        if !contains_live2d_model(&source_dir) {
+            return Err("Selected folder does not contain a Live2D .model3.json file.".to_string());
+        }
+
+        let models_root = data_dir.join("models").join("live2d");
+        fs::create_dir_all(&models_root).map_err(|e| e.to_string())?;
+
+        let base_name = source_dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(slugify)
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| "live2d_model".to_string());
+
+        let target_dir = unique_dir_path(&models_root, &base_name);
+        copy_dir_recursive(&source_dir, &target_dir).map_err(|e| e.to_string())?;
+
+        let imported_id = target_dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| "Failed to determine imported model id.".to_string())?;
+
+        let imported = meux_core::character::list_models(&data_dir)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|model| model.id == imported_id)
+            .ok_or_else(|| "Imported Live2D model was copied but could not be indexed.".to_string())?;
+
+        Ok(Some(imported))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn models_import_vrm_dialog(
+    state: State<'_, Arc<AppState>>,
+) -> Result<Option<ModelInfo>, String> {
+    let data_dir = state.data_dir.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let Some(source_file) = FileDialog::new()
+            .set_title("Select VRM Model File")
+            .add_filter("VRM Model", &["vrm"])
+            .pick_file()
+        else {
+            return Ok(None);
+        };
+
+        let extension = source_file
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if extension != "vrm" {
+            return Err("Selected file is not a .vrm model.".to_string());
+        }
+
+        let models_root = data_dir.join("models").join("vrm");
+        fs::create_dir_all(&models_root).map_err(|e| e.to_string())?;
+
+        let base_name = source_file
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .map(slugify)
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| "vrm_model".to_string());
+
+        let target_dir = unique_dir_path(&models_root, &base_name);
+        fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+        fs::copy(&source_file, target_dir.join("model.vrm")).map_err(|e| e.to_string())?;
+
+        let imported_id = target_dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| "Failed to determine imported model id.".to_string())?;
+
+        let imported = meux_core::character::list_models(&data_dir)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|model| model.id == imported_id)
+            .ok_or_else(|| "Imported VRM model was copied but could not be indexed.".to_string())?;
+
+        Ok(Some(imported))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn unique_dir_path(root: &Path, base_name: &str) -> PathBuf {
+    let mut candidate = root.join(base_name);
+    let mut counter = 2;
+
+    while candidate.exists() {
+        candidate = root.join(format!("{base_name}_{counter}"));
+        counter += 1;
+    }
+
+    candidate
+}
+
+fn copy_dir_recursive(source: &Path, target: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(target)?;
+
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let path = entry.path();
+        let destination = target.join(entry.file_name());
+
+        if path.is_dir() {
+            copy_dir_recursive(&path, &destination)?;
+        } else {
+            if let Some(parent) = destination.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&path, &destination)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn contains_live2d_model(dir: &Path) -> bool {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                if path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|name| name.ends_with(".model3.json"))
+                    .unwrap_or(false)
+                {
+                    return true;
+                }
+            } else if path.is_dir() && contains_live2d_model(&path) {
+                return true;
+            }
+        }
+    }
+
+    false
 }

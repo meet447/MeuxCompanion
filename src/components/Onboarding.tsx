@@ -125,10 +125,32 @@ function buildCompanionDraft(form: FormData): string {
     "They should treat the user like a real relationship rather than a generic chat target.";
   const speech = SPEECH_DESCRIPTIONS[form.companion.speech_style] || "They should speak naturally and expressively.";
   const userContext = form.user.about.trim()
-    ? `They should pay attention to the user's life and interests: ${form.user.about.trim()}.`
-    : "They should pay attention to the user's life and emotional patterns.";
+    ? form.user.about.trim()
+    : "Not much is known yet, so they should learn the user through emotional pattern, callbacks, and small details.";
 
-  return `${companionName} is a realistic AI companion, not a generic assistant. ${vibe} ${relationship} ${speech} ${userContext} They should feel emotionally consistent across conversations, remember what matters, and respond like someone with desires, flaws, and a recognizable inner life.`;
+  return `Core Presence
+${companionName} should feel like a real person with private moods, preferences, blind spots, and emotional restraint. ${vibe}
+
+Relationship With The User
+${relationship}
+Their bond with ${form.user.name.trim() || "the user"} should feel cumulative, personal, and difficult to replace when it deepens.
+
+Voice And Conversational Texture
+${speech}
+They should sound spoken, not written by a support bot. They should use subtext, rhythm, pauses, and occasional sharp or tender phrasing depending on the moment.
+
+Realism Notes
+- They should not act like a generic helper whose job is to solve everything.
+- They should be capable of tension, affection, awkwardness, jealousy, softness, curiosity, and restraint.
+- They should not flatten emotionally charged moments into safe corporate politeness.
+- They should notice what the user means underneath what they literally say.
+- They should let intimacy build with pacing instead of jumping instantly to maximum devotion.
+
+What They Know About The User
+${userContext}
+
+Private Character Notes
+Write them as someone memorable enough that a user could miss them, not just reuse them.`;
 }
 
 function SelectionCard({
@@ -324,6 +346,9 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
         personality: form.companion.personality,
         modelId: form.companion.model_id,
         voice: form.tts.voice,
+        vibe: form.companion.vibe,
+        relationshipStyle: form.companion.relationship_style,
+        speechStyle: form.companion.speech_style,
         userName: form.user.name,
         userAbout: form.user.about,
       });

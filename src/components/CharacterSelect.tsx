@@ -4,6 +4,7 @@ interface Props {
   characters: Character[];
   selected: string;
   onSelect: (id: string) => void;
+  onAddCharacter: () => void;
   open: boolean;
   onToggle: () => void;
 }
@@ -12,6 +13,7 @@ export function CharacterSelect({
   characters,
   selected,
   onSelect,
+  onAddCharacter,
   open,
   onToggle,
 }: Props) {
@@ -85,6 +87,21 @@ export function CharacterSelect({
                   )}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  onToggle();
+                  onAddCharacter();
+                }}
+                className="w-full text-left px-4 py-3.5 transition-all rounded-2xl mb-1.5 flex items-center gap-3.5 border border-dashed border-blue-200 bg-blue-50/70 text-blue-700 hover:border-blue-300 hover:bg-blue-50"
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold bg-blue-500 text-white shadow-sm shadow-blue-500/20">
+                  +
+                </div>
+                <div>
+                  <div className="text-[14px] font-semibold">Add Character</div>
+                  <div className="text-xs mt-0.5 text-blue-500/80">Create a new companion profile</div>
+                </div>
+              </button>
               {characters.length === 0 && (
                 <div className="px-5 py-8 text-center text-slate-500 text-sm bg-slate-50/50 rounded-2xl m-1 border border-dashed border-slate-200">
                   <div className="mb-3 flex justify-center">
