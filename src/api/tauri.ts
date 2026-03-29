@@ -39,6 +39,9 @@ export async function createCharacter(data: {
   personality: string;
   modelId: string;
   voice: string;
+  vibe: string;
+  relationshipStyle: string;
+  speechStyle: string;
   userName: string;
   userAbout: string;
 }) {
@@ -47,6 +50,9 @@ export async function createCharacter(data: {
     personality: data.personality,
     modelId: data.modelId,
     voice: data.voice,
+    vibe: data.vibe,
+    relationshipStyle: data.relationshipStyle,
+    speechStyle: data.speechStyle,
     userName: data.userName,
     userAbout: data.userAbout,
   });
@@ -55,6 +61,14 @@ export async function createCharacter(data: {
 // Models
 export async function listModels() {
   return invoke<any[]>("models_list");
+}
+
+export async function importLive2DModel() {
+  return invoke<any | null>("models_import_live2d_dialog");
+}
+
+export async function importVRMModel() {
+  return invoke<any | null>("models_import_vrm_dialog");
 }
 
 // Chat
