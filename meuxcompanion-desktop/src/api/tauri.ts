@@ -102,7 +102,7 @@ export async function getVoices(provider: string) {
 }
 
 export async function previewVoice(provider: string, voice: string, apiKey?: string, text?: string) {
-  return invoke<number[]>("tts_preview", { provider, voice, apiKey: apiKey || null, text: text || null });
+  return invoke<number[]>("tts_preview", { provider, voice, api_key: apiKey || null, text: text || null });
 }
 
 // Window
