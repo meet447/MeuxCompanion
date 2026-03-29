@@ -16,7 +16,7 @@ interface SentencePayload {
 
 interface AudioPayload {
   index: number;
-  data: number[];
+  data: string; // base64-encoded audio
 }
 
 interface DonePayload {
@@ -30,7 +30,7 @@ export function useChat() {
 
   const onSentenceRef = useRef<((data: SentencePayload) => void) | null>(null);
   const onAudioRef = useRef<
-    ((index: number, data: number[]) => void) | null
+    ((index: number, data: string) => void) | null
   >(null);
   const onDoneRef = useRef<((data: DonePayload) => void) | null>(null);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
@@ -135,7 +135,7 @@ export function useChat() {
   );
 
   const setOnAudio = useCallback(
-    (cb: (index: number, data: number[]) => void) => {
+    (cb: (index: number, data: string) => void) => {
       onAudioRef.current = cb;
     },
     [],

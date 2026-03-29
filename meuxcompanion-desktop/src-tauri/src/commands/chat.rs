@@ -24,7 +24,7 @@ struct SentenceEvent {
 #[derive(Clone, serde::Serialize)]
 struct AudioEvent {
     index: u32,
-    data: Vec<u8>,
+    data: String, // base64-encoded audio
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -184,11 +184,13 @@ async fn run_chat_stream(
                     tokio::spawn(async move {
                         match meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
                             Ok(audio_data) => {
+                                use base64::Engine;
+                                let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
                                 let _ = app_tts.emit(
                                     "chat:audio",
                                     AudioEvent {
                                         index: idx,
-                                        data: audio_data,
+                                        data: b64,
                                     },
                                 );
                             }
@@ -237,11 +239,13 @@ async fn run_chat_stream(
                     tokio::spawn(async move {
                         match meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
                             Ok(audio_data) => {
+                                use base64::Engine;
+                                let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
                                 let _ = app_tts.emit(
                                     "chat:audio",
                                     AudioEvent {
                                         index: idx,
-                                        data: audio_data,
+                                        data: b64,
                                     },
                                 );
                             }
@@ -288,11 +292,13 @@ async fn run_chat_stream(
         tokio::spawn(async move {
             match meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
                 Ok(audio_data) => {
+                    use base64::Engine;
+                    let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
                     let _ = app_tts.emit(
                         "chat:audio",
                         AudioEvent {
                             index: idx,
-                            data: audio_data,
+                            data: b64,
                         },
                     );
                 }

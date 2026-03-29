@@ -9,7 +9,7 @@ export interface SentenceTask {
 
 interface QueueEntry {
   task: SentenceTask;
-  audio: number[] | null;
+  audio: string | null; // base64-encoded audio
 }
 
 export function useAudioQueue() {
@@ -28,20 +28,18 @@ export function useAudioQueue() {
   useEffect(() => { disconnectRef.current = disconnect; }, [disconnect]);
 
   const playAudioChunk = useCallback(
-    (audioData: number[]): Promise<void> => {
+    (audioData: string): Promise<void> => {
       return new Promise((resolve) => {
         disconnectRef.current();
 
-        // Convert raw byte array from Tauri event to Blob URL
-        const blob = new Blob([new Uint8Array(audioData)], { type: "audio/mp3" });
-        const blobUrl = URL.createObjectURL(blob);
+        // base64-encoded MP3 audio from Tauri event
+        const blobUrl = `data:audio/mp3;base64,${audioData}`;
 
         const audio = new Audio(blobUrl);
         audio.crossOrigin = "anonymous";
 
         const cleanup = () => {
           disconnectRef.current();
-          URL.revokeObjectURL(blobUrl);
           audio.oncanplay = null;
           audio.onended = null;
           audio.onerror = null;
@@ -126,8 +124,8 @@ export function useAudioQueue() {
     });
   }, []);
 
-  const addAudio = useCallback((index: number, audio: number[]) => {
-    console.log(`[AudioQueue] addAudio index=${index}, bytes=${audio.length}`);
+  const addAudio = useCallback((index: number, audio: string) => {
+    console.log(`[AudioQueue] addAudio index=${index}, b64len=${audio.length}`);
     const entry = entriesRef.current.get(index);
     if (entry) {
       entry.audio = audio;
