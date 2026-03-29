@@ -17,7 +17,7 @@ pub fn create_mini_widget(app: &AppHandle, selected_character_id: Option<&str>) 
 
     WebviewWindowBuilder::new(app, "mini", WebviewUrl::App(query.into()))
         .title("MeuxCompanion")
-        .inner_size(200.0, 300.0)
+        .inner_size(280.0, 420.0)
         .transparent(true)
         .decorations(false)
         .always_on_top(true)

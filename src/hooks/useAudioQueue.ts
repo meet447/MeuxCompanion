@@ -37,8 +37,17 @@ export function useAudioQueue() {
 
         const audio = new Audio(blobUrl);
         audio.crossOrigin = "anonymous";
+        let resumeListenersAttached = false;
+
+        const removeResumeListeners = () => {
+          if (!resumeListenersAttached) return;
+          document.removeEventListener("pointerdown", resumePlay);
+          document.removeEventListener("keydown", resumePlay);
+          resumeListenersAttached = false;
+        };
 
         const cleanup = () => {
+          removeResumeListeners();
           disconnectRef.current();
           audio.oncanplay = null;
           audio.onended = null;
@@ -61,17 +70,37 @@ export function useAudioQueue() {
           resolve();
         };
 
+        const resumePlay = () => {
+          removeResumeListeners();
+          audio.play().then(() => {
+            console.log("[AudioQueue] Resumed audio after user interaction");
+          }).catch((err) => {
+            console.warn("[AudioQueue] Resume play failed:", err);
+          });
+        };
+
+        const waitForInteraction = () => {
+          console.warn("[AudioQueue] Waiting for next user interaction to resume audio");
+          if (resumeListenersAttached) return;
+          resumeListenersAttached = true;
+          document.addEventListener("pointerdown", resumePlay, { once: true });
+          document.addEventListener("keydown", resumePlay, { once: true });
+        };
+
         audio.play().then(() => {
           console.log("[AudioQueue] Playing audio");
         }).catch((err) => {
-          console.warn("[AudioQueue] Autoplay blocked, waiting for interaction:", err);
-          const resumePlay = () => {
-            audio.play().catch(() => {});
-            document.removeEventListener("click", resumePlay);
-            document.removeEventListener("keydown", resumePlay);
-          };
-          document.addEventListener("click", resumePlay, { once: true });
-          document.addEventListener("keydown", resumePlay, { once: true });
+          console.warn("[AudioQueue] Autoplay blocked, trying muted fallback:", err);
+          audio.muted = true;
+          audio.play().then(() => {
+            audio.currentTime = 0;
+            audio.muted = false;
+            console.log("[AudioQueue] Muted autoplay fallback succeeded");
+          }).catch((fallbackErr) => {
+            console.warn("[AudioQueue] Muted autoplay fallback failed:", fallbackErr);
+            audio.muted = false;
+            waitForInteraction();
+          });
         });
       });
     },
