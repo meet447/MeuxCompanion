@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 
+// Asset paths — uses custom appdata:// protocol registered in Rust
+// Converts a path relative to app data dir into a loadable URL
+export function toAssetUrl(relativePath: string): string {
+  const clean = relativePath.replace(/^\/+/, "");
+  return `appdata://localhost/${clean}`;
+}
+
 // Config
 export async function getConfig() {
   return invoke("config_get");
