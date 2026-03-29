@@ -22,7 +22,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => window::show_main_window(app),
             "toggle_mini" => {
-                let _ = window::window_toggle_mini(app.clone());
+                let _ = window::window_toggle_mini(app.clone(), None);
             }
             "quit" => {
                 app.exit(0);

@@ -136,8 +136,10 @@ export async function previewVoice(provider: string, voice: string, apiKey?: str
 }
 
 // Window
-export async function toggleMiniMode() {
-  return invoke("window_toggle_mini");
+export async function toggleMiniMode(selectedCharacterId?: string) {
+  return invoke("window_toggle_mini", {
+    selectedCharacterId: selectedCharacterId || null,
+  });
 }
 
 export async function expandWindow() {
