@@ -54,8 +54,10 @@ async fn try_endpoint(endpoint: &str, text: &str, voice: &str) -> Result<Vec<u8>
     let resp = client()
         .post(endpoint)
         .json(&body)
+        .timeout(std::time::Duration::from_secs(10))
         .send()
-        .await?
+        .await
+        .map_err(|e| MeuxError::Tts(format!("TikTok TTS request failed: {e}")))?
         .error_for_status()
         .map_err(|e| MeuxError::Tts(format!("TikTok TTS request failed: {e}")))?;
 

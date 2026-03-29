@@ -258,21 +258,34 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
     setTesting(false);
   };
 
+  const [previewError, setPreviewError] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+
   const playSample = async () => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    setPreviewError("");
+    setPreviewing(true);
     try {
       const data = await previewVoice(form.tts.provider, form.tts.voice, form.tts.api_key || undefined);
+      if (!data || data.length === 0) {
+        setPreviewError("No audio returned from TTS provider");
+        return;
+      }
       const blob = new Blob([new Uint8Array(data)], { type: "audio/mp3" });
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audio.addEventListener("ended", () => URL.revokeObjectURL(url));
       audioRef.current = audio;
       await audio.play();
-    } catch (err) {
+    } catch (err: any) {
+      const msg = err?.message || String(err) || "Voice preview failed";
+      setPreviewError(msg);
       console.error("Voice preview failed:", err);
+    } finally {
+      setPreviewing(false);
     }
   };
 
@@ -555,10 +568,14 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                     </div>
                     <button
                       onClick={playSample}
-                      className="px-6 rounded-2xl bg-white border border-slate-200 text-blue-600 text-[15px] font-semibold hover:bg-slate-50 hover:border-blue-200 shadow-sm transition-all"
+                      disabled={previewing}
+                      className="px-6 rounded-2xl bg-white border border-slate-200 text-blue-600 text-[15px] font-semibold hover:bg-slate-50 hover:border-blue-200 shadow-sm transition-all disabled:opacity-50"
                     >
-                      Play Sample
+                      {previewing ? "Loading..." : "Play Sample"}
                     </button>
+                    {previewError && (
+                      <p className="text-red-500 text-xs mt-1">{previewError}</p>
+                    )}
                   </div>
                 </div>
               </div>
