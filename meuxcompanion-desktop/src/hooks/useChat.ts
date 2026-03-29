@@ -66,6 +66,7 @@ export function useChat() {
       const unlistenSentence = await listen<SentencePayload>(
         "chat:sentence",
         (event) => {
+          console.log("[useChat] sentence event:", event.payload.index, event.payload.expression, event.payload.text?.slice(0, 50));
           lastExpression = event.payload.expression;
           onSentenceRef.current?.(event.payload);
         },
@@ -74,6 +75,7 @@ export function useChat() {
       const unlistenAudio = await listen<AudioPayload>(
         "chat:audio",
         (event) => {
+          console.log("[useChat] audio event:", event.payload.index, "bytes:", event.payload.data?.length);
           onAudioRef.current?.(event.payload.index, event.payload.data);
         },
       );
