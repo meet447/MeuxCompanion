@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"Default capabilities for MeuxCompanion","local":true,"windows":["main","mini"],"permissions":["core:default","shell:allow-open","global-shortcut:default"]}}
