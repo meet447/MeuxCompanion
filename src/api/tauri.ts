@@ -93,6 +93,10 @@ export async function resetState(characterId: string) {
 }
 
 // Expressions
+export async function getSupportedExpressions() {
+  return invoke<string[]>("expressions_supported");
+}
+
 export async function getModelExpressions(modelId: string) {
   return invoke<string[]>("expressions_model_list", { modelId });
 }

@@ -340,10 +340,12 @@ fn build_system_prompt_from_sections(
         .join("\n");
     let expression_block = format!(
         "## EXPRESSION RULES\n\n\
-         You MUST include an expression tag at the start of your response to set your physical reaction.\n\
+         You MUST include an expression tag at the start of EVERY sentence so your physical reaction can change in real time.\n\
          Available expressions:\n{expr_list}\n\n\
-         Format: [expression:NAME] or <<NAME>>. Use ONE tag at the very beginning.\n\
-         Example: [expression:blush] Oh, stop it! You're making me shy."
+         Format: [expression:NAME] or <<NAME>>.\n\
+         Put exactly one tag immediately before each spoken sentence.\n\
+         Keep each sentence fairly short so it can be voiced while the rest of the response is still streaming.\n\
+         Example: [expression:surprised] Wait, really? [expression:blush] That's pretty bold of you to say. [expression:happy] I think you're sweet."
     );
     parts.push(expression_block);
 
