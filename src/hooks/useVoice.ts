@@ -1,6 +1,22 @@
 import { useState, useCallback, useRef } from "react";
 import { useAudioAnalyser } from "./useAudioAnalyser";
-import { transcribeVoice } from "../api/tauri";
+import { transcribeVoice, transcribeVoiceLocal } from "../api/tauri";
+
+const SAMPLE_RATE = 16000;
+
+function float32ToBase64(samples: Float32Array): string {
+  const bytes = new Uint8Array(samples.length * 4);
+  const view = new DataView(bytes.buffer);
+  for (let i = 0; i < samples.length; i++) {
+    view.setFloat32(i * 4, samples[i], true); // little-endian
+  }
+
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 function pickRecordingMimeType(): string {
   const candidates = [
@@ -39,7 +55,6 @@ export function useVoice() {
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [ttsLoading, setTtsLoading] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -48,9 +63,27 @@ export function useVoice() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { connectAudio, getAudioLevels, disconnect } = useAudioAnalyser();
 
+  // PCM capture refs
+  const pcmContextRef = useRef<AudioContext | null>(null);
+  const pcmScriptNodeRef = useRef<ScriptProcessorNode | null>(null);
+  const pcmChunksRef = useRef<Float32Array[]>([]);
+  const pcmSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const pcmStreamRef = useRef<MediaStream | null>(null);
+
   const stopMediaTracks = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
+  }, []);
+
+  const stopPcmCapture = useCallback(() => {
+    pcmScriptNodeRef.current?.disconnect();
+    pcmSourceRef.current?.disconnect();
+    pcmContextRef.current?.close();
+    pcmStreamRef.current?.getTracks().forEach((track) => track.stop());
+    pcmScriptNodeRef.current = null;
+    pcmSourceRef.current = null;
+    pcmContextRef.current = null;
+    pcmStreamRef.current = null;
   }, []);
 
   const startSpeechRecognitionFallback = useCallback(
@@ -103,6 +136,29 @@ export function useVoice() {
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // --- PCM capture for local whisper ---
+        pcmStreamRef.current = stream;
+        pcmChunksRef.current = [];
+
+        const pcmCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+        pcmContextRef.current = pcmCtx;
+
+        const source = pcmCtx.createMediaStreamSource(stream);
+        pcmSourceRef.current = source;
+
+        const scriptNode = pcmCtx.createScriptProcessor(4096, 1, 1);
+        pcmScriptNodeRef.current = scriptNode;
+
+        scriptNode.onaudioprocess = (e) => {
+          const input = e.inputBuffer.getChannelData(0);
+          pcmChunksRef.current.push(new Float32Array(input));
+        };
+
+        source.connect(scriptNode);
+        scriptNode.connect(pcmCtx.destination);
+
+        // --- MediaRecorder fallback for API transcription ---
         const mimeType = pickRecordingMimeType();
         const recorder = mimeType
           ? new MediaRecorder(stream, { mimeType })
@@ -122,6 +178,7 @@ export function useVoice() {
         recorder.onerror = (event) => {
           console.error("MediaRecorder error:", event);
           stopMediaTracks();
+          stopPcmCapture();
           mediaRecorderRef.current = null;
           setListening(false);
         };
@@ -135,6 +192,22 @@ export function useVoice() {
 
           if (chunks.length === 0) return;
 
+          // --- Try local whisper first ---
+          try {
+            const pcmData = mergePcmChunks();
+            if (pcmData.length > SAMPLE_RATE / 2) { // at least 0.5s of audio
+              const pcmBase64 = float32ToBase64(pcmData);
+              const text = await transcribeVoiceLocal(pcmBase64);
+              if (text.trim()) {
+                onResultRef.current?.(text.trim());
+                return;
+              }
+            }
+          } catch (err) {
+            console.warn("Local whisper failed, falling back to API:", err);
+          }
+
+          // --- Fallback to API transcription ---
           try {
             const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
             const audioBase64 = await blobToBase64(blob);
@@ -151,16 +224,32 @@ export function useVoice() {
           }
         };
 
+        function mergePcmChunks(): Float32Array {
+          const allChunks = pcmChunksRef.current;
+          pcmChunksRef.current = [];
+          stopPcmCapture();
+
+          const totalLength = allChunks.reduce((sum, c) => sum + c.length, 0);
+          const merged = new Float32Array(totalLength);
+          let offset = 0;
+          for (const chunk of allChunks) {
+            merged.set(chunk, offset);
+            offset += chunk.length;
+          }
+          return merged;
+        }
+
         recorder.start();
         setListening(true);
       } catch (err) {
         console.error("Microphone access failed, trying speech recognition fallback:", err);
         stopMediaTracks();
+        stopPcmCapture();
         mediaRecorderRef.current = null;
         startSpeechRecognitionFallback(onResult);
       }
     },
-    [listening, startSpeechRecognitionFallback, stopMediaTracks]
+    [listening, startSpeechRecognitionFallback, stopMediaTracks, stopPcmCapture]
   );
 
   const stopListening = useCallback(() => {
@@ -170,8 +259,9 @@ export function useVoice() {
     }
     recognitionRef.current?.stop();
     stopMediaTracks();
+    stopPcmCapture();
     setListening(false);
-  }, [stopMediaTracks]);
+  }, [stopMediaTracks, stopPcmCapture]);
 
   const playAudio = useCallback(
     (base64Audio: string): Promise<void> => {

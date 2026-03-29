@@ -6,6 +6,7 @@ use reqwest::Client;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::State;
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
 
 #[derive(Clone)]
 struct TranscriptionBackend {
@@ -95,6 +96,88 @@ fn transcription_backends(config: &AppConfig) -> Vec<TranscriptionBackend> {
     backends
 }
 
+fn whisper_transcribe_inner(
+    ctx: &WhisperContext,
+    pcm_samples: &[f32],
+) -> Result<String, String> {
+    let mut state = ctx.create_state().map_err(|e| format!("whisper state: {e}"))?;
+
+    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+    params.set_n_threads(num_cpus());
+    params.set_language(Some("en"));
+    params.set_print_special(false);
+    params.set_print_progress(false);
+    params.set_print_realtime(false);
+    params.set_print_timestamps(false);
+    params.set_single_segment(true);
+
+    state
+        .full(params, pcm_samples)
+        .map_err(|e| format!("whisper full: {e}"))?;
+
+    let num_segments = state
+        .full_n_segments()
+        .map_err(|e| format!("whisper segments: {e}"))?;
+
+    let mut text = String::new();
+    for i in 0..num_segments {
+        if let Ok(segment) = state.full_get_segment_text(i) {
+            text.push_str(&segment);
+        }
+    }
+
+    Ok(text.trim().to_string())
+}
+
+fn num_cpus() -> i32 {
+    std::thread::available_parallelism()
+        .map(|n| n.get() as i32)
+        .unwrap_or(4)
+}
+
+/// Transcribe using local whisper.cpp (tiny model) — no internet needed.
+/// Accepts base64-encoded f32 PCM audio at 16kHz mono.
+#[tauri::command]
+pub async fn voice_transcribe_local(
+    state: State<'_, Arc<AppState>>,
+    pcm_base64: String,
+) -> Result<String, String> {
+    let pcm_bytes = STANDARD
+        .decode(pcm_base64.trim())
+        .map_err(|e| format!("Invalid PCM payload: {e}"))?;
+
+    if pcm_bytes.len() % 4 != 0 {
+        return Err("PCM data length must be a multiple of 4 bytes (f32)".into());
+    }
+
+    let pcm_samples: Vec<f32> = pcm_bytes
+        .chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect();
+
+    if pcm_samples.is_empty() {
+        return Err("Empty PCM audio data".into());
+    }
+
+    // Clone the context out of state so we can move it into spawn_blocking
+    let ctx = state
+        .whisper_ctx
+        .clone()
+        .ok_or_else(|| "Whisper model not loaded. Place ggml-tiny.bin in models/whisper/".to_string())?;
+
+    let text = tokio::task::spawn_blocking(move || whisper_transcribe_inner(&ctx, &pcm_samples))
+        .await
+        .map_err(|e| format!("whisper task: {e}"))??;
+
+    if text.is_empty() {
+        return Err("No speech detected".into());
+    }
+
+    Ok(text)
+}
+
+/// Transcribe using remote API (OpenAI/Groq Whisper).
+/// Accepts base64-encoded audio blob + mime type.
 #[tauri::command]
 pub async fn voice_transcribe(
     state: State<'_, Arc<AppState>>,
