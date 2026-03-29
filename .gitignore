@@ -47,3 +47,9 @@ models/expression_mappings/*.json
 .env
 .env.local
 config.json
+
+# Worktrees
+.worktrees/
+
+# Superpowers
+.superpowers/
