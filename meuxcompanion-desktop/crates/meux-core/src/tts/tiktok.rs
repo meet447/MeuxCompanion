@@ -19,7 +19,12 @@ const ENDPOINT_TTL_SECS: f64 = 60.0;
 
 fn client() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
-    CLIENT.get_or_init(Client::new)
+    CLIENT.get_or_init(|| {
+        Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(10))
+            .build()
+            .unwrap_or_else(|_| Client::new())
+    })
 }
 
 // Endpoint health cache
@@ -149,6 +154,7 @@ async fn try_generate(
 }
 
 async fn generate_audio(text: &str, voice: &str, endpoint: &str) -> Result<Vec<u8>> {
+    eprintln!("[TTS] POST to {}", endpoint);
     let resp = client()
         .post(endpoint)
         .header("Content-Type", "application/json")
@@ -161,14 +167,21 @@ async fn generate_audio(text: &str, voice: &str, endpoint: &str) -> Result<Vec<u
         .await
         .map_err(|e| MeuxError::Tts(format!("TikTok TTS request failed: {e}")))?;
 
+    eprintln!("[TTS] Response status: {}, url: {}", resp.status(), resp.url());
+
     // Don't check status code — just read body like the Python version
     let bytes = resp.bytes().await
         .map_err(|e| MeuxError::Tts(format!("TikTok TTS read error: {e}")))?;
+
+    eprintln!("[TTS] Response body size: {} bytes", bytes.len());
 
     Ok(bytes.to_vec())
 }
 
 fn extract_base64(audio_response: &[u8], endpoint_index: usize) -> Result<String> {
+    let body_preview = String::from_utf8_lossy(&audio_response[..audio_response.len().min(200)]);
+    eprintln!("[TTS] Endpoint {} response ({} bytes): {}", endpoint_index, audio_response.len(), body_preview);
+
     let data: Value = serde_json::from_slice(audio_response)
         .map_err(|e| MeuxError::Tts(format!("TTS JSON parse error: {e}")))?;
 
