@@ -319,6 +319,15 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
     setSubmitting(true);
     setError("");
     try {
+      const charId = await createCharacter({
+        name: form.companion.name,
+        personality: form.companion.personality,
+        modelId: form.companion.model_id,
+        voice: form.tts.voice,
+        userName: form.user.name,
+        userAbout: form.user.about,
+      });
+
       await saveConfig({
         user: form.user,
         llm: {
@@ -332,19 +341,9 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
           api_key: form.tts.api_key || null,
           voice: form.tts.voice,
         },
+        active_character: charId,
         onboarding_complete: true,
       });
-
-      const charId = await createCharacter({
-        name: form.companion.name,
-        personality: form.companion.personality,
-        modelId: form.companion.model_id,
-        voice: form.tts.voice,
-        userName: form.user.name,
-        userAbout: form.user.about,
-      });
-
-      await saveConfig({ active_character: charId });
 
       setStep(4);
       setTimeout(onComplete, 2200);
