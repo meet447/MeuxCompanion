@@ -398,8 +398,8 @@ pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
                     models.push(ModelInfo {
                         id: id.clone(),
                         model_type: "live2d".to_string(),
-                        model_file,
-                        path: format!("/models/live2d/{}", id),
+                        model_file: model_file.clone(),
+                        path: format!("models/live2d/{}/{}", id, model_file),
                     });
                 }
             }
@@ -418,15 +418,16 @@ pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
                         id: id.clone(),
                         model_type: "vrm".to_string(),
                         model_file: "model.vrm".to_string(),
-                        path: format!("/models/vrm/{}", id),
+                        path: format!("models/vrm/{}/model.vrm", id),
                     });
                 } else if path.extension().map_or(false, |e| e == "vrm") {
                     let id = path.file_stem().unwrap().to_string_lossy().to_string();
+                    let fname = path.file_name().unwrap().to_string_lossy().to_string();
                     models.push(ModelInfo {
                         id: id.clone(),
                         model_type: "vrm".to_string(),
-                        model_file: path.file_name().unwrap().to_string_lossy().to_string(),
-                        path: format!("/models/vrm/{}", id),
+                        model_file: fname.clone(),
+                        path: format!("models/vrm/{}", fname),
                     });
                 }
             }
