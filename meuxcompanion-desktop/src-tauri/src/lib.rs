@@ -43,6 +43,10 @@ pub fn run() {
             };
 
             app.manage(Arc::new(state));
+
+            // Setup system tray
+            tray::setup_tray(app.handle()).expect("Failed to setup tray");
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -52,6 +56,18 @@ pub fn run() {
             commands::characters::characters_list,
             commands::characters::characters_get,
             commands::characters::characters_create,
+            commands::chat::chat_send,
+            commands::chat::chat_history,
+            commands::chat::chat_clear,
+            commands::memory::memory_get,
+            commands::memory::memory_search,
+            commands::memory::memory_clear,
+            commands::state::state_get,
+            commands::expressions::expressions_get,
+            commands::expressions::expressions_save,
+            commands::tts::tts_voices,
+            window::window_toggle_mini,
+            window::window_expand,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
