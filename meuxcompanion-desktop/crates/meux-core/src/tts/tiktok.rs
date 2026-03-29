@@ -74,13 +74,12 @@ pub async fn generate(text: &str, voice: &str) -> Result<Vec<u8>> {
     let voice = if voice.is_empty() { "jp_001" } else { voice };
 
     for (endpoint_index, endpoint) in ENDPOINTS.iter().enumerate() {
-        if !endpoint_ok(endpoint_index).await {
-            continue;
-        }
-
         match try_generate(text, voice, endpoint, endpoint_index).await {
             Ok(data) => return Ok(data),
-            Err(_) => continue,
+            Err(e) => {
+                eprintln!("[TTS] Endpoint {} failed: {}", endpoint_index, e);
+                continue;
+            }
         }
     }
 
