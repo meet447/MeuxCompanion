@@ -143,13 +143,20 @@ function App() {
   useEffect(() => {
     getConfig()
       .then((data) => {
-        const cfg = data as { onboarding_complete?: boolean; active_character?: string };
-        setOnboardingComplete(cfg.onboarding_complete ?? false);
-        if (cfg.active_character) {
-          setSelectedCharId(cfg.active_character);
+        console.log("[App] config loaded:", JSON.stringify(data));
+        const cfg = data as Record<string, unknown>;
+        const complete = !!(cfg.onboarding_complete ?? cfg.onboardingComplete ?? false);
+        console.log("[App] onboardingComplete =", complete);
+        setOnboardingComplete(complete);
+        const activeChar = ((cfg.active_character ?? cfg.activeCharacter ?? "") as string);
+        if (activeChar) {
+          setSelectedCharId(activeChar);
         }
       })
-      .catch(() => setOnboardingComplete(false));
+      .catch((err) => {
+        console.error("[App] config load error:", err);
+        setOnboardingComplete(false);
+      });
   }, []);
 
   const selectedChar = useMemo(
