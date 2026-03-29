@@ -1,10 +1,21 @@
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
-pub fn create_mini_widget(app: &AppHandle) -> Result<(), String> {
+pub fn create_mini_widget(app: &AppHandle, selected_character_id: Option<&str>) -> Result<(), String> {
     if app.get_webview_window("mini").is_some() {
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, "mini", WebviewUrl::App("index.html?mode=mini".into()))
+    let mut query = "index.html?mode=mini".to_string();
+    if let Some(character_id) = selected_character_id.filter(|id| !id.is_empty()) {
+        let encoded = percent_encoding::utf8_percent_encode(
+            character_id,
+            percent_encoding::NON_ALPHANUMERIC,
+        )
+        .to_string();
+        query.push_str("&character=");
+        query.push_str(&encoded);
+    }
+
+    WebviewWindowBuilder::new(app, "mini", WebviewUrl::App(query.into()))
         .title("MeuxCompanion")
         .inner_size(200.0, 300.0)
         .transparent(true)
@@ -37,13 +48,13 @@ pub fn close_mini_widget(app: &AppHandle) {
 }
 
 #[tauri::command]
-pub fn window_toggle_mini(app: AppHandle) -> Result<(), String> {
+pub fn window_toggle_mini(app: AppHandle, selected_character_id: Option<String>) -> Result<(), String> {
     if app.get_webview_window("mini").is_some() {
         close_mini_widget(&app);
         show_main_window(&app);
     } else {
         hide_main_window(&app);
-        create_mini_widget(&app)?;
+        create_mini_widget(&app, selected_character_id.as_deref())?;
     }
     Ok(())
 }
@@ -65,7 +76,7 @@ pub fn cycle_window_state(app: &AppHandle) {
 
     if main_visible {
         hide_main_window(app);
-        let _ = create_mini_widget(app);
+        let _ = create_mini_widget(app, None);
     } else if mini_exists {
         close_mini_widget(app);
     } else {

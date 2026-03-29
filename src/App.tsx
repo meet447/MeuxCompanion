@@ -30,7 +30,7 @@ const VRMCanvas = lazy(() =>
 
 
 function App() {
-  const { isMiniMode, toggleMini } = useWindow();
+  const { isMiniMode, miniCharacterId, toggleMini } = useWindow();
 
   const [characters, setCharacters] = useState<Character[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -165,7 +165,9 @@ function App() {
         console.log("[App] onboardingComplete =", complete);
         setOnboardingComplete(complete);
         const activeChar = ((cfg.active_character ?? cfg.activeCharacter ?? "") as string);
-        if (activeChar) {
+        if (miniCharacterId) {
+          setSelectedCharId(miniCharacterId);
+        } else if (activeChar) {
           setSelectedCharId(activeChar);
         }
       })
@@ -173,7 +175,7 @@ function App() {
         console.error("[App] config load error:", err);
         setOnboardingComplete(false);
       });
-  }, []);
+  }, [miniCharacterId]);
 
   const selectedChar = useMemo(
     () => characters.find((c) => c.id === selectedCharId),
@@ -403,7 +405,7 @@ function App() {
         </div>
         <div className="flex items-center gap-4 bg-white/70 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm shadow-blue-900/5 ring-1 ring-slate-100">
           <button
-            onClick={toggleMini}
+            onClick={() => toggleMini(selectedCharId)}
             className="rounded-full px-4 py-1.5 text-sm font-medium transition-colors hover:bg-violet-100 text-violet-600"
             title="Switch to mini mode"
           >
