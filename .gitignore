@@ -53,3 +53,5 @@ config.json
 
 # Superpowers
 .superpowers/
+dist/
+target/
