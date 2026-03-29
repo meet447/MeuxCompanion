@@ -95,10 +95,15 @@ export function useChat() {
           setStreamingText("");
           setIsStreaming(false);
           onDoneRef.current?.(event.payload);
-          for (const u of unlistenersRef.current) {
-            u();
-          }
-          unlistenersRef.current = [];
+          // Don't clean up audio listener here — TTS tasks may still be running.
+          // Only clean up text, sentence, done, and error listeners.
+          // Audio listener stays alive until next send() call cleans it up.
+          unlistenText();
+          unlistenSentence();
+          unlistenDone();
+          unlistenError();
+          // Keep only audio listener in the ref for cleanup on next send
+          unlistenersRef.current = [unlistenAudio];
         },
       );
 
