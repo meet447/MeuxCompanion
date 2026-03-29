@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { saveConfig, createCharacter, getVoices, testLlm } from "../api/tauri";
+import { saveConfig, createCharacter, getVoices, testLlm, previewVoice, listModels } from "../api/tauri";
 
 interface LLMPreset {
   name: string;
@@ -161,7 +160,7 @@ function SelectionCard({
 export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
   const [voices, setVoices] = useState<Voice[]>([]);
-  const [models, _setModels] = useState<Model[]>([]);
+  const [models, setModels] = useState<Model[]>([]);
   const [testResult, setTestResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -187,13 +186,8 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   });
 
   useEffect(() => {
-    // TODO: add Tauri command for models_list (listing available Live2D/VRM models on disk)
-    // For now, use characters_list as a placeholder to populate the model selector
-    invoke<any[]>("characters_list")
-      .then((_data: any[]) => {
-        // Characters don't map 1:1 to models, so we leave models empty for now
-        // Once a models_list command exists, populate _setModels here
-      })
+    listModels()
+      .then((data) => setModels(data as Model[]))
       .catch(console.error);
   }, []);
 
@@ -269,8 +263,17 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
       audioRef.current.pause();
       audioRef.current = null;
     }
-    // TODO: add Tauri command for TTS voice preview in onboarding
-    // TTS is now backend-only via chat events. Voice preview requires a dedicated command.
+    try {
+      const data = await previewVoice(form.tts.provider, form.tts.voice, form.tts.api_key || undefined);
+      const blob = new Blob([new Uint8Array(data)], { type: "audio/mp3" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.addEventListener("ended", () => URL.revokeObjectURL(url));
+      audioRef.current = audio;
+      await audio.play();
+    } catch (err) {
+      console.error("Voice preview failed:", err);
+    }
   };
 
   const canProceed = (): boolean => {
