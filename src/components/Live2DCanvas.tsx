@@ -11,6 +11,7 @@ interface Props {
   expression: string;
   speaking: boolean;
   userTyping: boolean;
+  uiMode?: "full" | "mini";
   background: string;
   zoom: number;
   framing: "full" | "half";
@@ -26,6 +27,7 @@ export const Live2DCanvas = memo(function Live2DCanvas({
   expression,
   speaking,
   userTyping,
+  uiMode = "full",
   background,
   zoom,
   framing,
@@ -115,6 +117,8 @@ export const Live2DCanvas = memo(function Live2DCanvas({
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
+  const showMiniUi = uiMode === "mini";
+
   return (
     <div
       className="w-full h-full flex items-center justify-center relative overflow-hidden"
@@ -145,7 +149,7 @@ export const Live2DCanvas = memo(function Live2DCanvas({
       />
 
       {/* Debug overlay */}
-      {showDebug && debugInfo && (
+      {!showMiniUi && showDebug && debugInfo && (
         <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-xs font-mono text-slate-600 rounded-2xl p-4 max-w-sm z-50 space-y-2 shadow-xl ring-1 ring-slate-200/50 pointer-events-none">
           <div className="text-slate-800 font-bold mb-3 flex items-center justify-between border-b border-slate-100 pb-2 pointer-events-auto">
             <span>Live2D Debug</span>
@@ -195,7 +199,7 @@ export const Live2DCanvas = memo(function Live2DCanvas({
       )}
 
       {/* Controls overlay */}
-      {showControls && (
+      {!showMiniUi && showControls && (
         <div className="absolute bottom-4 left-4 flex items-center gap-3">
           {/* Background picker */}
           <div className="relative">
@@ -298,7 +302,7 @@ export const Live2DCanvas = memo(function Live2DCanvas({
       )}
 
       {/* Visibility toggle */}
-      {modelPath && !showDebug && (
+      {!showMiniUi && modelPath && !showDebug && (
         <button
           onClick={() => setShowControls(!showControls)}
           className="absolute bottom-4 right-4 bg-white/60 hover:bg-white/90 backdrop-blur-md text-slate-500 hover:text-slate-700 p-2.5 rounded-full ring-1 ring-slate-200/50 shadow-sm transition-all"
