@@ -15,6 +15,7 @@ import {
   listModels,
   getState,
   getExpressions,
+  getModelExpressions,
   getChatHistory,
   clearChat,
   toAssetUrl,
@@ -196,17 +197,35 @@ function App() {
   // otherwise fall back to the character's live2d_model field directly
   const expressionModelId = selectedModel?.id ?? selectedChar?.live2d_model ?? null;
 
+  const refreshExpressionConfiguration = useCallback(async () => {
+    if (!expressionModelId) {
+      setExpressionsConfigured(true);
+      return;
+    }
+
+    try {
+      const [modelExpressions, mapping] = await Promise.all([
+        getModelExpressions(expressionModelId),
+        getExpressions(expressionModelId),
+      ]);
+
+      const hasModelExpressions = modelExpressions.length > 0;
+      const hasMapping = Object.keys(mapping).length > 0;
+
+      setExpressionsConfigured(!hasModelExpressions || hasMapping);
+      if (mapping["neutral"]) {
+        setNeutralExpression(mapping["neutral"]);
+      }
+    } catch (err) {
+      console.error("Expression configuration load error:", err);
+      setExpressionsConfigured(true);
+    }
+  }, [expressionModelId, setNeutralExpression]);
+
   // Check if expression mapping is configured for current model
   useEffect(() => {
-    if (!expressionModelId) return;
-    getExpressions(expressionModelId)
-      .then((mapping) => {
-        const hasMapping = Object.keys(mapping).length > 0;
-        setExpressionsConfigured(hasMapping);
-        if (mapping["neutral"]) setNeutralExpression(mapping["neutral"]);
-      })
-      .catch(() => setExpressionsConfigured(false));
-  }, [expressionModelId, setNeutralExpression]);
+    refreshExpressionConfiguration();
+  }, [refreshExpressionConfiguration]);
 
 
 
@@ -283,6 +302,7 @@ function App() {
       expression: currentExpression,
       speaking,
       userTyping,
+      uiMode: isMiniMode ? "mini" as const : "full" as const,
       background,
       zoom,
       framing,
@@ -291,7 +311,7 @@ function App() {
       onFramingChange: setFraming,
       getAudioLevels,
     }),
-    [modelPath, currentExpression, speaking, userTyping, background, zoom, framing, getAudioLevels]
+    [modelPath, currentExpression, speaking, userTyping, isMiniMode, background, zoom, framing, getAudioLevels]
   );
 
   const avatarCanvas = useMemo(() => (
@@ -320,7 +340,16 @@ function App() {
 
   // Mini mode: render just the avatar in MiniWidget
   if (isMiniMode) {
-    return <MiniWidget avatarComponent={avatarCanvas} />;
+    return (
+      <MiniWidget
+        avatarComponent={avatarCanvas}
+        listening={listening}
+        speaking={speaking}
+        isStreaming={isStreaming}
+        onSend={handleSend}
+        onMicToggle={handleMicToggle}
+      />
+    );
   }
 
   const charName = selectedChar?.name || "Companion";
@@ -466,13 +495,7 @@ function App() {
                   refreshCharacterState(selectedCharId);
                 }
                 if (expressionModelId) {
-                  getExpressions(expressionModelId)
-                    .then((mapping) => {
-                      const hasMapping = Object.keys(mapping).length > 0;
-                      setExpressionsConfigured(hasMapping);
-                      if (mapping["neutral"]) setNeutralExpression(mapping["neutral"]);
-                    })
-                    .catch(console.error);
+                  refreshExpressionConfiguration().catch(console.error);
                 }
               }}
             />

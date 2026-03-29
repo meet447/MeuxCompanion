@@ -4,6 +4,7 @@
   "windows": ["main", "mini"],
   "permissions": [
     "core:default",
+    "core:window:allow-set-size",
     "core:window:allow-start-dragging",
     "shell:allow-open",
     "global-shortcut:default"
