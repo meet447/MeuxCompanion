@@ -526,8 +526,8 @@ async fn run_chat_stream(
 
     // 4. Sync search config and get tools JSON for the LLM
     state.tool_registry.update_search_config(config.search.clone());
-    let tools_json = state.tool_registry.openai_tools_json();
-    println!("[agent] LLM provider: {} | model: {} | tools registered: {}", config.llm.base_url, config.llm.model, tools_json.len());
+    let tools_json = state.tool_registry.openai_tools_json_filtered(&config.disabled_tools);
+    println!("[agent] LLM provider: {} | model: {} | tools enabled: {}", config.llm.base_url, config.llm.model, tools_json.len());
 
     let tts_config = config.tts.clone();
 

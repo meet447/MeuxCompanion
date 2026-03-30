@@ -184,6 +184,11 @@ impl ConfigManager {
             if merged.tts_providers.is_empty() {
                 merged.tts_providers = existing.tts_providers;
             }
+            // Preserve disabled_tools if not explicitly set in the incoming config
+            // (the frontend sends disabled_tools only from the tools settings page)
+            if merged.disabled_tools.is_empty() && !existing.disabled_tools.is_empty() {
+                merged.disabled_tools = existing.disabled_tools;
+            }
             if merged.active_character.is_empty() {
                 merged.active_character = existing.active_character;
             }
