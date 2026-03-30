@@ -14,8 +14,8 @@ pub struct VoiceInfo {
     pub name: String,
 }
 
-/// Generate TTS audio from text using the configured provider.
-pub async fn generate_tts_auto(text: &str, config: &TtsConfig) -> Result<Vec<u8>> {
+/// Generate TTS audio from text using the configured provider (single attempt).
+async fn generate_tts_once(text: &str, config: &TtsConfig) -> Result<Vec<u8>> {
     match config.provider.as_str() {
         "tiktok" | "" => tiktok::generate(text, &config.voice).await,
         "elevenlabs" => {
@@ -34,6 +34,17 @@ pub async fn generate_tts_auto(text: &str, config: &TtsConfig) -> Result<Vec<u8>
         }
         other => Err(MeuxError::Tts(format!("Unknown TTS provider: {other}"))),
     }
+}
+
+/// Generate TTS audio with retry (up to 2 retries with exponential backoff).
+pub async fn generate_tts_auto(text: &str, config: &TtsConfig) -> Result<Vec<u8>> {
+    crate::retry::retry_with_backoff(
+        2,
+        500,
+        crate::retry::is_retryable_tts_error,
+        || generate_tts_once(text, config),
+    )
+    .await
 }
 
 /// List available voices for a given provider.

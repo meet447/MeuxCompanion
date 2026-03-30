@@ -14,14 +14,13 @@ import {
   getConfig,
   listCharacters,
   listModels,
-  getState,
   getExpressions,
   getModelExpressions,
   getChatHistory,
   clearChat,
   toAssetUrl,
 } from "./api/tauri";
-import type { Character, CharacterState, ModelInfo, ChatMessage } from "./types";
+import type { Character, ModelInfo, ChatMessage } from "./types";
 
 const Live2DCanvas = lazy(() =>
   import("./components/Live2DCanvas").then((m) => ({ default: m.Live2DCanvas }))
@@ -46,7 +45,6 @@ function App() {
   const [expressionsConfigured, setExpressionsConfigured] = useState<boolean | null>(null);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [userTyping, setUserTyping] = useState(false);
-  const [characterState, setCharacterState] = useState<CharacterState | null>(null);
 
   const { messages, setMessages, isStreaming, streamingText, send, setOnSentence, setOnAudio, toolCalls, handleConfirm } =
     useChat();
@@ -67,15 +65,6 @@ function App() {
     [messages]
   );
 
-  const refreshCharacterState = useCallback(async (characterId: string) => {
-    try {
-      const data = await getState(characterId);
-      setCharacterState((data as CharacterState) ?? null);
-    } catch (err) {
-      console.error("State load error:", err);
-      setCharacterState(null);
-    }
-  }, []);
 
   const loadHistory = useCallback(
     async (characterId: string) => {
@@ -236,28 +225,25 @@ function App() {
       clearQueue();
 
       await send(selectedCharId, text);
-      await refreshCharacterState(selectedCharId);
     },
-    [selectedCharId, expressionsConfigured, send, clearQueue, refreshCharacterState]
+    [selectedCharId, expressionsConfigured, send, clearQueue]
   );
 
   useEffect(() => {
     if (!selectedCharId) return;
     setMessages([]);
     loadHistory(selectedCharId);
-    refreshCharacterState(selectedCharId);
-  }, [selectedCharId, loadHistory, setMessages, refreshCharacterState]);
+  }, [selectedCharId, loadHistory, setMessages]);
 
   // Reload chat history when switching from mini mode back to full mode
   useEffect(() => {
     const unlisten = listen<{ mode: string }>("app:mode-changed", (event) => {
       if (event.payload.mode === "full" && selectedCharId) {
         loadHistory(selectedCharId);
-        refreshCharacterState(selectedCharId);
       }
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [selectedCharId, loadHistory, refreshCharacterState]);
+  }, [selectedCharId, loadHistory]);
 
   const handleTypingChange = useCallback(
     (isTyping: boolean) => {
@@ -370,14 +356,6 @@ function App() {
   }
 
   const charName = selectedChar?.name || "Companion";
-  const stateMoodLabel = characterState?.mood ? characterState.mood : "neutral";
-  const relationshipLabel = characterState
-    ? characterState.affection >= 0.7
-      ? "close"
-      : characterState.affection >= 0.35 || characterState.trust >= 0.35
-        ? "warming"
-        : "new bond"
-    : "new bond";
 
   if (onboardingComplete === null) {
     return (
@@ -434,19 +412,11 @@ function App() {
           </svg>
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-slate-700 tracking-wide uppercase">{charName}</h1>
-            <div className="hidden md:flex items-center gap-2">
-              <span className="rounded-full border border-blue-200/70 bg-blue-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700">
-                mood {stateMoodLabel}
+            {selectedChar?.source_type === "directory" && (
+              <span className="rounded-full border border-emerald-200/70 bg-emerald-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                layered soul
               </span>
-              <span className="rounded-full border border-amber-200/70 bg-amber-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-700">
-                bond {relationshipLabel}
-              </span>
-              {selectedChar?.source_type === "directory" && (
-                <span className="rounded-full border border-emerald-200/70 bg-emerald-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
-                  layered soul
-                </span>
-              )}
-            </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4 bg-white/70 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm shadow-blue-900/5 ring-1 ring-slate-100">
@@ -499,17 +469,11 @@ function App() {
               onConversationCleared={async () => {
                 await clearMessages(selectedCharId);
               }}
-              onStateChanged={() => {
-                if (selectedCharId) {
-                  refreshCharacterState(selectedCharId);
-                }
-              }}
               onClose={() => {
                 setSettingsOpen(false);
                 refreshCharacters();
                 if (selectedCharId) {
                   loadHistory(selectedCharId);
-                  refreshCharacterState(selectedCharId);
                 }
                 if (expressionModelId) {
                   refreshExpressionConfiguration().catch(console.error);
