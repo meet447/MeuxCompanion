@@ -74,9 +74,11 @@ impl ToolRegistry {
     }
 
     /// Format tool definitions as the OpenAI `tools` array for the API request.
-    pub fn openai_tools_json(&self) -> Vec<serde_json::Value> {
+    /// Excludes tools listed in `disabled`.
+    pub fn openai_tools_json_filtered(&self, disabled: &[String]) -> Vec<serde_json::Value> {
         self.tools
             .values()
+            .filter(|tool| !disabled.contains(&tool.definition().name))
             .map(|tool| {
                 let def = tool.definition();
                 json!({
@@ -89,6 +91,19 @@ impl ToolRegistry {
                 })
             })
             .collect()
+    }
+
+    /// Format all tool definitions (no filtering).
+    pub fn openai_tools_json(&self) -> Vec<serde_json::Value> {
+        self.openai_tools_json_filtered(&[])
+    }
+
+    /// List all tool definitions with name, description, and permission level.
+    /// Used by the frontend to render the tools settings page.
+    pub fn list_all(&self) -> Vec<ToolDefinition> {
+        let mut defs: Vec<ToolDefinition> = self.tools.values().map(|t| t.definition()).collect();
+        defs.sort_by(|a, b| a.name.cmp(&b.name));
+        defs
     }
 
     /// Execute a tool call by name.

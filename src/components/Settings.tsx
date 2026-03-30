@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import type { JSX } from "react";
 import { ModelSettings } from "./ModelSettings";
 import { MemoryStatePanel } from "./MemoryStatePanel";
-import { getConfig, saveConfig, testLlm, getVoices } from "../api/tauri";
+import { getConfig, saveConfig, testLlm, getVoices, listTools } from "../api/tauri";
 
 interface Voice {
   id: string;
@@ -21,7 +21,7 @@ interface TTSPreset {
   needs_key: boolean;
 }
 
-type SettingsPage = null | "profile" | "llm" | "tts" | "search" | "expressions" | "memory";
+type SettingsPage = null | "profile" | "llm" | "tts" | "search" | "tools" | "expressions" | "memory";
 
 // Hardcoded presets — the web app fetches these from /api/config/presets,
 // but the Rust backend exposes them as constants. Kept in sync manually.
@@ -54,6 +54,9 @@ const MaskIcon = () => (
 const SearchIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
 );
+const ToolsIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+);
 const ArchiveIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 8h14M5 12h10M5 16h8M4 4h16v16H4z" /></svg>
 );
@@ -63,9 +66,142 @@ const MENU_ITEMS: { id: SettingsPage & string; label: string; description: strin
   { id: "llm", label: "LLM Provider", description: "AI model and API connection", icon: BrainIcon },
   { id: "tts", label: "Voice & TTS", description: "Text-to-speech provider and voice", icon: SpeakerIcon },
   { id: "search", label: "Web Search", description: "Search provider and API keys", icon: SearchIcon },
+  { id: "tools", label: "Agent Tools", description: "Enable or disable tools the agent can use", icon: ToolsIcon },
   { id: "expressions", label: "Expression Mapping", description: "Map emotions to model expressions", icon: MaskIcon },
   { id: "memory", label: "Memory", description: "Inspect local memories", icon: ArchiveIcon },
 ];
+
+const PERMISSION_STYLES: Record<string, { label: string; color: string }> = {
+  Safe: { label: "Safe", color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+  Cautious: { label: "Cautious", color: "text-amber-600 bg-amber-50 border-amber-200" },
+  Dangerous: { label: "Dangerous", color: "text-red-600 bg-red-50 border-red-200" },
+};
+
+function ToolsPage({ onBack }: { onBack: () => void }) {
+  const [tools, setTools] = useState<{ name: string; description: string; permission: string; enabled: boolean }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [toggles, setToggles] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    listTools()
+      .then((data) => {
+        setTools(data);
+        const initial: Record<string, boolean> = {};
+        for (const t of data) {
+          initial[t.name] = t.enabled;
+        }
+        setToggles(initial);
+      })
+      .catch((err) => console.error("Failed to load tools:", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleToggle = (name: string) => {
+    setToggles((prev) => ({ ...prev, [name]: !prev[name] }));
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const disabledTools = Object.entries(toggles)
+      .filter(([, enabled]) => !enabled)
+      .map(([name]) => name);
+
+    try {
+      await saveConfig({ disabled_tools: disabledTools } as any);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save tool config:", err);
+    }
+    setSaving(false);
+  };
+
+  const enabledCount = Object.values(toggles).filter(Boolean).length;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+      <div className="flex items-center gap-4 mb-6">
+        <button
+          onClick={onBack}
+          className="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm shadow-blue-900/5 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center text-slate-500 hover:text-blue-500 transition-all"
+        >
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <div>
+          <h2 className="text-xl font-bold text-slate-800 tracking-tight">Agent Tools</h2>
+          <p className="text-sm text-slate-400 mt-0.5">{enabledCount} of {tools.length} enabled</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="flex gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce" />
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-2 mb-6">
+            {tools.map((tool) => {
+              const enabled = toggles[tool.name] ?? true;
+              const perm = PERMISSION_STYLES[tool.permission] || PERMISSION_STYLES.Safe;
+              return (
+                <div
+                  key={tool.name}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${
+                    enabled
+                      ? "bg-white border-slate-100 shadow-sm"
+                      : "bg-slate-50/50 border-slate-100/50 opacity-60"
+                  }`}
+                >
+                  {/* Toggle */}
+                  <button
+                    onClick={() => handleToggle(tool.name)}
+                    className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
+                      enabled ? "bg-blue-500" : "bg-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+                        enabled ? "left-[18px]" : "left-0.5"
+                      }`}
+                    />
+                  </button>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-semibold text-slate-700">
+                        {tool.name.replace(/_/g, " ")}
+                      </span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${perm.color}`}>
+                        {perm.label}
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-slate-400 mt-0.5 truncate">{tool.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-3.5 rounded-2xl bg-blue-500 text-white text-[15px] font-semibold hover:bg-blue-600 shadow-md shadow-blue-500/20 disabled:opacity-50 hover:-translate-y-0.5 transition-all active:translate-y-0"
+          >
+            {saving ? "Saving..." : saved ? "Saved!" : "Save Configuration"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 const inputClass = "w-full px-5 py-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/50 text-slate-700 text-[15px] outline-none transition-all placeholder-slate-400 border border-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 mb-5";
 const labelClass = "block text-sm font-semibold text-slate-700 tracking-wide mb-2 pl-1";
@@ -564,6 +700,11 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
         </button>
       </div>
     );
+  }
+
+  // ========== TOOLS PAGE ==========
+  if (page === "tools") {
+    return <ToolsPage onBack={() => setPage(null)} />;
   }
 
   // ========== EXPRESSIONS PAGE ==========

@@ -15,6 +15,9 @@ pub struct AppConfig {
     pub llm_providers: HashMap<String, LlmProviderConfig>,
     #[serde(default)]
     pub tts_providers: HashMap<String, TtsProviderConfig>,
+    /// Tool names that are disabled (won't be sent to LLM or executed).
+    #[serde(default)]
+    pub disabled_tools: Vec<String>,
     #[serde(default)]
     pub active_character: String,
     #[serde(default)]

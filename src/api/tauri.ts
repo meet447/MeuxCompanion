@@ -109,6 +109,11 @@ export async function clearMemory(characterId: string) {
   return invoke("memory_clear", { characterId });
 }
 
+// Tools
+export async function listTools() {
+  return invoke<{ name: string; description: string; permission: string; enabled: boolean }[]>("tools_list");
+}
+
 // Expressions
 export async function getSupportedExpressions() {
   return invoke<string[]>("expressions_supported");
