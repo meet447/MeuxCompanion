@@ -563,7 +563,7 @@ async fn run_chat_stream(
         let mut stream_succeeded = false;
 
         // Retry streaming up to 2 times on transient errors
-        for stream_attempt in 0..3u8 {
+        for stream_attempt in 0..6u8 {
             if stream_attempt > 0 {
                 println!("[agent] stream retry attempt {}/2 (accumulated {}B text)", stream_attempt, text_content.len());
                 let delay = 500 * (1 << (stream_attempt - 1));
@@ -596,7 +596,7 @@ async fn run_chat_stream(
                     Ok(e) => e,
                     Err(e) => {
                         let err_str = e.to_string();
-                        if meux_core::retry::is_retryable_llm_error(&e) && stream_attempt < 2 {
+                        if meux_core::retry::is_retryable_llm_error(&e) && stream_attempt < 5 {
                             eprintln!("[agent] stream error (retryable): {}", err_str);
                             stream_error = true;
                             break;

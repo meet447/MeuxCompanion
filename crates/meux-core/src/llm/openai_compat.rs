@@ -249,7 +249,7 @@ impl OpenAiCompatClient {
         config: &LlmStreamConfig,
     ) -> Result<String> {
         crate::retry::retry_with_backoff(
-            2,
+            5,
             500,
             crate::retry::is_retryable_llm_error,
             || self.chat_once(messages.clone(), config),

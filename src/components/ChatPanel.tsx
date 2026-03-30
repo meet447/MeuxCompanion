@@ -19,6 +19,7 @@ interface Props {
   speaking?: boolean;
   toolCalls?: ToolCallStatus[];
   onToolConfirm?: (requestId: string, approved: boolean) => void;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 // Markdown component config — shared between messages and streaming
@@ -170,11 +171,13 @@ export function ChatPanel({
   speaking = false,
   toolCalls = [],
   onToolConfirm,
+  inputRef: externalInputRef,
 }: Props) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const internalInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef || internalInputRef;
 
   useEffect(() => {
     return () => {

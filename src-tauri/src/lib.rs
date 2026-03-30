@@ -29,6 +29,13 @@ pub struct AppState {
     pub chat_cancel: std::sync::Mutex<Option<tokio_util::sync::CancellationToken>>,
 }
 
+// Broadcast an event to ALL windows (used by global shortcuts)
+#[tauri::command]
+fn broadcast_event(app: tauri::AppHandle, event: String) -> Result<(), String> {
+    use tauri::Emitter;
+    app.emit(&event, ()).map_err(|e| e.to_string())
+}
+
 // Command to get the app data directory path
 #[tauri::command]
 fn get_data_dir(state: tauri::State<Arc<AppState>>) -> String {
@@ -140,6 +147,7 @@ pub fn run() {
             window::window_toggle_mini,
             window::window_expand,
             get_data_dir,
+            broadcast_event,
             resolve_asset_path,
         ])
         .run(tauri::generate_context!())
