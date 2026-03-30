@@ -21,6 +21,7 @@ impl OpenAiCompatClient {
     }
 
     /// Stream chat completions using SSE (Server-Sent Events).
+    /// This is the legacy method that only yields text chunks.
     pub fn stream_chat(
         &self,
         messages: Vec<ChatMessage>,
@@ -98,6 +99,146 @@ impl OpenAiCompatClient {
                     }
                 }
             }
+        })
+    }
+
+    /// Stream chat completions with tool-calling support.
+    /// Yields `StreamEvent` variants for text, tool calls, and completion.
+    pub fn stream_chat_with_tools(
+        &self,
+        messages: Vec<ChatMessage>,
+        config: &LlmStreamConfig,
+        tools: Option<Vec<serde_json::Value>>,
+    ) -> Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send + '_>> {
+        let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
+
+        let mut body = json!({
+            "model": config.model,
+            "messages": messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "stream": true,
+        });
+
+        if let Some(tools) = tools {
+            if !tools.is_empty() {
+                body["tools"] = serde_json::Value::Array(tools);
+            }
+        }
+
+        let api_key = config.api_key.clone();
+
+        Box::pin(try_stream! {
+            let response = self
+                .client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send()
+                .await
+                .map_err(MeuxError::Http)?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let text = response.text().await.unwrap_or_default();
+                Err(MeuxError::Llm(format!("HTTP {}: {}", status, text)))?;
+                unreachable!();
+            }
+
+            let mut stream = response.bytes_stream();
+            let mut buffer = String::new();
+            let mut last_finish_reason: Option<String> = None;
+
+            // Accumulate tool calls across multiple SSE chunks.
+            // Each index maps to (id, name, accumulated_arguments).
+            let mut tool_call_acc: Vec<(String, String, String)> = Vec::new();
+
+            use futures::StreamExt;
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.map_err(MeuxError::Http)?;
+                buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+                while let Some(newline_pos) = buffer.find('\n') {
+                    let line = buffer[..newline_pos].trim().to_string();
+                    buffer = buffer[newline_pos + 1..].to_string();
+
+                    if line.is_empty() {
+                        continue;
+                    }
+
+                    if line == "data: [DONE]" {
+                        // Emit any accumulated tool calls
+                        for (id, name, args) in tool_call_acc.drain(..) {
+                            yield StreamEvent::ToolCallComplete { id, name, arguments: args };
+                        }
+
+                        let reason = last_finish_reason.take().unwrap_or_else(|| "stop".to_string());
+                        yield StreamEvent::Done { finish_reason: reason };
+                        return;
+                    }
+
+                    if let Some(data) = line.strip_prefix("data: ") {
+                        match serde_json::from_str::<ChatCompletionChunk>(data) {
+                            Ok(parsed) => {
+                                for choice in &parsed.choices {
+                                    // Track finish_reason
+                                    if let Some(ref reason) = choice.finish_reason {
+                                        last_finish_reason = Some(reason.clone());
+                                    }
+
+                                    // Text content
+                                    if let Some(ref content) = choice.delta.content {
+                                        if !content.is_empty() {
+                                            yield StreamEvent::TextDelta(content.clone());
+                                        }
+                                    }
+
+                                    // Tool call deltas
+                                    if let Some(ref tc_deltas) = choice.delta.tool_calls {
+                                        for tc in tc_deltas {
+                                            let idx = tc.index;
+
+                                            // Ensure we have enough slots
+                                            while tool_call_acc.len() <= idx {
+                                                tool_call_acc.push((String::new(), String::new(), String::new()));
+                                            }
+
+                                            // Set id if present
+                                            if let Some(ref id) = tc.id {
+                                                tool_call_acc[idx].0 = id.clone();
+                                            }
+
+                                            // Set function name if present
+                                            if let Some(ref func) = tc.function {
+                                                if let Some(ref name) = func.name {
+                                                    tool_call_acc[idx].1 = name.clone();
+                                                }
+                                                if let Some(ref args) = func.arguments {
+                                                    tool_call_acc[idx].2.push_str(args);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                Err(MeuxError::Llm(format!(
+                                    "Failed to parse SSE chunk: {} — raw: {}",
+                                    e, data
+                                )))?;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If stream ended without [DONE], emit accumulated tool calls + done
+            for (id, name, args) in tool_call_acc.drain(..) {
+                yield StreamEvent::ToolCallComplete { id, name, arguments: args };
+            }
+            let reason = last_finish_reason.take().unwrap_or_else(|| "stop".to_string());
+            yield StreamEvent::Done { finish_reason: reason };
         })
     }
 
