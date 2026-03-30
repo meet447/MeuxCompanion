@@ -505,7 +505,6 @@ async fn run_chat_stream(
     let prompt_result = meux_core::prompt::build_chat_prompt(
         &state.characters,
         &state.sessions,
-        &state.states,
         &state.memories,
         &state.expressions,
         &character_id,
@@ -557,25 +556,54 @@ async fn run_chat_stream(
         // ~6000 tokens budget leaves room for the LLM response (~1024 max_tokens)
         meux_core::context::manage_context(&mut conversation, 6000);
 
-        // Stream LLM response with tools
-        let mut stream = state.llm.stream_chat_with_tools(
-            conversation.clone(),
-            &llm_config,
-            Some(tools_json.clone()),
-        );
-
         let mut text_content = String::new();
         let mut buffer = String::new();
-        let mut tool_calls: Vec<(String, String, String)> = Vec::new(); // (id, name, args_json)
+        let mut tool_calls: Vec<(String, String, String)> = Vec::new();
         let mut finish_reason = "stop".to_string();
+        let mut stream_succeeded = false;
 
-        // Process stream events
-        while let Some(event_result) = stream.next().await {
-            if cancel.is_cancelled() {
-                println!("[agent] cancelled during streaming");
-                return Ok(());
+        // Retry streaming up to 2 times on transient errors
+        for stream_attempt in 0..3u8 {
+            if stream_attempt > 0 {
+                println!("[agent] stream retry attempt {}/2 (accumulated {}B text)", stream_attempt, text_content.len());
+                let delay = 500 * (1 << (stream_attempt - 1));
+                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
             }
-            let event = event_result.map_err(|e| e.to_string())?;
+
+            // Build conversation for this attempt — if retrying, add partial assistant text
+            let mut attempt_conv = conversation.clone();
+            if stream_attempt > 0 && !text_content.is_empty() {
+                // Tell the LLM to continue from where it left off
+                attempt_conv.push(ChatMessage::text("assistant", &text_content));
+                attempt_conv.push(ChatMessage::text("user", "[continue from where you left off]"));
+            }
+
+            let mut stream = state.llm.stream_chat_with_tools(
+                attempt_conv,
+                &llm_config,
+                Some(tools_json.clone()),
+            );
+
+            let mut stream_error = false;
+
+            while let Some(event_result) = stream.next().await {
+                if cancel.is_cancelled() {
+                    println!("[agent] cancelled during streaming");
+                    return Ok(());
+                }
+
+                let event = match event_result {
+                    Ok(e) => e,
+                    Err(e) => {
+                        let err_str = e.to_string();
+                        if meux_core::retry::is_retryable_llm_error(&e) && stream_attempt < 2 {
+                            eprintln!("[agent] stream error (retryable): {}", err_str);
+                            stream_error = true;
+                            break;
+                        }
+                        return Err(err_str);
+                    }
+                };
 
             match event {
                 StreamEvent::TextDelta(token) => {
@@ -648,6 +676,17 @@ async fn run_chat_stream(
                     finish_reason = reason;
                 }
             }
+        } // end while stream events
+
+            if stream_error {
+                continue; // retry the stream
+            }
+            stream_succeeded = true;
+            break; // stream completed normally
+        } // end stream retry loop
+
+        if !stream_succeeded {
+            return Err("Stream failed after all retry attempts".to_string());
         }
 
         // Flush remaining text buffer
@@ -734,7 +773,7 @@ async fn run_chat_stream(
                 );
             }
 
-            // Execute all safe calls concurrently
+            // Execute all safe calls concurrently with timeout + panic safety
             let futures: Vec<_> = safe_calls
                 .iter()
                 .map(|(tc_id, tc_name, args)| {
@@ -744,7 +783,20 @@ async fn run_chat_stream(
                         arguments: args.clone(),
                     };
                     let registry = &state.tool_registry;
-                    async move { registry.execute(&request).await }
+                    let tool_name = tc_name.clone();
+                    async move {
+                        match tokio::time::timeout(
+                            std::time::Duration::from_secs(60),
+                            registry.execute(&request),
+                        )
+                        .await
+                        {
+                            Ok(result) => result,
+                            Err(_) => Err(meux_core::MeuxError::Tool(
+                                format!("{} timed out after 60s", tool_name),
+                            )),
+                        }
+                    }
                 })
                 .collect();
 
@@ -837,10 +889,15 @@ async fn run_chat_stream(
                 arguments: args.clone(),
             };
 
-            let result = state.tool_registry.execute(&tool_request).await;
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(60),
+                state.tool_registry.execute(&tool_request),
+            )
+            .await;
             let (content, success) = match result {
-                Ok(tool_result) => (tool_result.content, tool_result.success),
-                Err(e) => (format!("Tool error: {}", e), false),
+                Ok(Ok(tool_result)) => (tool_result.content, tool_result.success),
+                Ok(Err(e)) => (format!("Tool error: {}", e), false),
+                Err(_) => (format!("Tool {} timed out after 60s", tc_name), false),
             };
 
             let _ = app.emit(
@@ -902,18 +959,10 @@ async fn run_chat_stream(
         &cleaned_response,
     );
 
-    // 9. Update relationship state
-    let updated_state = state
-        .states
-        .update_from_exchange(&character_id, &user_id, &message, &cleaned_response)
-        .map_err(|e| e.to_string())?;
-
-    let state_json = serde_json::to_value(&updated_state).unwrap_or(serde_json::Value::Null);
-
     let _ = app.emit(
         "chat:done",
         ChatDoneEvent {
-            state_update: state_json,
+            state_update: serde_json::Value::Null,
         },
     );
 
