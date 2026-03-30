@@ -1,4 +1,5 @@
 pub mod types;
+pub mod clipboard;
 pub mod desktop;
 pub mod file_ops;
 pub mod shell;
@@ -38,15 +39,21 @@ impl ToolRegistry {
         let mut registry = Self::new();
         // File tools
         registry.register(Box::new(file_ops::ReadFileTool));
+        registry.register(Box::new(file_ops::WriteFileTool));
         registry.register(Box::new(file_ops::ListDirectoryTool));
         registry.register(Box::new(file_ops::SummarizeFileTool));
+        registry.register(Box::new(file_ops::FindFilesTool));
         registry.register(Box::new(file_ops::MoveFileTool));
         registry.register(Box::new(file_ops::DeleteFileTool));
         // Shell
         registry.register(Box::new(shell::RunCommandTool));
         // Desktop
         registry.register(Box::new(desktop::OpenApplicationTool));
+        registry.register(Box::new(desktop::OpenUrlTool));
         registry.register(Box::new(desktop::OrganizeDesktopTool));
+        // Clipboard
+        registry.register(Box::new(clipboard::ClipboardReadTool));
+        registry.register(Box::new(clipboard::ClipboardWriteTool));
         // Web
         registry.register(Box::new(web_search::WebSearchTool));
         registry

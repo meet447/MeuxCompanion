@@ -15,13 +15,18 @@ interface ConfirmRequest {
 
 const TOOL_ICONS: Record<string, string> = {
   read_file: "\u{1F4C4}",
+  write_file: "\u{270F}\uFE0F",
   list_directory: "\u{1F4C2}",
   summarize_file: "\u{1F4DD}",
+  find_files: "\u{1F50E}",
   move_file: "\u{27A1}\uFE0F",
   delete_file: "\u{1F5D1}\uFE0F",
   run_command: "\u{1F4BB}",
   open_application: "\u{1F680}",
+  open_url: "\u{1F310}",
   organize_desktop: "\u{1F9F9}",
+  clipboard_read: "\u{1F4CB}",
+  clipboard_write: "\u{1F4CB}",
   web_search: "\u{1F50D}",
 };
 
