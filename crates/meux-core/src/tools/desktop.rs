@@ -247,3 +247,147 @@ fn build_extension_map() -> HashMap<&'static str, &'static str> {
     }
     m
 }
+
+// ---------------------------------------------------------------------------
+// system_info
+// ---------------------------------------------------------------------------
+
+pub struct SystemInfoTool;
+
+#[async_trait]
+impl Tool for SystemInfoTool {
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "system_info".to_string(),
+            description: "Get system information: OS, hostname, CPU, memory usage, disk usage, battery level, uptime, and running processes (top 10 by CPU)."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+            permission_level: PermissionLevel::Safe,
+        }
+    }
+
+    async fn execute(&self, _arguments: serde_json::Value) -> Result<ToolResult> {
+        let mut info = String::new();
+
+        // OS & hostname
+        if let Ok(output) = tokio::process::Command::new("sw_vers").output().await {
+            let sw = String::from_utf8_lossy(&output.stdout);
+            info.push_str("=== macOS ===\n");
+            info.push_str(&sw);
+            info.push('\n');
+        }
+        if let Ok(output) = tokio::process::Command::new("hostname").output().await {
+            let host = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            info.push_str(&format!("Hostname: {}\n\n", host));
+        }
+
+        // CPU info
+        if let Ok(output) = tokio::process::Command::new("sysctl")
+            .args(["-n", "machdep.cpu.brand_string"])
+            .output()
+            .await
+        {
+            let cpu = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            info.push_str(&format!("=== CPU ===\n{}\n\n", cpu));
+        }
+
+        // Memory usage
+        if let Ok(output) = tokio::process::Command::new("vm_stat").output().await {
+            let vm = String::from_utf8_lossy(&output.stdout);
+            // Parse page size and free/active/inactive/wired pages
+            let page_size: u64 = 16384; // default on Apple Silicon
+            let mut free_pages: u64 = 0;
+            let mut active_pages: u64 = 0;
+            let mut inactive_pages: u64 = 0;
+            let mut wired_pages: u64 = 0;
+
+            for line in vm.lines() {
+                if let Some(val) = extract_vm_stat_value(line) {
+                    if line.contains("free") {
+                        free_pages = val;
+                    } else if line.contains("active") && !line.contains("inactive") {
+                        active_pages = val;
+                    } else if line.contains("inactive") {
+                        inactive_pages = val;
+                    } else if line.contains("wired") {
+                        wired_pages = val;
+                    }
+                }
+            }
+
+            let used_gb = (active_pages + wired_pages) as f64 * page_size as f64 / 1_073_741_824.0;
+            let free_gb = (free_pages + inactive_pages) as f64 * page_size as f64 / 1_073_741_824.0;
+            info.push_str(&format!(
+                "=== Memory ===\nUsed: {:.1} GB\nAvailable: {:.1} GB\n\n",
+                used_gb, free_gb
+            ));
+        }
+
+        // Disk usage
+        if let Ok(output) = tokio::process::Command::new("df")
+            .args(["-h", "/"])
+            .output()
+            .await
+        {
+            let df = String::from_utf8_lossy(&output.stdout);
+            info.push_str("=== Disk (/) ===\n");
+            info.push_str(&df);
+            info.push('\n');
+        }
+
+        // Battery
+        if let Ok(output) = tokio::process::Command::new("pmset")
+            .args(["-g", "batt"])
+            .output()
+            .await
+        {
+            let batt = String::from_utf8_lossy(&output.stdout);
+            // Extract percentage
+            if let Some(pct_start) = batt.find('\t') {
+                let batt_line = &batt[pct_start..];
+                info.push_str(&format!("=== Battery ===\n{}\n\n", batt_line.trim()));
+            }
+        }
+
+        // Uptime
+        if let Ok(output) = tokio::process::Command::new("uptime").output().await {
+            let up = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            info.push_str(&format!("=== Uptime ===\n{}\n\n", up));
+        }
+
+        // Top processes by CPU
+        if let Ok(output) = tokio::process::Command::new("ps")
+            .args(["aux", "--sort=-%cpu"])
+            .output()
+            .await
+        {
+            let ps = String::from_utf8_lossy(&output.stdout);
+            let lines: Vec<&str> = ps.lines().take(11).collect(); // header + top 10
+            info.push_str("=== Top Processes (by CPU) ===\n");
+            info.push_str(&lines.join("\n"));
+            info.push('\n');
+        }
+
+        Ok(ToolResult {
+            tool_call_id: String::new(),
+            content: if info.is_empty() {
+                "Could not retrieve system information.".to_string()
+            } else {
+                info
+            },
+            success: true,
+        })
+    }
+}
+
+fn extract_vm_stat_value(line: &str) -> Option<u64> {
+    let parts: Vec<&str> = line.split(':').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    parts[1].trim().trim_end_matches('.').parse::<u64>().ok()
+}

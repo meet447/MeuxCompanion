@@ -1,5 +1,4 @@
 pub mod types;
-pub mod clipboard;
 pub mod desktop;
 pub mod file_ops;
 pub mod shell;
@@ -47,6 +46,7 @@ impl ToolRegistry {
         registry.register(Box::new(file_ops::ListDirectoryTool));
         registry.register(Box::new(file_ops::SummarizeFileTool));
         registry.register(Box::new(file_ops::FindFilesTool));
+        registry.register(Box::new(file_ops::EditFileTool));
         registry.register(Box::new(file_ops::MoveFileTool));
         registry.register(Box::new(file_ops::DeleteFileTool));
         // Shell
@@ -55,9 +55,7 @@ impl ToolRegistry {
         registry.register(Box::new(desktop::OpenApplicationTool));
         registry.register(Box::new(desktop::OpenUrlTool));
         registry.register(Box::new(desktop::OrganizeDesktopTool));
-        // Clipboard
-        registry.register(Box::new(clipboard::ClipboardReadTool));
-        registry.register(Box::new(clipboard::ClipboardWriteTool));
+        registry.register(Box::new(desktop::SystemInfoTool));
         // Web — shares the search_config with the registry
         registry.register(Box::new(web_search::WebSearchTool::with_config(
             Arc::clone(&registry.search_config),
