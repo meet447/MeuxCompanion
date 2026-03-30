@@ -6,6 +6,10 @@ use crate::Result;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+fn is_masked_key(key: &str) -> bool {
+    key.contains("...")
+}
+
 // --- Provider Presets ---
 
 #[derive(Debug, Clone, Copy)]
@@ -118,11 +122,59 @@ impl ConfigManager {
         Ok(config)
     }
 
-    pub fn save(&self, config: &AppConfig) -> Result<()> {
+    pub fn save(&self, new_config: &AppConfig) -> Result<()> {
+        let existing = self.load().ok();
+
+        let mut merged = new_config.clone();
+
+        if let Some(existing) = existing {
+            if merged.user.name.is_empty() {
+                merged.user = existing.user;
+            }
+            // If incoming LLM api_key is empty, None, or looks masked → preserve existing
+            let incoming_llm_key = merged.llm.api_key.clone();
+            if incoming_llm_key.is_none()
+                || incoming_llm_key
+                    .as_ref()
+                    .map_or(false, |k| k.is_empty() || is_masked_key(k))
+            {
+                merged.llm.api_key = existing.llm.api_key;
+            }
+            // Same for TTS
+            let incoming_tts_key = merged.tts.api_key.clone();
+            if incoming_tts_key.is_none()
+                || incoming_tts_key
+                    .as_ref()
+                    .map_or(false, |k| k.is_empty() || is_masked_key(k))
+            {
+                merged.tts.api_key = existing.tts.api_key;
+            }
+            if merged.llm.base_url.is_empty() {
+                merged.llm.base_url = existing.llm.base_url;
+                merged.llm.model = existing.llm.model.clone();
+            }
+            if merged.tts.voice.is_empty() {
+                merged.tts.voice = existing.tts.voice.clone();
+                merged.tts.provider = existing.tts.provider.clone();
+            }
+            if merged.llm_providers.is_empty() {
+                merged.llm_providers = existing.llm_providers;
+            }
+            if merged.tts_providers.is_empty() {
+                merged.tts_providers = existing.tts_providers;
+            }
+            if merged.active_character.is_empty() {
+                merged.active_character = existing.active_character;
+            }
+            if !merged.onboarding_complete {
+                merged.onboarding_complete = existing.onboarding_complete;
+            }
+        }
+
         if let Some(parent) = self.config_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let json = serde_json::to_string_pretty(config)?;
+        let json = serde_json::to_string_pretty(&merged)?;
         std::fs::write(&self.config_path, json)?;
         Ok(())
     }
@@ -150,7 +202,10 @@ impl ConfigManager {
         for (name, preset) in LLM_PRESETS {
             let configured = if let Some(provider_cfg) = config.llm_providers.get(*name) {
                 if preset.needs_key {
-                    provider_cfg.api_key.as_ref().map_or(false, |k| !k.is_empty())
+                    provider_cfg
+                        .api_key
+                        .as_ref()
+                        .map_or(false, |k| !k.is_empty())
                 } else {
                     true
                 }
@@ -166,7 +221,10 @@ impl ConfigManager {
         for (name, preset) in TTS_PRESETS {
             let configured = if let Some(provider_cfg) = config.tts_providers.get(*name) {
                 if preset.needs_key {
-                    provider_cfg.api_key.as_ref().map_or(false, |k| !k.is_empty())
+                    provider_cfg
+                        .api_key
+                        .as_ref()
+                        .map_or(false, |k| !k.is_empty())
                 } else {
                     true
                 }
@@ -220,10 +278,7 @@ mod tests {
 
         assert_eq!(loaded.user.name, "Alice");
         assert_eq!(loaded.llm.provider, "openai");
-        assert_eq!(
-            loaded.llm.api_key,
-            Some("sk-test-key-12345678".to_string())
-        );
+        assert_eq!(loaded.llm.api_key, Some("sk-test-key-12345678".to_string()));
         assert!(loaded.onboarding_complete);
     }
 
