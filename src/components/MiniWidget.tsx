@@ -1,23 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { useWindow } from "../hooks/useWindow";
 import { MicButton } from "./MicButton";
+import type { ToolCallStatus } from "./ToolCallBubble";
 
 interface MiniWidgetProps {
   avatarComponent: ReactNode;
   listening: boolean;
   speaking: boolean;
   isStreaming: boolean;
+  streamingText: string;
+  toolCalls: ToolCallStatus[];
   onSend: (text: string) => void;
   onMicToggle: () => void;
+  onToolConfirm: (requestId: string, approved: boolean) => void;
+  pendingConfirmation: boolean;
 }
 
 const MINI_WINDOW_PRESETS = [
-  { label: "S", width: 240, height: 380 },
-  { label: "M", width: 280, height: 420 },
-  { label: "L", width: 320, height: 500 },
-  { label: "XL", width: 360, height: 580 },
+  { label: "S", width: 260, height: 400 },
+  { label: "M", width: 300, height: 460 },
+  { label: "L", width: 340, height: 540 },
+  { label: "XL", width: 380, height: 620 },
 ] as const;
 
 export function MiniWidget({
@@ -25,48 +31,108 @@ export function MiniWidget({
   listening,
   speaking,
   isStreaming,
+  streamingText,
+  toolCalls,
   onSend,
   onMicToggle,
+  onToolConfirm,
+  pendingConfirmation,
 }: MiniWidgetProps) {
   const { expand } = useWindow();
   const pointerStateRef = useRef<{ x: number; y: number; dragged: boolean; active: boolean }>({
-    x: 0,
-    y: 0,
-    dragged: false,
-    active: false,
+    x: 0, y: 0, dragged: false, active: false,
   });
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [dockVisible, setDockVisible] = useState(false);
   const [input, setInput] = useState("");
   const [sizePresetIndex, setSizePresetIndex] = useState(1);
+  const [dockVisible, setDockVisible] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (composerOpen) {
-      inputRef.current?.focus();
-    }
+    if (composerOpen) inputRef.current?.focus();
   }, [composerOpen]);
 
+  // Sync preset with actual window size on mount
   useEffect(() => {
     const syncPresetWithWindow = async () => {
       try {
         const size = await getCurrentWindow().innerSize();
-        const matchedIndex = MINI_WINDOW_PRESETS.findIndex(
-          (preset) =>
-            Math.abs(preset.width - size.width) <= 20 &&
-            Math.abs(preset.height - size.height) <= 20,
+        const idx = MINI_WINDOW_PRESETS.findIndex(
+          (p) => Math.abs(p.width - size.width) <= 20 && Math.abs(p.height - size.height) <= 20,
         );
-        if (matchedIndex >= 0) {
-          setSizePresetIndex(matchedIndex);
-        }
-      } catch (err) {
-        console.error("Mini window size detection failed:", err);
-      }
+        if (idx >= 0) setSizePresetIndex(idx);
+      } catch {}
     };
-
     void syncPresetWithWindow();
   }, []);
 
+  // Auto-close composer when streaming finishes
+  useEffect(() => {
+    if (!isStreaming && composerOpen && !input.trim()) {
+      setComposerOpen(false);
+    }
+  }, [isStreaming]);
+
+  // Global shortcuts — work even when mini window is not focused
+  const composerOpenRef = useRef(false);
+  composerOpenRef.current = composerOpen;
+  const onMicToggleRef = useRef(onMicToggle);
+  onMicToggleRef.current = onMicToggle;
+
+  useEffect(() => {
+    const TEXT_SHORTCUT = "CommandOrControl+Shift+Space";
+    const MIC_SHORTCUT = "CommandOrControl+Shift+M";
+    const registered: string[] = [];
+
+    const setup = async () => {
+      try {
+        // Cmd+Shift+Space — open text composer
+        await register(TEXT_SHORTCUT, async (event) => {
+          if (event.state === "Pressed") {
+            try { await getCurrentWindow().setFocus(); } catch {}
+            if (!composerOpenRef.current) {
+              setSizePresetIndex((prev) => {
+                if (prev === 0) {
+                  void getCurrentWindow().setSize(new LogicalSize(MINI_WINDOW_PRESETS[1].width, MINI_WINDOW_PRESETS[1].height));
+                  return 1;
+                }
+                return prev;
+              });
+              setComposerOpen(true);
+            } else {
+              inputRef.current?.focus();
+            }
+          }
+        });
+        registered.push(TEXT_SHORTCUT);
+      } catch (err) {
+        console.error("Failed to register text shortcut:", err);
+      }
+
+      try {
+        // Cmd+Shift+M — toggle mic
+        await register(MIC_SHORTCUT, async (event) => {
+          if (event.state === "Pressed") {
+            try { await getCurrentWindow().setFocus(); } catch {}
+            onMicToggleRef.current();
+          }
+        });
+        registered.push(MIC_SHORTCUT);
+      } catch (err) {
+        console.error("Failed to register mic shortcut:", err);
+      }
+    };
+
+    void setup();
+
+    return () => {
+      for (const s of registered) {
+        unregister(s).catch(() => {});
+      }
+    };
+  }, []);
+
+  // Drag handling
   const isInteractiveTarget = (target: EventTarget | null) =>
     target instanceof Element && target.closest("[data-mini-interactive='true']");
 
@@ -75,52 +141,29 @@ export function MiniWidget({
       pointerStateRef.current.active = false;
       return;
     }
-
-    pointerStateRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      dragged: false,
-      active: true,
-    };
+    pointerStateRef.current = { x: event.clientX, y: event.clientY, dragged: false, active: true };
   };
 
   const handlePointerMoveCapture = async (event: ReactPointerEvent<HTMLDivElement>) => {
     const state = pointerStateRef.current;
     if (!state.active || state.dragged) return;
-
-    const distance = Math.hypot(event.clientX - state.x, event.clientY - state.y);
-    if (distance < 6) return;
-
+    if (Math.hypot(event.clientX - state.x, event.clientY - state.y) < 6) return;
     state.dragged = true;
-    try {
-      await getCurrentWindow().startDragging();
-    } catch (err) {
-      console.error("Mini drag failed:", err);
-    }
+    try { await getCurrentWindow().startDragging(); } catch {}
   };
 
   const handlePointerUpCapture = () => {
-    pointerStateRef.current = {
-      x: 0,
-      y: 0,
-      dragged: false,
-      active: false,
-    };
+    pointerStateRef.current = { x: 0, y: 0, dragged: false, active: false };
   };
 
   const applyWindowPreset = async (nextIndex: number) => {
     const preset = MINI_WINDOW_PRESETS[nextIndex];
     setSizePresetIndex(nextIndex);
-    try {
-      await getCurrentWindow().setSize(new LogicalSize(preset.width, preset.height));
-    } catch (err) {
-      console.error("Mini resize failed:", err);
-    }
+    try { await getCurrentWindow().setSize(new LogicalSize(preset.width, preset.height)); } catch {}
   };
 
   const cycleWindowSize = () => {
-    const nextIndex = (sizePresetIndex + 1) % MINI_WINDOW_PRESETS.length;
-    void applyWindowPreset(nextIndex);
+    void applyWindowPreset((sizePresetIndex + 1) % MINI_WINDOW_PRESETS.length);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -132,35 +175,40 @@ export function MiniWidget({
     setComposerOpen(false);
   };
 
-  const showDock = dockVisible || composerOpen || listening || isStreaming;
+  const handleExpand = async () => { await expand(); };
 
-  const handleExpand = async () => {
-    await expand();
-  };
-
-  const toggleComposer = () => {
+  const openComposer = () => {
     if (!composerOpen && sizePresetIndex === 0) {
       void applyWindowPreset(1);
     }
-    setComposerOpen((prev) => {
-      const next = !prev;
-      if (!next) {
-        setInput("");
-      }
-      return next;
-    });
+    setComposerOpen(true);
   };
 
-  const closeComposer = () => {
-    setComposerOpen(false);
-    setInput("");
-  };
-
+  // Keyboard shortcuts: / or Cmd+K opens composer, Esc closes it
   const handleRootKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
-      closeComposer();
+      setComposerOpen(false);
+      setInput("");
+      return;
+    }
+    if (!composerOpen) {
+      if (event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key === "k")) {
+        event.preventDefault();
+        openComposer();
+      }
     }
   };
+
+  const pendingTool = pendingConfirmation
+    ? toolCalls.find((tc) => tc.status === "awaiting_confirmation")
+    : null;
+
+  const showDock = dockVisible || composerOpen || listening || isStreaming || pendingConfirmation;
+
+  // Minimal streaming preview — just show a short text
+  const streamPreview = streamingText
+    ? streamingText.length > 60 ? "..." + streamingText.slice(-60) : streamingText
+    : null;
 
   return (
     <div
@@ -170,8 +218,6 @@ export function MiniWidget({
       onPointerCancelCapture={handlePointerUpCapture}
       onMouseEnter={() => setDockVisible(true)}
       onMouseLeave={() => setDockVisible(false)}
-      onFocus={() => setDockVisible(true)}
-      onBlur={() => setDockVisible(false)}
       onKeyDown={handleRootKeyDown}
       tabIndex={-1}
       className="relative"
@@ -183,94 +229,149 @@ export function MiniWidget({
         overflow: "hidden",
       }}
     >
+      {/* Avatar canvas */}
       {avatarComponent}
 
+      {/* Status pill — top right, subtle */}
+      {(speaking || listening || isStreaming) && (
+        <div className="absolute right-3 top-3 z-20 flex items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600 shadow-sm backdrop-blur-xl pointer-events-none">
+          <span className={`h-1.5 w-1.5 rounded-full ${
+            listening ? "bg-red-500 animate-ping"
+              : isStreaming ? "bg-blue-400 animate-pulse"
+              : "bg-blue-400 animate-ping"
+          }`} />
+          <span>{listening ? "Listening" : isStreaming ? "Thinking" : "Speaking"}</span>
+        </div>
+      )}
+
+      {/* Streaming text preview — bottom area, above dock */}
+      {isStreaming && streamPreview && !composerOpen && (
+        <div className="absolute bottom-16 left-2 right-2 z-10 pointer-events-none">
+          <div className="rounded-2xl px-3 py-2 text-[11px] leading-relaxed text-slate-700 bg-white/75 border border-white/50 backdrop-blur-xl shadow-sm">
+            {streamPreview}
+            <span className="inline-flex gap-0.5 ml-1 align-middle">
+              <span className="w-1 h-1 rounded-full bg-blue-400 animate-pulse" />
+              <span className="w-1 h-1 rounded-full bg-blue-400 animate-pulse [animation-delay:0.15s]" />
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Tool confirmation overlay — compact card */}
+      {pendingTool && (
+        <div
+          className="absolute bottom-16 left-2 right-2 z-20"
+          data-mini-interactive="true"
+        >
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/90 backdrop-blur-xl shadow-md px-3 py-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-[11px] font-semibold text-amber-800">
+                Allow {pendingTool.toolName.replace(/_/g, " ")}?
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onToolConfirm(pendingTool.requestId, true)}
+                className="flex-1 py-1.5 text-[11px] font-semibold bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-sm"
+              >
+                Allow
+              </button>
+              <button
+                onClick={() => onToolConfirm(pendingTool.requestId, false)}
+                className="flex-1 py-1.5 text-[11px] font-semibold bg-white text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                Deny
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Composer — popup input, appears on keyboard shortcut or button click */}
       {composerOpen && (
         <form
           data-mini-interactive="true"
           onSubmit={handleSubmit}
-          className="absolute bottom-20 left-1/2 z-30 flex w-[min(88vw,320px)] -translate-x-1/2 items-center gap-2 rounded-[1.75rem] border border-white/90 bg-white/92 p-2 shadow-[0_20px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+          className="absolute bottom-16 left-1/2 z-30 flex w-[min(90vw,320px)] -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/80 bg-white/90 p-2 shadow-[0_12px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl"
         >
           <input
             ref={inputRef}
             type="text"
             value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Send a quick message..."
-            className="min-w-0 flex-1 rounded-full bg-slate-50 px-4 py-3 text-[14px] text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:bg-white"
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask anything..."
+            className="min-w-0 flex-1 rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:bg-white"
             disabled={isStreaming}
           />
           <button
             type="submit"
             disabled={!input.trim() || isStreaming}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white shadow-md shadow-blue-500/25 transition-all hover:bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400"
-            title="Send message"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500 text-white shadow-sm hover:bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400 transition-all"
           >
-            <svg className="ml-0.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
             </svg>
           </button>
         </form>
       )}
 
+      {/* Dock — hover to reveal, contains chat/mic/size/expand */}
       <div
-        className={`absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/80 bg-white/62 px-2 py-2 shadow-[0_14px_40px_rgba(15,23,42,0.05)] backdrop-blur-xl transition-all duration-300 ${
+        className={`absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/70 bg-white/70 px-2 py-1.5 shadow-sm backdrop-blur-xl transition-all duration-300 ${
           showDock ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         data-mini-interactive="true"
       >
+        {/* Size cycle */}
         <button
           type="button"
           onClick={cycleWindowSize}
-          className="rounded-full bg-white/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600 transition-all hover:bg-white hover:text-slate-800"
-          title="Cycle mini window size"
+          className="rounded-full bg-white/80 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 transition-all hover:bg-white hover:text-slate-700"
+          title="Cycle window size"
         >
           {MINI_WINDOW_PRESETS[sizePresetIndex].label}
         </button>
 
+        {/* Text chat toggle */}
         <button
           type="button"
-          onClick={toggleComposer}
-          className={`flex h-10 w-10 items-center justify-center rounded-full transition-all ${
+          onClick={() => composerOpen ? setComposerOpen(false) : openComposer()}
+          className={`flex h-9 w-9 items-center justify-center rounded-full transition-all ${
             isStreaming
-              ? "bg-blue-500 text-white shadow-md shadow-blue-500/30"
+              ? "bg-blue-500 text-white shadow-md shadow-blue-500/25"
               : composerOpen
-              ? "bg-blue-500 text-white shadow-md shadow-blue-500/30"
+              ? "bg-blue-500 text-white shadow-md shadow-blue-500/25"
               : "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-800"
           }`}
-          title={isStreaming ? "Waiting for reply" : "Text chat"}
+          title="Text chat (/ or Cmd+K)"
         >
           {isStreaming ? (
-            <span className="h-4 w-4 rounded-full border-2 border-white/35 border-t-white animate-spin" />
+            <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
           ) : (
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h8M8 14h5m-9 6l2.4-3.2A8.96 8.96 0 013 11a9 9 0 1118 0 9 9 0 01-9 9 8.96 8.96 0 01-4.6-1.2L3 20z" />
             </svg>
           )}
         </button>
 
+        {/* Mic */}
         <div className="rounded-full bg-white/80">
           <MicButton listening={listening} onToggle={onMicToggle} />
         </div>
 
+        {/* Expand */}
         <button
           type="button"
           onClick={handleExpand}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-slate-600 transition-all hover:bg-white hover:text-slate-800"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-600 transition-all hover:bg-white hover:text-slate-800"
           title="Open full app"
         >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M8 3H5a2 2 0 00-2 2v3m16 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M5 16v3a2 2 0 002 2h3" />
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 3H5a2 2 0 00-2 2v3m16 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M5 16v3a2 2 0 002 2h3" />
           </svg>
         </button>
       </div>
-
-      {(speaking || listening) && (
-        <div className="pointer-events-none absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-white/80 bg-white/88 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600 shadow-sm backdrop-blur-md">
-          <span className={`h-2 w-2 rounded-full ${listening ? "bg-red-500 mic-pulse-ring" : "bg-blue-400 animate-ping"}`} />
-          <span>{listening ? "Listening" : "Speaking"}</span>
-        </div>
-      )}
     </div>
   );
 }
