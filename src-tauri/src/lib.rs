@@ -125,6 +125,7 @@ pub fn run() {
             commands::chat::chat_history,
             commands::chat::chat_clear,
             commands::chat::tool_confirm,
+            commands::tools::tools_list,
             commands::memory::memory_get,
             commands::memory::memory_search,
             commands::memory::memory_clear,
