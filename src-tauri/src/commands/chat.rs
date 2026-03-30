@@ -412,6 +412,7 @@ async fn run_chat_stream(
     // 6. Agent loop
     let mut conversation = prompt_result.messages;
     let mut all_text_responses = String::new(); // Accumulate all text across iterations
+    let mut all_tool_exchanges: Vec<serde_json::Value> = Vec::new();
     let mut sentence_index: u32 = 0;
     let mut current_expression = "neutral".to_string();
 
@@ -565,65 +566,129 @@ async fn run_chat_stream(
 
         println!("[agent] executing {} tool call(s) in iteration {}", tool_calls.len(), iteration);
 
-        // Execute tool calls
+        // Separate tool calls into safe (parallel) and dangerous (need confirmation)
+        let mut safe_calls: Vec<(String, String, serde_json::Value)> = Vec::new();
+        let mut dangerous_calls: Vec<(String, String, serde_json::Value)> = Vec::new();
+
         for (tc_id, tc_name, tc_args) in &tool_calls {
             let args: serde_json::Value =
                 serde_json::from_str(tc_args).unwrap_or(serde_json::Value::Null);
-            let request_id = tc_id.clone();
-
-            // Check permission level
             let permission = state.tool_registry.permission_level(tc_name);
-            let needs_confirm = permission == Some(PermissionLevel::Dangerous);
+            if permission == Some(PermissionLevel::Dangerous) {
+                dangerous_calls.push((tc_id.clone(), tc_name.clone(), args));
+            } else {
+                safe_calls.push((tc_id.clone(), tc_name.clone(), args));
+            }
+        }
 
-            if needs_confirm {
-                // Emit confirmation request and wait
+        // Track tool exchanges for session metadata
+        let mut tool_exchanges: Vec<serde_json::Value> = Vec::new();
+
+        // Execute safe tools in parallel
+        if !safe_calls.is_empty() {
+            // Emit start events for all safe calls
+            for (tc_id, tc_name, args) in &safe_calls {
                 let _ = app.emit(
-                    "chat:tool-confirm",
-                    ToolConfirmEvent {
-                        request_id: request_id.clone(),
+                    "chat:tool-call-start",
+                    ToolCallStartEvent {
+                        request_id: tc_id.clone(),
                         tool_name: tc_name.clone(),
                         arguments: args.clone(),
-                        description: format!("Allow {} to execute?", tc_name),
                     },
                 );
-
-                let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
-                state
-                    .pending_confirmations
-                    .insert(request_id.clone(), tx);
-
-                let approved = tokio::time::timeout(
-                    std::time::Duration::from_secs(30),
-                    rx,
-                )
-                .await
-                .unwrap_or(Ok(false))
-                .unwrap_or(false);
-
-                if !approved {
-                    // User denied — add denial as tool result
-                    conversation.push(ChatMessage::tool_result(
-                        tc_id,
-                        "User denied this action.",
-                    ));
-                    let _ = app.emit(
-                        "chat:tool-call-result",
-                        ToolCallResultEvent {
-                            request_id,
-                            tool_name: tc_name.clone(),
-                            result: "User denied this action.".to_string(),
-                            success: false,
-                        },
-                    );
-                    continue;
-                }
             }
 
-            // Execute the tool
+            // Execute all safe calls concurrently
+            let futures: Vec<_> = safe_calls
+                .iter()
+                .map(|(tc_id, tc_name, args)| {
+                    let request = ToolCallRequest {
+                        id: tc_id.clone(),
+                        name: tc_name.clone(),
+                        arguments: args.clone(),
+                    };
+                    let registry = &state.tool_registry;
+                    async move { registry.execute(&request).await }
+                })
+                .collect();
+
+            let results = futures::future::join_all(futures).await;
+
+            // Process results in order
+            for (i, result) in results.into_iter().enumerate() {
+                let (tc_id, tc_name, args) = &safe_calls[i];
+                let (content, success) = match result {
+                    Ok(tool_result) => (tool_result.content, tool_result.success),
+                    Err(e) => (format!("Tool error: {}", e), false),
+                };
+
+                let _ = app.emit(
+                    "chat:tool-call-result",
+                    ToolCallResultEvent {
+                        request_id: tc_id.clone(),
+                        tool_name: tc_name.clone(),
+                        result: content.clone(),
+                        success,
+                    },
+                );
+                conversation.push(ChatMessage::tool_result(tc_id, &content));
+                tool_exchanges.push(serde_json::json!({
+                    "tool": tc_name,
+                    "arguments": args,
+                    "result": content,
+                    "success": success,
+                }));
+            }
+        }
+
+        // Execute dangerous tools sequentially (need user confirmation)
+        for (tc_id, tc_name, args) in &dangerous_calls {
+            // Emit confirmation request and wait
+            let _ = app.emit(
+                "chat:tool-confirm",
+                ToolConfirmEvent {
+                    request_id: tc_id.clone(),
+                    tool_name: tc_name.clone(),
+                    arguments: args.clone(),
+                    description: format!("Allow {} to execute?", tc_name),
+                },
+            );
+
+            let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
+            state.pending_confirmations.insert(tc_id.clone(), tx);
+
+            let approved = tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                rx,
+            )
+            .await
+            .unwrap_or(Ok(false))
+            .unwrap_or(false);
+
+            if !approved {
+                conversation.push(ChatMessage::tool_result(tc_id, "User denied this action."));
+                let _ = app.emit(
+                    "chat:tool-call-result",
+                    ToolCallResultEvent {
+                        request_id: tc_id.clone(),
+                        tool_name: tc_name.clone(),
+                        result: "User denied this action.".to_string(),
+                        success: false,
+                    },
+                );
+                tool_exchanges.push(serde_json::json!({
+                    "tool": tc_name,
+                    "arguments": args,
+                    "result": "User denied this action.",
+                    "success": false,
+                }));
+                continue;
+            }
+
             let _ = app.emit(
                 "chat:tool-call-start",
                 ToolCallStartEvent {
-                    request_id: request_id.clone(),
+                    request_id: tc_id.clone(),
                     tool_name: tc_name.clone(),
                     arguments: args.clone(),
                 },
@@ -636,46 +701,49 @@ async fn run_chat_stream(
             };
 
             let result = state.tool_registry.execute(&tool_request).await;
+            let (content, success) = match result {
+                Ok(tool_result) => (tool_result.content, tool_result.success),
+                Err(e) => (format!("Tool error: {}", e), false),
+            };
 
-            match result {
-                Ok(tool_result) => {
-                    let _ = app.emit(
-                        "chat:tool-call-result",
-                        ToolCallResultEvent {
-                            request_id,
-                            tool_name: tc_name.clone(),
-                            result: tool_result.content.clone(),
-                            success: tool_result.success,
-                        },
-                    );
-                    conversation.push(ChatMessage::tool_result(tc_id, &tool_result.content));
-                }
-                Err(e) => {
-                    let error_msg = format!("Tool error: {}", e);
-                    let _ = app.emit(
-                        "chat:tool-call-result",
-                        ToolCallResultEvent {
-                            request_id,
-                            tool_name: tc_name.clone(),
-                            result: error_msg.clone(),
-                            success: false,
-                        },
-                    );
-                    conversation.push(ChatMessage::tool_result(tc_id, &error_msg));
-                }
-            }
+            let _ = app.emit(
+                "chat:tool-call-result",
+                ToolCallResultEvent {
+                    request_id: tc_id.clone(),
+                    tool_name: tc_name.clone(),
+                    result: content.clone(),
+                    success,
+                },
+            );
+            conversation.push(ChatMessage::tool_result(tc_id, &content));
+            tool_exchanges.push(serde_json::json!({
+                "tool": tc_name,
+                "arguments": args,
+                "result": content,
+                "success": success,
+            }));
         }
+
+        // Store tool exchanges for this iteration
+        all_tool_exchanges.extend(tool_exchanges);
 
         // Loop continues — LLM will see tool results
     }
 
-    // 7. Save to session
+    // 7. Save to session (with tool exchanges as metadata)
     let cleaned_response = clean_text(&all_text_responses);
 
     state
         .sessions
         .append_message(&character_id, &user_id, "user", &message, None)
         .map_err(|e| e.to_string())?;
+
+    let assistant_metadata = if all_tool_exchanges.is_empty() {
+        None
+    } else {
+        Some(serde_json::json!({ "tool_exchanges": all_tool_exchanges }))
+    };
+
     state
         .sessions
         .append_message(
@@ -683,7 +751,7 @@ async fn run_chat_stream(
             &user_id,
             "assistant",
             &cleaned_response,
-            None,
+            assistant_metadata,
         )
         .map_err(|e| e.to_string())?;
 

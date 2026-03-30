@@ -63,6 +63,60 @@ impl Tool for OpenApplicationTool {
 }
 
 // ---------------------------------------------------------------------------
+// open_url
+// ---------------------------------------------------------------------------
+
+pub struct OpenUrlTool;
+
+#[async_trait]
+impl Tool for OpenUrlTool {
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "open_url".to_string(),
+            description: "Open a URL in the user's default web browser.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to open (e.g., 'https://example.com')"
+                    }
+                },
+                "required": ["url"]
+            }),
+            permission_level: PermissionLevel::Cautious,
+        }
+    }
+
+    async fn execute(&self, arguments: serde_json::Value) -> Result<ToolResult> {
+        let url = arguments["url"]
+            .as_str()
+            .ok_or_else(|| MeuxError::Tool("Missing 'url' argument".to_string()))?;
+
+        let output = tokio::process::Command::new("open")
+            .arg(url)
+            .output()
+            .await
+            .map_err(|e| MeuxError::Tool(e.to_string()))?;
+
+        if output.status.success() {
+            Ok(ToolResult {
+                tool_call_id: String::new(),
+                content: format!("Opened URL: {}", url),
+                success: true,
+            })
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Ok(ToolResult {
+                tool_call_id: String::new(),
+                content: format!("Failed to open URL {}: {}", url, stderr),
+                success: false,
+            })
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // organize_desktop
 // ---------------------------------------------------------------------------
 
