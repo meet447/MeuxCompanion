@@ -210,6 +210,173 @@ impl Tool for SummarizeFileTool {
 }
 
 // ---------------------------------------------------------------------------
+// write_file
+// ---------------------------------------------------------------------------
+
+pub struct WriteFileTool;
+
+#[async_trait]
+impl Tool for WriteFileTool {
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "write_file".to_string(),
+            description: "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Parent directories are created automatically."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to write"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to write to the file"
+                    }
+                },
+                "required": ["path", "content"]
+            }),
+            permission_level: PermissionLevel::Cautious,
+        }
+    }
+
+    async fn execute(&self, arguments: serde_json::Value) -> Result<ToolResult> {
+        let path = arguments["path"]
+            .as_str()
+            .ok_or_else(|| MeuxError::Tool("Missing 'path' argument".to_string()))?;
+        let content = arguments["content"]
+            .as_str()
+            .ok_or_else(|| MeuxError::Tool("Missing 'content' argument".to_string()))?;
+
+        let expanded = shellexpand::tilde(path).to_string();
+        let file_path = Path::new(&expanded);
+
+        // Create parent directories if needed
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| MeuxError::Tool(e.to_string()))?;
+        }
+
+        std::fs::write(file_path, content).map_err(|e| MeuxError::Tool(e.to_string()))?;
+
+        Ok(ToolResult {
+            tool_call_id: String::new(),
+            content: format!("Written {} bytes to {}", content.len(), file_path.display()),
+            success: true,
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// find_files
+// ---------------------------------------------------------------------------
+
+pub struct FindFilesTool;
+
+#[async_trait]
+impl Tool for FindFilesTool {
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "find_files".to_string(),
+            description: "Recursively search for files matching a name pattern within a directory. Returns up to 50 matching file paths."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "directory": {
+                        "type": "string",
+                        "description": "Directory to search in (e.g., '~', '~/Documents')"
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "File name pattern to search for (case-insensitive substring match, e.g., 'report', '.pdf', 'todo.txt')"
+                    }
+                },
+                "required": ["directory", "pattern"]
+            }),
+            permission_level: PermissionLevel::Safe,
+        }
+    }
+
+    async fn execute(&self, arguments: serde_json::Value) -> Result<ToolResult> {
+        let directory = arguments["directory"]
+            .as_str()
+            .ok_or_else(|| MeuxError::Tool("Missing 'directory' argument".to_string()))?;
+        let pattern = arguments["pattern"]
+            .as_str()
+            .ok_or_else(|| MeuxError::Tool("Missing 'pattern' argument".to_string()))?;
+
+        let expanded = shellexpand::tilde(directory).to_string();
+        let dir = Path::new(&expanded);
+
+        if !dir.exists() {
+            return Ok(ToolResult {
+                tool_call_id: String::new(),
+                content: format!("Directory not found: {}", dir.display()),
+                success: false,
+            });
+        }
+
+        let pattern_lower = pattern.to_lowercase();
+        let mut matches = Vec::new();
+        find_recursive(dir, &pattern_lower, &mut matches, 50, 5);
+
+        if matches.is_empty() {
+            Ok(ToolResult {
+                tool_call_id: String::new(),
+                content: format!("No files matching '{}' found in {}", pattern, dir.display()),
+                success: true,
+            })
+        } else {
+            let count = matches.len();
+            let result = matches.join("\n");
+            Ok(ToolResult {
+                tool_call_id: String::new(),
+                content: format!("Found {} file(s):\n{}", count, result),
+                success: true,
+            })
+        }
+    }
+}
+
+fn find_recursive(dir: &Path, pattern: &str, results: &mut Vec<String>, max: usize, max_depth: usize) {
+    if results.len() >= max || max_depth == 0 {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return, // Skip directories we can't read (permissions)
+    };
+
+    for entry in entries {
+        if results.len() >= max {
+            return;
+        }
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip hidden directories to avoid crawling .git, .cache, etc.
+        if name.starts_with('.') {
+            continue;
+        }
+
+        let path = entry.path();
+
+        if name.to_lowercase().contains(pattern) {
+            results.push(path.to_string_lossy().to_string());
+        }
+
+        if path.is_dir() {
+            find_recursive(&path, pattern, results, max, max_depth - 1);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // move_file
 // ---------------------------------------------------------------------------
 
