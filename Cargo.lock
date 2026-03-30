@@ -2489,6 +2489,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-shell",
  "tokio",
+ "tokio-util",
  "whisper-rs",
 ]
 
