@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { ChatPanel } from "./components/ChatPanel";
 import { AddCharacterModal } from "./components/AddCharacterModal";
 import { CharacterSelect } from "./components/CharacterSelect";
@@ -247,6 +248,16 @@ function App() {
     refreshCharacterState(selectedCharId);
   }, [selectedCharId, loadHistory, setMessages, refreshCharacterState]);
 
+  // Reload chat history when switching from mini mode back to full mode
+  useEffect(() => {
+    const unlisten = listen<{ mode: string }>("app:mode-changed", (event) => {
+      if (event.payload.mode === "full" && selectedCharId) {
+        loadHistory(selectedCharId);
+        refreshCharacterState(selectedCharId);
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, [selectedCharId, loadHistory, refreshCharacterState]);
 
   const handleTypingChange = useCallback(
     (isTyping: boolean) => {
@@ -254,6 +265,8 @@ function App() {
     },
     []
   );
+
+  const pendingToolConfirm = toolCalls.find((tc) => tc.status === "awaiting_confirmation") ?? null;
 
   const handleMicToggle = useCallback(() => {
     if (listening) {
@@ -346,8 +359,12 @@ function App() {
         listening={listening}
         speaking={speaking}
         isStreaming={isStreaming}
+        streamingText={streamingText}
+        toolCalls={toolCalls}
         onSend={handleSend}
         onMicToggle={handleMicToggle}
+        onToolConfirm={handleConfirm}
+        pendingConfirmation={pendingToolConfirm !== null}
       />
     );
   }
