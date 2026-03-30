@@ -6,10 +6,12 @@ pub mod shell;
 pub mod web_search;
 
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use serde_json::json;
 
+use crate::config::types::SearchConfig;
 use crate::error::{MeuxError, Result};
 
 // Re-export core types
@@ -25,12 +27,14 @@ pub trait Tool: Send + Sync {
 /// Registry that holds all available tools and dispatches execution.
 pub struct ToolRegistry {
     tools: HashMap<String, Box<dyn Tool>>,
+    search_config: Arc<RwLock<SearchConfig>>,
 }
 
 impl ToolRegistry {
     pub fn new() -> Self {
         Self {
             tools: HashMap::new(),
+            search_config: Arc::new(RwLock::new(SearchConfig::default())),
         }
     }
 
@@ -54,8 +58,10 @@ impl ToolRegistry {
         // Clipboard
         registry.register(Box::new(clipboard::ClipboardReadTool));
         registry.register(Box::new(clipboard::ClipboardWriteTool));
-        // Web
-        registry.register(Box::new(web_search::WebSearchTool));
+        // Web — shares the search_config with the registry
+        registry.register(Box::new(web_search::WebSearchTool::with_config(
+            Arc::clone(&registry.search_config),
+        )));
         registry
     }
 
@@ -100,6 +106,13 @@ impl ToolRegistry {
     /// Get the permission level for a tool by name.
     pub fn permission_level(&self, name: &str) -> Option<PermissionLevel> {
         self.tools.get(name).map(|t| t.definition().permission_level)
+    }
+
+    /// Update the search provider config (called when settings change).
+    pub fn update_search_config(&self, config: SearchConfig) {
+        if let Ok(mut cfg) = self.search_config.write() {
+            *cfg = config;
+        }
     }
 }
 
