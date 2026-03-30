@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
-import { sendChat } from "../api/tauri";
+import { sendChat, confirmToolCall } from "../api/tauri";
+import type { ToolCallStatus } from "../components/ToolCallBubble";
 
 interface Message {
   role: "user" | "assistant";
@@ -23,10 +24,31 @@ interface DonePayload {
   state_update: unknown;
 }
 
+interface ToolCallStartPayload {
+  request_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+}
+
+interface ToolCallResultPayload {
+  request_id: string;
+  tool_name: string;
+  result: string;
+  success: boolean;
+}
+
+interface ToolConfirmPayload {
+  request_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  description: string;
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [toolCalls, setToolCalls] = useState<ToolCallStatus[]>([]);
 
   const onSentenceRef = useRef<((data: SentencePayload) => void) | null>(null);
   const onAudioRef = useRef<
@@ -40,12 +62,32 @@ export function useChat() {
       .replace(/<<\/?[^>]*>>\s*/g, "")
       .replace(/\[(?:expression:\s*)?[a-zA-Z0-9_\-]+\]\s*/g, "");
 
+  const handleConfirm = useCallback(
+    async (requestId: string, approved: boolean) => {
+      await confirmToolCall(requestId, approved);
+      // Update status from awaiting_confirmation
+      setToolCalls((prev) =>
+        prev.map((tc) =>
+          tc.requestId === requestId
+            ? {
+                ...tc,
+                status: approved ? ("running" as const) : ("failed" as const),
+                result: approved ? undefined : "User denied this action.",
+              }
+            : tc,
+        ),
+      );
+    },
+    [],
+  );
+
   const send = useCallback(
     async (characterId: string, message: string) => {
       if (isStreaming) return;
       setMessages((prev) => [...prev, { role: "user", content: message }]);
       setStreamingText("");
       setIsStreaming(true);
+      setToolCalls([]);
 
       let displayText = "";
       let lastExpression = "neutral";
@@ -80,6 +122,57 @@ export function useChat() {
         },
       );
 
+      // Tool events
+      const unlistenToolStart = await listen<ToolCallStartPayload>(
+        "chat:tool-call-start",
+        (event) => {
+          const { request_id, tool_name, arguments: args } = event.payload;
+          setToolCalls((prev) => [
+            ...prev,
+            {
+              requestId: request_id,
+              toolName: tool_name,
+              arguments: args,
+              status: "running",
+            },
+          ]);
+        },
+      );
+
+      const unlistenToolResult = await listen<ToolCallResultPayload>(
+        "chat:tool-call-result",
+        (event) => {
+          const { request_id, result, success } = event.payload;
+          setToolCalls((prev) =>
+            prev.map((tc) =>
+              tc.requestId === request_id
+                ? {
+                    ...tc,
+                    status: success ? "completed" : "failed",
+                    result,
+                  }
+                : tc,
+            ),
+          );
+        },
+      );
+
+      const unlistenToolConfirm = await listen<ToolConfirmPayload>(
+        "chat:tool-confirm",
+        (event) => {
+          const { request_id, tool_name, arguments: args } = event.payload;
+          setToolCalls((prev) => [
+            ...prev,
+            {
+              requestId: request_id,
+              toolName: tool_name,
+              arguments: args,
+              status: "awaiting_confirmation",
+            },
+          ]);
+        },
+      );
+
       const unlistenDone = await listen<DonePayload>(
         "chat:done",
         (event) => {
@@ -95,13 +188,14 @@ export function useChat() {
           setStreamingText("");
           setIsStreaming(false);
           onDoneRef.current?.(event.payload);
-          // Don't clean up audio listener here — TTS tasks may still be running.
-          // Only clean up text, sentence, done, and error listeners.
-          // Audio listener stays alive until next send() call cleans it up.
+          // Clean up most listeners, keep audio alive for late TTS
           unlistenText();
           unlistenSentence();
           unlistenDone();
           unlistenError();
+          unlistenToolStart();
+          unlistenToolResult();
+          unlistenToolConfirm();
           // Keep only audio listener in the ref for cleanup on next send
           unlistenersRef.current = [unlistenAudio];
         },
@@ -125,6 +219,9 @@ export function useChat() {
         unlistenAudio,
         unlistenDone,
         unlistenError,
+        unlistenToolStart,
+        unlistenToolResult,
+        unlistenToolConfirm,
       ];
 
       await sendChat(characterId, message);
@@ -159,5 +256,7 @@ export function useChat() {
     setOnSentence,
     setOnAudio,
     setOnDone,
+    toolCalls,
+    handleConfirm,
   };
 }

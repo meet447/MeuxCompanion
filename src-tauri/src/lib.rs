@@ -2,6 +2,7 @@ mod commands;
 mod tray;
 mod window;
 
+use dashmap::DashMap;
 use meux_core::character::CharacterLoader;
 use meux_core::config::ConfigManager;
 use meux_core::expressions::ExpressionManager;
@@ -9,6 +10,7 @@ use meux_core::llm::OpenAiCompatClient;
 use meux_core::memory::store::MemoryStore;
 use meux_core::session::SessionStore;
 use meux_core::state::StateStore;
+use meux_core::tools::ToolRegistry;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
@@ -24,6 +26,8 @@ pub struct AppState {
     pub expressions: ExpressionManager,
     pub llm: OpenAiCompatClient,
     pub whisper_ctx: Option<Arc<WhisperContext>>,
+    pub tool_registry: ToolRegistry,
+    pub pending_confirmations: DashMap<String, tokio::sync::oneshot::Sender<bool>>,
 }
 
 // Command to get the app data directory path
@@ -96,6 +100,8 @@ pub fn run() {
                 expressions: ExpressionManager::new(&data_dir),
                 llm: OpenAiCompatClient::new(),
                 whisper_ctx,
+                tool_registry: ToolRegistry::with_defaults(),
+                pending_confirmations: DashMap::new(),
             };
 
             app.manage(Arc::new(state));
@@ -118,6 +124,7 @@ pub fn run() {
             commands::chat::chat_send,
             commands::chat::chat_history,
             commands::chat::chat_clear,
+            commands::chat::tool_confirm,
             commands::memory::memory_get,
             commands::memory::memory_search,
             commands::memory::memory_clear,

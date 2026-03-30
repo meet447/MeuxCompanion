@@ -59,41 +59,28 @@ pub fn build_chat_prompt(
     // 8. Assemble messages array
     let mut messages = Vec::new();
 
-    // System message (system_prompt)
-    messages.push(ChatMessage {
-        role: "system".to_string(),
-        content: system_prompt.clone(),
-    });
+    // System message (system_prompt + tools context)
+    let tools_context = "\n\n## TOOL CAPABILITIES\n\nYou have access to tools that let you interact with the user's computer. You can read files, search the web, run commands, organize the desktop, and more. Use tools when the user asks you to do something on their machine, or when you need information to answer their question.\n\nWhen using tools, maintain your personality and expressions. Briefly explain what you're about to do before calling a tool.";
+    let full_system = format!("{}{}", system_prompt, tools_context);
+    messages.push(ChatMessage::text("system", &full_system));
 
     // System message (state_prompt) — only if non-empty
     if !state_prompt.is_empty() {
-        messages.push(ChatMessage {
-            role: "system".to_string(),
-            content: state_prompt.clone(),
-        });
+        messages.push(ChatMessage::text("system", &state_prompt));
     }
 
     // System message (memory_prompt) — only if non-empty
     if !memory_prompt.is_empty() {
-        messages.push(ChatMessage {
-            role: "system".to_string(),
-            content: memory_prompt.clone(),
-        });
+        messages.push(ChatMessage::text("system", &memory_prompt));
     }
 
     // All history messages
     for msg in &history {
-        messages.push(ChatMessage {
-            role: msg.role.clone(),
-            content: msg.content.clone(),
-        });
+        messages.push(ChatMessage::text(&msg.role, &msg.content));
     }
 
     // Current user message
-    messages.push(ChatMessage {
-        role: "user".to_string(),
-        content: user_message.to_string(),
-    });
+    messages.push(ChatMessage::text("user", user_message));
 
     Ok(ChatPromptResult {
         messages,
@@ -118,7 +105,7 @@ mod tests {
         let expr_mgr = ExpressionManager::new(tmp.path());
 
         char_loader
-            .create_character("Test", "A helpful companion", "model1", "jp_001", "User", "A dev")
+            .create_character("Test", "A helpful companion", "model1", "jp_001", "friendly", "casual", "natural", "User", "A dev")
             .unwrap();
 
         let result = build_chat_prompt(
@@ -138,7 +125,7 @@ mod tests {
         assert!(result.messages.len() >= 2); // system + user at minimum
         assert_eq!(result.messages[0].role, "system");
         assert_eq!(result.messages.last().unwrap().role, "user");
-        assert_eq!(result.messages.last().unwrap().content, "Hello there!");
+        assert_eq!(result.messages.last().unwrap().content_str(), "Hello there!");
         assert!(result.system_prompt.contains("EXPRESSION RULES"));
     }
 }

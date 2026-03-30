@@ -1,9 +1,14 @@
 use crate::AppState;
 use futures::StreamExt;
-use meux_core::llm::types::LlmStreamConfig;
+use meux_core::llm::types::{
+    ChatMessage, FunctionCall, LlmStreamConfig, StreamEvent, ToolCallMessage,
+};
+use meux_core::tools::{PermissionLevel, ToolCallRequest};
 use regex::Regex;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
+
+const MAX_AGENT_ITERATIONS: usize = 10;
 
 // ---------------------------------------------------------------------------
 // Event payload structs
@@ -37,6 +42,35 @@ struct ChatErrorEvent {
     message: String,
 }
 
+#[derive(Clone, serde::Serialize)]
+struct ToolCallStartEvent {
+    request_id: String,
+    tool_name: String,
+    arguments: serde_json::Value,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct ToolCallResultEvent {
+    request_id: String,
+    tool_name: String,
+    result: String,
+    success: bool,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct ToolConfirmEvent {
+    request_id: String,
+    tool_name: String,
+    arguments: serde_json::Value,
+    description: String,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct AgentLoopEvent {
+    iteration: usize,
+    max_iterations: usize,
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -52,7 +86,8 @@ fn derive_user_id(config: &meux_core::config::types::AppConfig) -> String {
 
 /// Strip expression tags (<<tag>>, [expression:tag], or [tag]) from text.
 fn clean_text(text: &str) -> String {
-    let re = Regex::new(r"(<</?[^>]*>>)|(\[expression:\s*[^\]]+\])|(\[[a-zA-Z0-9_\-]+\])").expect("invalid regex");
+    let re = Regex::new(r"(<</?[^>]*>>)|(\[expression:\s*[^\]]+\])|(\[[a-zA-Z0-9_\-]+\])")
+        .expect("invalid regex");
     re.replace_all(text, "").to_string()
 }
 
@@ -132,7 +167,7 @@ fn find_sentence_boundary(text: &str, allow_end_boundary: bool) -> Option<usize>
 
         let mut end = idx + ch.len_utf8();
         while let Some(&(next_idx, next_ch)) = chars.peek() {
-            if matches!(next_ch, '"' | '\'' | ')' | ']' | '}' | '”' | '’') {
+            if matches!(next_ch, '"' | '\'' | ')' | ']' | '}' | '\u{201D}' | '\u{2019}') {
                 end = next_idx + next_ch.len_utf8();
                 chars.next();
             } else {
@@ -308,6 +343,19 @@ pub async fn chat_send(
     Ok(())
 }
 
+/// Handle user confirmation/denial for a dangerous tool call.
+#[tauri::command]
+pub async fn tool_confirm(
+    state: State<'_, Arc<AppState>>,
+    request_id: String,
+    approved: bool,
+) -> Result<(), String> {
+    if let Some((_, sender)) = state.pending_confirmations.remove(&request_id) {
+        sender.send(approved).map_err(|_| "Confirmation channel closed".to_string())?;
+    }
+    Ok(())
+}
+
 async fn run_chat_stream(
     app: AppHandle,
     state: Arc<AppState>,
@@ -340,7 +388,7 @@ async fn run_chat_stream(
     )
     .map_err(|e| e.to_string())?;
 
-    // 3. Create LlmStreamConfig from config.llm
+    // 3. Create LlmStreamConfig
     let llm_config = LlmStreamConfig {
         base_url: config.llm.base_url.clone(),
         api_key: config.llm.api_key.clone().unwrap_or_default(),
@@ -349,93 +397,280 @@ async fn run_chat_stream(
         max_tokens: 1024,
     };
 
-    // 4. Stream LLM response
-    let mut stream = state.llm.stream_chat(prompt_result.messages, &llm_config);
+    // 4. Get tools JSON for the LLM
+    let tools_json = state.tool_registry.openai_tools_json();
+    println!("[agent] LLM provider: {} | model: {} | tools registered: {}", config.llm.base_url, config.llm.model, tools_json.len());
 
     // 5. Expression tag regexes
     let open_re = Regex::new(r"<<([^/>][^>]*)>>").expect("invalid regex");
     let close_re = Regex::new(r"<</[^>]*>>").expect("invalid regex");
-    // Matches [expression:name] or just [name]
-    let square_re = Regex::new(r"\[(?:expression:\s*)?([a-zA-Z0-9_\-]+)\]").expect("invalid regex");
+    let square_re =
+        Regex::new(r"\[(?:expression:\s*)?([a-zA-Z0-9_\-]+)\]").expect("invalid regex");
 
-    let mut full_response = String::new();
-    let mut buffer = String::new();
-    let mut sentence_index: u32 = 0;
-    let mut current_expression = "neutral".to_string();
     let tts_config = config.tts.clone();
 
-    // 6. Process stream tokens
-    while let Some(chunk_result) = stream.next().await {
-        let chunk = chunk_result.map_err(|e| e.to_string())?;
-        let token = &chunk.text;
+    // 6. Agent loop
+    let mut conversation = prompt_result.messages;
+    let mut all_text_responses = String::new(); // Accumulate all text across iterations
+    let mut sentence_index: u32 = 0;
+    let mut current_expression = "neutral".to_string();
 
-        // Emit raw text chunk
-        let _ = app.emit("chat:text-chunk", TextChunkEvent { text: token.clone() });
+    for iteration in 0..MAX_AGENT_ITERATIONS {
+        let _ = app.emit(
+            "chat:agent-loop",
+            AgentLoopEvent {
+                iteration,
+                max_iterations: MAX_AGENT_ITERATIONS,
+            },
+        );
 
-        full_response.push_str(token);
-        buffer.push_str(token);
+        // Stream LLM response with tools
+        let mut stream = state.llm.stream_chat_with_tools(
+            conversation.clone(),
+            &llm_config,
+            Some(tools_json.clone()),
+        );
 
-        // Flush any sentence that already looks complete, even before the next tag arrives.
-        drain_buffer_sentences(
+        let mut text_content = String::new();
+        let mut buffer = String::new();
+        let mut tool_calls: Vec<(String, String, String)> = Vec::new(); // (id, name, args_json)
+        let mut finish_reason = "stop".to_string();
+
+        // Process stream events
+        while let Some(event_result) = stream.next().await {
+            let event = event_result.map_err(|e| e.to_string())?;
+
+            match event {
+                StreamEvent::TextDelta(token) => {
+                    // Emit raw text chunk to frontend
+                    let _ = app.emit("chat:text-chunk", TextChunkEvent { text: token.clone() });
+
+                    text_content.push_str(&token);
+                    buffer.push_str(&token);
+
+                    // Process sentences from buffer
+                    drain_buffer_sentences(
+                        &app,
+                        &state,
+                        &model_id,
+                        &current_expression,
+                        &tts_config,
+                        &mut sentence_index,
+                        &mut buffer,
+                        false,
+                    );
+
+                    // Check for expression tags
+                    loop {
+                        if let Some(tag_match) =
+                            find_next_tag(&buffer, &open_re, &close_re, &square_re)
+                        {
+                            let before_tag = buffer[..tag_match.start].to_string();
+
+                            emit_ready_sentences(
+                                &app,
+                                &state,
+                                &model_id,
+                                &current_expression,
+                                &tts_config,
+                                &mut sentence_index,
+                                &before_tag,
+                                true,
+                                true,
+                            );
+
+                            match tag_match.action {
+                                TagAction::SetExpression(tag_content) => {
+                                    current_expression = tag_content;
+                                }
+                                TagAction::ResetExpression => {
+                                    current_expression = "neutral".to_string();
+                                }
+                            }
+
+                            buffer = buffer[tag_match.end..].to_string();
+                            continue;
+                        }
+                        break;
+                    }
+                }
+
+                StreamEvent::ToolCallComplete {
+                    id,
+                    name,
+                    arguments,
+                } => {
+                    println!("[agent] tool call received: {} id={} args={}", name, id, arguments);
+                    tool_calls.push((id, name, arguments));
+                }
+
+                StreamEvent::Done {
+                    finish_reason: reason,
+                } => {
+                    println!("[agent] stream done — finish_reason={} | tool_calls={} | text_len={}", reason, tool_calls.len(), text_content.len());
+                    finish_reason = reason;
+                }
+            }
+        }
+
+        // Flush remaining text buffer
+        emit_ready_sentences(
             &app,
             &state,
             &model_id,
             &current_expression,
             &tts_config,
             &mut sentence_index,
-            &mut buffer,
-            false,
+            &buffer,
+            true,
+            true,
         );
 
-        // Check for expression tags in buffer
-        loop {
-            if let Some(tag_match) = find_next_tag(&buffer, &open_re, &close_re, &square_re) {
-                let before_tag = buffer[..tag_match.start].to_string();
+        all_text_responses.push_str(&text_content);
 
-                emit_ready_sentences(
-                    &app,
-                    &state,
-                    &model_id,
-                    &current_expression,
-                    &tts_config,
-                    &mut sentence_index,
-                    &before_tag,
-                    true,
-                    true,
-                );
+        // Build assistant message for conversation history
+        let assistant_msg = if tool_calls.is_empty() {
+            ChatMessage::text("assistant", &text_content)
+        } else {
+            let tc_messages: Vec<ToolCallMessage> = tool_calls
+                .iter()
+                .map(|(id, name, args)| ToolCallMessage {
+                    id: id.clone(),
+                    call_type: "function".to_string(),
+                    function: FunctionCall {
+                        name: name.clone(),
+                        arguments: args.clone(),
+                    },
+                })
+                .collect();
 
-                match tag_match.action {
-                    TagAction::SetExpression(tag_content) => {
-                        current_expression = tag_content;
-                    }
-                    TagAction::ResetExpression => {
-                        current_expression = "neutral".to_string();
-                    }
-                }
-
-                buffer = buffer[tag_match.end..].to_string();
-                continue;
+            ChatMessage {
+                role: "assistant".to_string(),
+                content: if text_content.is_empty() {
+                    None
+                } else {
+                    Some(text_content.clone())
+                },
+                tool_calls: Some(tc_messages),
+                tool_call_id: None,
             }
+        };
+        conversation.push(assistant_msg);
 
+        // If no tool calls, we're done
+        if finish_reason != "tool_calls" || tool_calls.is_empty() {
+            println!("[agent] no tool calls, exiting loop after iteration {}", iteration);
             break;
         }
+
+        println!("[agent] executing {} tool call(s) in iteration {}", tool_calls.len(), iteration);
+
+        // Execute tool calls
+        for (tc_id, tc_name, tc_args) in &tool_calls {
+            let args: serde_json::Value =
+                serde_json::from_str(tc_args).unwrap_or(serde_json::Value::Null);
+            let request_id = tc_id.clone();
+
+            // Check permission level
+            let permission = state.tool_registry.permission_level(tc_name);
+            let needs_confirm = permission == Some(PermissionLevel::Dangerous);
+
+            if needs_confirm {
+                // Emit confirmation request and wait
+                let _ = app.emit(
+                    "chat:tool-confirm",
+                    ToolConfirmEvent {
+                        request_id: request_id.clone(),
+                        tool_name: tc_name.clone(),
+                        arguments: args.clone(),
+                        description: format!("Allow {} to execute?", tc_name),
+                    },
+                );
+
+                let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
+                state
+                    .pending_confirmations
+                    .insert(request_id.clone(), tx);
+
+                let approved = tokio::time::timeout(
+                    std::time::Duration::from_secs(30),
+                    rx,
+                )
+                .await
+                .unwrap_or(Ok(false))
+                .unwrap_or(false);
+
+                if !approved {
+                    // User denied — add denial as tool result
+                    conversation.push(ChatMessage::tool_result(
+                        tc_id,
+                        "User denied this action.",
+                    ));
+                    let _ = app.emit(
+                        "chat:tool-call-result",
+                        ToolCallResultEvent {
+                            request_id,
+                            tool_name: tc_name.clone(),
+                            result: "User denied this action.".to_string(),
+                            success: false,
+                        },
+                    );
+                    continue;
+                }
+            }
+
+            // Execute the tool
+            let _ = app.emit(
+                "chat:tool-call-start",
+                ToolCallStartEvent {
+                    request_id: request_id.clone(),
+                    tool_name: tc_name.clone(),
+                    arguments: args.clone(),
+                },
+            );
+
+            let tool_request = ToolCallRequest {
+                id: tc_id.clone(),
+                name: tc_name.clone(),
+                arguments: args.clone(),
+            };
+
+            let result = state.tool_registry.execute(&tool_request).await;
+
+            match result {
+                Ok(tool_result) => {
+                    let _ = app.emit(
+                        "chat:tool-call-result",
+                        ToolCallResultEvent {
+                            request_id,
+                            tool_name: tc_name.clone(),
+                            result: tool_result.content.clone(),
+                            success: tool_result.success,
+                        },
+                    );
+                    conversation.push(ChatMessage::tool_result(tc_id, &tool_result.content));
+                }
+                Err(e) => {
+                    let error_msg = format!("Tool error: {}", e);
+                    let _ = app.emit(
+                        "chat:tool-call-result",
+                        ToolCallResultEvent {
+                            request_id,
+                            tool_name: tc_name.clone(),
+                            result: error_msg.clone(),
+                            success: false,
+                        },
+                    );
+                    conversation.push(ChatMessage::tool_result(tc_id, &error_msg));
+                }
+            }
+        }
+
+        // Loop continues — LLM will see tool results
     }
 
-    // 7. Flush remaining buffer
-    emit_ready_sentences(
-        &app,
-        &state,
-        &model_id,
-        &current_expression,
-        &tts_config,
-        &mut sentence_index,
-        &buffer,
-        true,
-        true,
-    );
-
-    // 8. Save to session
-    let cleaned_response = clean_text(&full_response);
+    // 7. Save to session
+    let cleaned_response = clean_text(&all_text_responses);
 
     state
         .sessions
@@ -443,10 +678,16 @@ async fn run_chat_stream(
         .map_err(|e| e.to_string())?;
     state
         .sessions
-        .append_message(&character_id, &user_id, "assistant", &cleaned_response, None)
+        .append_message(
+            &character_id,
+            &user_id,
+            "assistant",
+            &cleaned_response,
+            None,
+        )
         .map_err(|e| e.to_string())?;
 
-    // 9. Remember exchange (extract memories)
+    // 8. Remember exchange (extract memories)
     let _ = meux_core::memory::remember_exchange(
         &state.memories,
         &character_id,
@@ -455,7 +696,7 @@ async fn run_chat_stream(
         &cleaned_response,
     );
 
-    // 10. Update relationship state
+    // 9. Update relationship state
     let updated_state = state
         .states
         .update_from_exchange(&character_id, &user_id, &message, &cleaned_response)
@@ -494,7 +735,10 @@ mod tests {
 
     #[test]
     fn handles_quote_after_punctuation() {
-        assert_eq!(find_sentence_boundary("She said hi.\" Next", false), Some(13));
+        assert_eq!(
+            find_sentence_boundary("She said hi.\" Next", false),
+            Some(13)
+        );
     }
 }
 
@@ -524,10 +768,7 @@ pub fn chat_history(
 }
 
 #[tauri::command]
-pub fn chat_clear(
-    state: State<Arc<AppState>>,
-    character_id: String,
-) -> Result<(), String> {
+pub fn chat_clear(state: State<Arc<AppState>>, character_id: String) -> Result<(), String> {
     let config = state.config.load().map_err(|e| e.to_string())?;
     let user_id = derive_user_id(&config);
 
