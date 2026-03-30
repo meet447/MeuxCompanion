@@ -23,15 +23,6 @@ export interface MemoryRecord {
   metadata?: Record<string, unknown>;
 }
 
-export interface CharacterState {
-  trust: number;
-  affection: number;
-  mood: string;
-  energy: number;
-  relationship_summary: string;
-  updated_at?: string | null;
-}
-
 export interface ModelMapping {
   params: {
     mouthOpen: string;

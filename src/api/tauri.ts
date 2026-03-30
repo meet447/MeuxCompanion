@@ -109,15 +109,6 @@ export async function clearMemory(characterId: string) {
   return invoke("memory_clear", { characterId });
 }
 
-// State
-export async function getState(characterId: string) {
-  return invoke<unknown>("state_get", { characterId });
-}
-
-export async function resetState(characterId: string) {
-  return invoke<any>("state_reset", { characterId });
-}
-
 // Expressions
 export async function getSupportedExpressions() {
   return invoke<string[]>("expressions_supported");

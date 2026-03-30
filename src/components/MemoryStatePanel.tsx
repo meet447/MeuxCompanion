@@ -1,79 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getMemory, searchMemory, clearMemory, getState, resetState as resetStateApi, clearChat } from "../api/tauri";
-import type { CharacterState, MemoryRecord } from "../types";
+import { getMemory, searchMemory, clearMemory, clearChat } from "../api/tauri";
+import type { MemoryRecord } from "../types";
 
 interface Props {
   characterId?: string;
   characterName: string;
   onConversationCleared?: () => void;
-  onStateChanged?: () => void;
 }
 
 const sectionCardClass =
   "rounded-[1.75rem] border border-slate-200/70 bg-white px-5 py-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]";
 
-function meterTone(value: number): string {
-  if (value >= 0.7) return "from-emerald-400 to-teal-500";
-  if (value >= 0.35) return "from-amber-400 to-orange-500";
-  return "from-slate-300 to-slate-400";
-}
-
-function MoodOrb({ mood }: { mood: string }) {
-  const moodStyles: Record<string, string> = {
-    warm: "bg-gradient-to-br from-rose-200 via-orange-100 to-amber-100 text-rose-700 border-rose-200",
-    concerned: "bg-gradient-to-br from-blue-100 via-slate-100 to-indigo-100 text-blue-700 border-blue-200",
-    neutral: "bg-gradient-to-br from-slate-100 via-white to-slate-50 text-slate-600 border-slate-200",
-  };
-
-  return (
-    <div
-      className={`flex h-20 w-20 items-center justify-center rounded-[1.5rem] border text-center text-[11px] font-bold uppercase tracking-[0.24em] ${moodStyles[mood] || moodStyles.neutral}`}
-    >
-      {mood}
-    </div>
-  );
-}
-
-function StateMeter({ label, value }: { label: string; value: number }) {
-  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-        <span>{label}</span>
-        <span>{pct}%</span>
-      </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-full rounded-full bg-gradient-to-r ${meterTone(value)}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-export function MemoryStatePanel({ characterId, characterName, onConversationCleared, onStateChanged }: Props) {
-  const [state, setState] = useState<CharacterState | null>(null);
+export function MemoryStatePanel({ characterId, characterName, onConversationCleared }: Props) {
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MemoryRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [busyAction, setBusyAction] = useState<null | "memories" | "state" | "conversation">(null);
+  const [busyAction, setBusyAction] = useState<null | "memories" | "conversation">(null);
 
   const refresh = useCallback(async () => {
     if (!characterId) return;
     setLoading(true);
     try {
-      const [memoryData, stateData] = await Promise.all([
-        getMemory(characterId),
-        getState(characterId),
-      ]);
+      const memoryData = await getMemory(characterId);
       const mems = (memoryData as MemoryRecord[]) || [];
       setMemories(mems);
-      setState((stateData as CharacterState) || null);
       setResults([]);
     } catch (err) {
       console.error("Memory panel refresh error:", err);
-      setState(null);
       setMemories([]);
       setResults([]);
     } finally {
@@ -113,18 +68,6 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
     }
   }, [characterId, refresh]);
 
-  const resetState = useCallback(async () => {
-    if (!characterId) return;
-    setBusyAction("state");
-    try {
-      await resetStateApi(characterId);
-      await refresh();
-      onStateChanged?.();
-    } finally {
-      setBusyAction(null);
-    }
-  }, [characterId, refresh, onStateChanged]);
-
   const clearConversation = useCallback(async () => {
     if (!characterId) return;
     setBusyAction("conversation");
@@ -151,20 +94,20 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
   if (!characterId) {
     return (
       <div className="p-6 text-sm text-slate-400">
-        Select a character to inspect memory and relational state.
+        Select a character to inspect memory.
       </div>
     );
   }
 
   return (
     <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-      <div className="mb-6 rounded-[2rem] border border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(254,226,226,0.9),_rgba(255,255,255,1)_38%,_rgba(219,234,254,0.95)_100%)] px-5 py-5 shadow-[0_14px_40px_rgba(15,23,42,0.05)]">
+      <div className="mb-6 rounded-[2rem] border border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(219,234,254,0.6),_rgba(255,255,255,1)_50%)] px-5 py-5 shadow-[0_14px_40px_rgba(15,23,42,0.05)]">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-500">Companion Memory Core</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-500">Memory Core</div>
             <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-800">{characterName}</h3>
             <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
-              Inspect what the backend remembers, how the relationship is evolving, and reset layers when you want a clean slate.
+              Inspect what the companion remembers from your conversations. Memories are stored locally on your machine.
             </p>
           </div>
           <button
@@ -184,34 +127,6 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
 
       <div className="space-y-5">
         <section className={sectionCardClass}>
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Relational State</div>
-              <h4 className="mt-2 text-lg font-bold text-slate-800">Persistent emotional baseline</h4>
-            </div>
-            <MoodOrb mood={state?.mood || "neutral"} />
-          </div>
-
-          <div className="space-y-4">
-            <StateMeter label="Trust" value={state?.trust ?? 0} />
-            <StateMeter label="Affection" value={state?.affection ?? 0} />
-            <StateMeter label="Energy" value={state?.energy ?? 0.7} />
-          </div>
-
-          <div className="mt-5 rounded-[1.5rem] bg-slate-50 px-4 py-4 text-sm leading-relaxed text-slate-600">
-            {state?.relationship_summary || "The relationship is still forming. Interactions will shape how the companion responds over time."}
-          </div>
-
-          <button
-            onClick={resetState}
-            disabled={busyAction !== null}
-            className="mt-5 w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold uppercase tracking-[0.18em] text-amber-700 transition-all hover:bg-amber-100 disabled:opacity-50"
-          >
-            {busyAction === "state" ? "Resetting State..." : "Reset State"}
-          </button>
-        </section>
-
-        <section className={sectionCardClass}>
           <div className="mb-4 flex items-center justify-between">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Memory Search</div>
@@ -227,7 +142,7 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search for preferences, facts, or relationship beats..."
+              placeholder="Search for preferences, facts..."
               className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[14px] text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
             />
             <button
@@ -256,7 +171,7 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
           <div className="mt-5 space-y-3">
             {memories.length === 0 ? (
               <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-400">
-                No long-term memories stored yet. Start chatting and the backend will begin writing semantic and episodic memories locally.
+                No long-term memories stored yet. Start chatting and the companion will begin writing memories locally.
               </div>
             ) : (
               memories.slice(0, 8).reverse().map((memory) => (
@@ -294,7 +209,7 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Conversation Archive</div>
             <h4 className="mt-2 text-lg font-bold text-slate-800">Session control</h4>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              The backend now stores chat history per character. Clear it here if you want to restart the ongoing conversation without deleting long-term memories.
+              Clear chat history to restart the conversation without deleting long-term memories.
             </p>
           </div>
           <button

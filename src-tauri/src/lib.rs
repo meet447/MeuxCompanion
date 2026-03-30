@@ -9,7 +9,6 @@ use meux_core::expressions::ExpressionManager;
 use meux_core::llm::OpenAiCompatClient;
 use meux_core::memory::store::MemoryStore;
 use meux_core::session::SessionStore;
-use meux_core::state::StateStore;
 use meux_core::tools::ToolRegistry;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -21,7 +20,6 @@ pub struct AppState {
     pub config: ConfigManager,
     pub characters: CharacterLoader,
     pub sessions: SessionStore,
-    pub states: StateStore,
     pub memories: MemoryStore,
     pub expressions: ExpressionManager,
     pub llm: OpenAiCompatClient,
@@ -97,7 +95,6 @@ pub fn run() {
                 config: ConfigManager::new(&data_dir),
                 characters: CharacterLoader::new(&data_dir),
                 sessions: SessionStore::new(&data_dir),
-                states: StateStore::new(&data_dir),
                 memories: MemoryStore::new(data_dir.clone()),
                 expressions: ExpressionManager::new(&data_dir),
                 llm: OpenAiCompatClient::new(),
@@ -131,8 +128,6 @@ pub fn run() {
             commands::memory::memory_get,
             commands::memory::memory_search,
             commands::memory::memory_clear,
-            commands::state::state_get,
-            commands::state::state_reset,
             commands::expressions::expressions_supported,
             commands::expressions::expressions_model_list,
             commands::expressions::expressions_get,

@@ -242,8 +242,22 @@ impl OpenAiCompatClient {
         })
     }
 
-    /// Non-streaming chat completion. Returns the full response text.
+    /// Non-streaming chat completion with retry (up to 2 retries).
     pub async fn chat(
+        &self,
+        messages: Vec<ChatMessage>,
+        config: &LlmStreamConfig,
+    ) -> Result<String> {
+        crate::retry::retry_with_backoff(
+            2,
+            500,
+            crate::retry::is_retryable_llm_error,
+            || self.chat_once(messages.clone(), config),
+        )
+        .await
+    }
+
+    async fn chat_once(
         &self,
         messages: Vec<ChatMessage>,
         config: &LlmStreamConfig,

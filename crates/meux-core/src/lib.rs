@@ -7,7 +7,7 @@ pub mod llm;
 pub mod memory;
 pub mod prompt;
 pub mod session;
-pub mod state;
+pub mod retry;
 pub mod tools;
 pub mod tts;
 

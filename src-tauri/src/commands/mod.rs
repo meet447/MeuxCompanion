@@ -3,6 +3,5 @@ pub mod chat;
 pub mod config;
 pub mod expressions;
 pub mod memory;
-pub mod state;
 pub mod tts;
 pub mod voice;
