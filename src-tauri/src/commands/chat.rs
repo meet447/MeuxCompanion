@@ -5,10 +5,41 @@ use meux_core::llm::types::{
 };
 use meux_core::tools::{PermissionLevel, ToolCallRequest};
 use regex::Regex;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Emitter, State};
+use tokio_util::sync::CancellationToken;
 
 const MAX_AGENT_ITERATIONS: usize = 10;
+const MAX_TOOL_RESULT_CHARS: usize = 4096;
+
+// ---------------------------------------------------------------------------
+// Cached regexes (compiled once)
+// ---------------------------------------------------------------------------
+
+fn expression_clean_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(<</?[^>]*>>)|(\[expression:\s*[^\]]+\])|(\[[a-zA-Z0-9_\-]+\])")
+            .expect("invalid regex")
+    })
+}
+
+fn expression_open_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"<<([^/>][^>]*)>>").expect("invalid regex"))
+}
+
+fn expression_close_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"<</[^>]*>>").expect("invalid regex"))
+}
+
+fn expression_square_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"\[(?:expression:\s*)?([a-zA-Z0-9_\-]+)\]").expect("invalid regex")
+    })
+}
 
 // ---------------------------------------------------------------------------
 // Event payload structs
@@ -86,21 +117,88 @@ fn derive_user_id(config: &meux_core::config::types::AppConfig) -> String {
 
 /// Strip expression tags (<<tag>>, [expression:tag], or [tag]) from text.
 fn clean_text(text: &str) -> String {
-    let re = Regex::new(r"(<</?[^>]*>>)|(\[expression:\s*[^\]]+\])|(\[[a-zA-Z0-9_\-]+\])")
-        .expect("invalid regex");
-    re.replace_all(text, "").to_string()
+    expression_clean_re().replace_all(text, "").to_string()
 }
 
-/// Strip markdown formatting for natural-sounding TTS.
+/// Truncate tool result content for conversation context to avoid blowing up token usage.
+fn truncate_tool_result(content: &str) -> String {
+    if content.len() <= MAX_TOOL_RESULT_CHARS {
+        content.to_string()
+    } else {
+        format!(
+            "{}\n\n[Result truncated — showing first {}KB of {}KB]",
+            &content[..MAX_TOOL_RESULT_CHARS],
+            MAX_TOOL_RESULT_CHARS / 1024,
+            content.len() / 1024
+        )
+    }
+}
+
+/// Strip markdown formatting and technical content for natural-sounding TTS.
 fn clean_for_tts(text: &str) -> String {
-    text.replace("**", "")
-        .replace("__", "")
-        .replace("*", "")
-        .replace("_", " ")
-        .replace("##", "")
-        .replace("#", "")
-        .replace("- ", ", ")
-        .replace("`", "")
+    let mut lines: Vec<String> = Vec::new();
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+
+        // Skip lines that are mostly file paths or URLs
+        if looks_like_path_or_url(trimmed) {
+            continue;
+        }
+
+        // Strip numbered list prefixes with paths (e.g., "1. ~/Library/...")
+        if let Some(after_num) = strip_numbered_prefix(trimmed) {
+            if looks_like_path_or_url(after_num) {
+                continue;
+            }
+        }
+
+        // Clean markdown from remaining lines
+        let cleaned = trimmed
+            .replace("**", "")
+            .replace("__", "")
+            .replace("*", "")
+            .replace("##", "")
+            .replace("#", "")
+            .replace("`", "");
+
+        // Convert "- item" bullet lists to plain text
+        let cleaned = if let Some(rest) = cleaned.strip_prefix("- ") {
+            rest.to_string()
+        } else {
+            cleaned
+        };
+
+        if !cleaned.trim().is_empty() {
+            lines.push(cleaned);
+        }
+    }
+
+    lines.join(" ")
+}
+
+/// Check if a string looks like a file path, URL, or technical reference.
+fn looks_like_path_or_url(s: &str) -> bool {
+    let trimmed = s.trim();
+    trimmed.starts_with("~/")
+        || trimmed.starts_with("/")
+        || trimmed.starts_with("C:\\")
+        || trimmed.starts_with("http://")
+        || trimmed.starts_with("https://")
+        || trimmed.starts_with("file://")
+        || trimmed.contains("/com~apple~")
+        || (trimmed.contains('/') && trimmed.matches('/').count() >= 3)
+}
+
+/// Strip "1. ", "2. " etc. and return the remainder, or None.
+fn strip_numbered_prefix(s: &str) -> Option<&str> {
+    let s = s.trim();
+    let dot_pos = s.find(". ")?;
+    if dot_pos > 0 && dot_pos <= 3 && s[..dot_pos].chars().all(|c| c.is_ascii_digit()) {
+        Some(s[dot_pos + 2..].trim())
+    } else {
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -116,12 +214,10 @@ struct TagMatch {
     action: TagAction,
 }
 
-fn find_next_tag(
-    buffer: &str,
-    open_re: &Regex,
-    close_re: &Regex,
-    square_re: &Regex,
-) -> Option<TagMatch> {
+fn find_next_tag(buffer: &str) -> Option<TagMatch> {
+    let open_re = expression_open_re();
+    let close_re = expression_close_re();
+    let square_re = expression_square_re();
     let mut earliest: Option<TagMatch> = None;
 
     if let Some(captures) = open_re.captures(buffer) {
@@ -342,8 +438,26 @@ pub async fn chat_send(
     let state = Arc::clone(&state);
     let app_handle = app.clone();
 
+    // Cancel any previous agent loop
+    let cancel_token = CancellationToken::new();
+    {
+        let mut lock = state.chat_cancel.lock().unwrap();
+        if let Some(old_token) = lock.take() {
+            old_token.cancel();
+        }
+        *lock = Some(cancel_token.clone());
+    }
+
     tokio::spawn(async move {
-        if let Err(e) = run_chat_stream(app_handle.clone(), state, character_id, message).await {
+        if let Err(e) = run_chat_stream(
+            app_handle.clone(),
+            state,
+            character_id,
+            message,
+            cancel_token,
+        )
+        .await
+        {
             let _ = app_handle.emit(
                 "chat:error",
                 ChatErrorEvent {
@@ -374,6 +488,7 @@ async fn run_chat_stream(
     state: Arc<AppState>,
     character_id: String,
     message: String,
+    cancel: CancellationToken,
 ) -> Result<(), String> {
     // 1. Load config, derive user_id
     let config = state.config.load().map_err(|e| e.to_string())?;
@@ -415,12 +530,6 @@ async fn run_chat_stream(
     let tools_json = state.tool_registry.openai_tools_json();
     println!("[agent] LLM provider: {} | model: {} | tools registered: {}", config.llm.base_url, config.llm.model, tools_json.len());
 
-    // 5. Expression tag regexes
-    let open_re = Regex::new(r"<<([^/>][^>]*)>>").expect("invalid regex");
-    let close_re = Regex::new(r"<</[^>]*>>").expect("invalid regex");
-    let square_re =
-        Regex::new(r"\[(?:expression:\s*)?([a-zA-Z0-9_\-]+)\]").expect("invalid regex");
-
     let tts_config = config.tts.clone();
 
     // 6. Agent loop
@@ -431,6 +540,11 @@ async fn run_chat_stream(
     let mut current_expression = "neutral".to_string();
 
     for iteration in 0..MAX_AGENT_ITERATIONS {
+        if cancel.is_cancelled() {
+            println!("[agent] cancelled before iteration {}", iteration);
+            return Ok(());
+        }
+
         let _ = app.emit(
             "chat:agent-loop",
             AgentLoopEvent {
@@ -453,6 +567,10 @@ async fn run_chat_stream(
 
         // Process stream events
         while let Some(event_result) = stream.next().await {
+            if cancel.is_cancelled() {
+                println!("[agent] cancelled during streaming");
+                return Ok(());
+            }
             let event = event_result.map_err(|e| e.to_string())?;
 
             match event {
@@ -478,7 +596,7 @@ async fn run_chat_stream(
                     // Check for expression tags
                     loop {
                         if let Some(tag_match) =
-                            find_next_tag(&buffer, &open_re, &close_re, &square_re)
+                            find_next_tag(&buffer)
                         {
                             let before_tag = buffer[..tag_match.start].to_string();
 
@@ -645,7 +763,8 @@ async fn run_chat_stream(
                         success,
                     },
                 );
-                conversation.push(ChatMessage::tool_result(tc_id, &content));
+                // Truncate for LLM context to avoid blowing up token usage
+                conversation.push(ChatMessage::tool_result(tc_id, &truncate_tool_result(&content)));
                 tool_exchanges.push(serde_json::json!({
                     "tool": tc_name,
                     "arguments": args,
@@ -729,7 +848,8 @@ async fn run_chat_stream(
                     success,
                 },
             );
-            conversation.push(ChatMessage::tool_result(tc_id, &content));
+            // Truncate for LLM context
+            conversation.push(ChatMessage::tool_result(tc_id, &truncate_tool_result(&content)));
             tool_exchanges.push(serde_json::json!({
                 "tool": tc_name,
                 "arguments": args,
