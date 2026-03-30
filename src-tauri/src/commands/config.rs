@@ -43,10 +43,7 @@ pub async fn config_test_llm(
         temperature: 0.7,
         max_tokens: 50,
     };
-    let messages = vec![ChatMessage {
-        role: "user".to_string(),
-        content: "Say hello in one word.".to_string(),
-    }];
+    let messages = vec![ChatMessage::text("user", "Say hello in one word.")];
     state
         .llm
         .chat(messages, &config)

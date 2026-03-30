@@ -20,6 +20,8 @@ pub enum MeuxError {
     Tts(String),
     #[error("Memory error: {0}")]
     Memory(String),
+    #[error("Tool error: {0}")]
+    Tool(String),
 }
 
 pub type Result<T> = std::result::Result<T, MeuxError>;

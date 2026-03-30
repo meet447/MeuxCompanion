@@ -684,6 +684,9 @@ mod tests {
                 "A cheerful AI assistant.",
                 "aria_live2d",
                 "en-US-1",
+                "friendly",
+                "casual",
+                "natural",
                 "Alice",
                 "Loves coding.",
             )

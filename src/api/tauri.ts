@@ -84,6 +84,10 @@ export async function clearChat(characterId: string) {
   return invoke("chat_clear", { characterId });
 }
 
+export async function confirmToolCall(requestId: string, approved: boolean) {
+  return invoke("tool_confirm", { requestId, approved });
+}
+
 export async function transcribeVoice(audioBase64: string, mimeType: string) {
   return invoke<string>("voice_transcribe", { audioBase64, mimeType });
 }

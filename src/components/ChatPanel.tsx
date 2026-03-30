@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import type { ChatMessage } from "../types";
 import { MicButton } from "./MicButton";
 import { TypingIndicator } from "./LoadingOverlay";
+import { ToolCallBubble } from "./ToolCallBubble";
+import type { ToolCallStatus } from "./ToolCallBubble";
 
 interface Props {
   messages: ChatMessage[];
@@ -14,6 +16,8 @@ interface Props {
   onMicToggle: () => void;
   ttsLoading?: boolean;
   speaking?: boolean;
+  toolCalls?: ToolCallStatus[];
+  onToolConfirm?: (requestId: string, approved: boolean) => void;
 }
 
 export function ChatPanel({
@@ -27,6 +31,8 @@ export function ChatPanel({
   onMicToggle,
   ttsLoading = false,
   speaking = false,
+  toolCalls = [],
+  onToolConfirm,
 }: Props) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -120,6 +126,16 @@ export function ChatPanel({
             </div>
           </div>
         )}
+
+        {/* Tool call bubbles */}
+        {toolCalls.length > 0 &&
+          toolCalls.map((tc) => (
+            <ToolCallBubble
+              key={tc.requestId}
+              call={tc}
+              onConfirm={onToolConfirm}
+            />
+          ))}
 
         {/* Loading indicator - thinking */}
         {loading && !streamingText && (

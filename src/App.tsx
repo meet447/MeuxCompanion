@@ -47,7 +47,7 @@ function App() {
   const [userTyping, setUserTyping] = useState(false);
   const [characterState, setCharacterState] = useState<CharacterState | null>(null);
 
-  const { messages, setMessages, isStreaming, streamingText, send, setOnSentence, setOnAudio } =
+  const { messages, setMessages, isStreaming, streamingText, send, setOnSentence, setOnAudio, toolCalls, handleConfirm } =
     useChat();
   const { listening, startListening, stopListening } = useVoice();
   const { speaking, addSentence, addAudio, clearQueue, getAudioLevels, setOnExpressionChange, setNeutralExpression } =
@@ -534,6 +534,8 @@ function App() {
               onTypingChange={handleTypingChange}
               listening={listening}
               onMicToggle={handleMicToggle}
+              toolCalls={toolCalls}
+              onToolConfirm={handleConfirm}
             />
           )}
         </div>
