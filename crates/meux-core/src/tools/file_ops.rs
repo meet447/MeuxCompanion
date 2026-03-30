@@ -377,6 +377,101 @@ fn find_recursive(dir: &Path, pattern: &str, results: &mut Vec<String>, max: usi
 }
 
 // ---------------------------------------------------------------------------
+// edit_file
+// ---------------------------------------------------------------------------
+
+pub struct EditFileTool;
+
+#[async_trait]
+impl Tool for EditFileTool {
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "edit_file".to_string(),
+            description: "Edit a file by finding and replacing a specific string. Use this for surgical edits instead of rewriting the entire file."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit"
+                    },
+                    "find": {
+                        "type": "string",
+                        "description": "The exact text to find in the file"
+                    },
+                    "replace": {
+                        "type": "string",
+                        "description": "The text to replace it with"
+                    },
+                    "all": {
+                        "type": "boolean",
+                        "description": "If true, replace all occurrences. If false (default), replace only the first."
+                    }
+                },
+                "required": ["path", "find", "replace"]
+            }),
+            permission_level: PermissionLevel::Cautious,
+        }
+    }
+
+    async fn execute(&self, arguments: serde_json::Value) -> Result<ToolResult> {
+        let path = arguments["path"]
+            .as_str()
+            .ok_or_else(|| MeuxError::Tool("Missing 'path' argument".to_string()))?;
+        let find = arguments["find"]
+            .as_str()
+            .ok_or_else(|| MeuxError::Tool("Missing 'find' argument".to_string()))?;
+        let replace = arguments["replace"]
+            .as_str()
+            .ok_or_else(|| MeuxError::Tool("Missing 'replace' argument".to_string()))?;
+        let replace_all = arguments["all"].as_bool().unwrap_or(false);
+
+        let expanded = shellexpand::tilde(path).to_string();
+        let file_path = Path::new(&expanded);
+
+        if !file_path.exists() {
+            return Ok(ToolResult {
+                tool_call_id: String::new(),
+                content: format!("File not found: {}", file_path.display()),
+                success: false,
+            });
+        }
+
+        let content = std::fs::read_to_string(file_path)
+            .map_err(|e| MeuxError::Tool(e.to_string()))?;
+
+        if !content.contains(find) {
+            return Ok(ToolResult {
+                tool_call_id: String::new(),
+                content: format!("Text to find not found in {}", file_path.display()),
+                success: false,
+            });
+        }
+
+        let (new_content, count) = if replace_all {
+            let count = content.matches(find).count();
+            (content.replace(find, replace), count)
+        } else {
+            (content.replacen(find, replace, 1), 1)
+        };
+
+        std::fs::write(file_path, &new_content)
+            .map_err(|e| MeuxError::Tool(e.to_string()))?;
+
+        Ok(ToolResult {
+            tool_call_id: String::new(),
+            content: format!(
+                "Edited {}: replaced {} occurrence(s)",
+                file_path.display(),
+                count
+            ),
+            success: true,
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
 // move_file
 // ---------------------------------------------------------------------------
 
