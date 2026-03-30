@@ -4,18 +4,30 @@ import { transcribeVoice, transcribeVoiceLocal } from "../api/tauri";
 
 const SAMPLE_RATE = 16000;
 
+// VAD constants
+const SILENCE_THRESHOLD = 0.012;   // RMS below this = silence
+const SILENCE_MS = 1200;           // stop after this much silence
+const MIN_SPEECH_CHUNKS = 4;       // ignore brief noise (~0.25s)
+
 function float32ToBase64(samples: Float32Array): string {
   const bytes = new Uint8Array(samples.length * 4);
   const view = new DataView(bytes.buffer);
   for (let i = 0; i < samples.length; i++) {
-    view.setFloat32(i * 4, samples[i], true); // little-endian
+    view.setFloat32(i * 4, samples[i], true);
   }
-
   let binary = "";
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
+}
+
+function rms(samples: Float32Array): number {
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) {
+    sum += samples[i] * samples[i];
+  }
+  return Math.sqrt(sum / samples.length);
 }
 
 function pickRecordingMimeType(): string {
@@ -25,13 +37,11 @@ function pickRecordingMimeType(): string {
     "audio/mp4",
     "audio/ogg",
   ];
-
   for (const mimeType of candidates) {
     if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mimeType)) {
       return mimeType;
     }
   }
-
   return "";
 }
 
@@ -69,6 +79,11 @@ export function useVoice() {
   const pcmChunksRef = useRef<Float32Array[]>([]);
   const pcmSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const pcmStreamRef = useRef<MediaStream | null>(null);
+
+  // VAD state
+  const speechDetectedRef = useRef(false);
+  const speechChunkCountRef = useRef(0);
+  const lastLoudTimeRef = useRef(0);
 
   const stopMediaTracks = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -137,7 +152,12 @@ export function useVoice() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        // --- PCM capture for local whisper ---
+        // --- Reset VAD state ---
+        speechDetectedRef.current = false;
+        speechChunkCountRef.current = 0;
+        lastLoudTimeRef.current = Date.now();
+
+        // --- PCM capture for local whisper + VAD ---
         pcmStreamRef.current = stream;
         pcmChunksRef.current = [];
 
@@ -150,15 +170,39 @@ export function useVoice() {
         const scriptNode = pcmCtx.createScriptProcessor(4096, 1, 1);
         pcmScriptNodeRef.current = scriptNode;
 
+        let autoStopped = false;
+
         scriptNode.onaudioprocess = (e) => {
+          if (autoStopped) return;
           const input = e.inputBuffer.getChannelData(0);
           pcmChunksRef.current.push(new Float32Array(input));
+
+          // --- VAD: check volume ---
+          const volume = rms(input);
+          const now = Date.now();
+
+          if (volume >= SILENCE_THRESHOLD) {
+            speechChunkCountRef.current++;
+            if (speechChunkCountRef.current >= MIN_SPEECH_CHUNKS) {
+              speechDetectedRef.current = true;
+            }
+            lastLoudTimeRef.current = now;
+          } else if (speechDetectedRef.current && now - lastLoudTimeRef.current >= SILENCE_MS) {
+            // Silence after speech — auto stop
+            autoStopped = true;
+            if (
+              mediaRecorderRef.current &&
+              mediaRecorderRef.current.state !== "inactive"
+            ) {
+              mediaRecorderRef.current.stop();
+            }
+          }
         };
 
         source.connect(scriptNode);
         scriptNode.connect(pcmCtx.destination);
 
-        // --- MediaRecorder fallback for API transcription ---
+        // --- MediaRecorder for API fallback ---
         const mimeType = pickRecordingMimeType();
         const recorder = mimeType
           ? new MediaRecorder(stream, { mimeType })
@@ -187,6 +231,7 @@ export function useVoice() {
           const chunks = recordedChunksRef.current;
           recordedChunksRef.current = [];
           stopMediaTracks();
+          stopPcmCapture();
           mediaRecorderRef.current = null;
           setListening(false);
 
@@ -195,7 +240,7 @@ export function useVoice() {
           // --- Try local whisper first ---
           try {
             const pcmData = mergePcmChunks();
-            if (pcmData.length > SAMPLE_RATE / 2) { // at least 0.5s of audio
+            if (pcmData.length > SAMPLE_RATE / 2) {
               const pcmBase64 = float32ToBase64(pcmData);
               const text = await transcribeVoiceLocal(pcmBase64);
               if (text.trim()) {
@@ -209,13 +254,14 @@ export function useVoice() {
 
           // --- Fallback to API transcription ---
           try {
-            const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
+            const blob = new Blob(chunks, {
+              type: recorder.mimeType || mimeType || "audio/webm",
+            });
             const audioBase64 = await blobToBase64(blob);
             const transcript = await transcribeVoice(
               audioBase64,
               blob.type || recorder.mimeType || mimeType || "audio/webm",
             );
-
             if (transcript.trim()) {
               onResultRef.current?.(transcript.trim());
             }
@@ -227,8 +273,6 @@ export function useVoice() {
         function mergePcmChunks(): Float32Array {
           const allChunks = pcmChunksRef.current;
           pcmChunksRef.current = [];
-          stopPcmCapture();
-
           const totalLength = allChunks.reduce((sum, c) => sum + c.length, 0);
           const merged = new Float32Array(totalLength);
           let offset = 0;
@@ -266,16 +310,13 @@ export function useVoice() {
   const playAudio = useCallback(
     (base64Audio: string): Promise<void> => {
       return new Promise((resolve) => {
-        // Disconnect previous audio element
         disconnect();
 
         const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
-        // Need crossOrigin for AudioContext to work with data URIs in some browsers
         audio.crossOrigin = "anonymous";
         audioRef.current = audio;
 
         audio.oncanplay = () => {
-          // Connect to analyser once audio is ready
           connectAudio(audio);
         };
 
@@ -296,7 +337,6 @@ export function useVoice() {
         };
 
         audio.play().catch(() => {
-          // Autoplay blocked — wait for user interaction then retry
           const resumePlay = () => {
             audio.play().catch(() => {});
             document.removeEventListener("click", resumePlay);
