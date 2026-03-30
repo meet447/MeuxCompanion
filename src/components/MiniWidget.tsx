@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { useWindow } from "../hooks/useWindow";
 import { MicButton } from "./MicButton";
 import type { ToolCallStatus } from "./ToolCallBubble";
@@ -17,6 +16,7 @@ interface MiniWidgetProps {
   onMicToggle: () => void;
   onToolConfirm: (requestId: string, approved: boolean) => void;
   pendingConfirmation: boolean;
+  openComposerTrigger?: number; // increment to open composer from outside
 }
 
 const MINI_WINDOW_PRESETS = [
@@ -37,6 +37,7 @@ export function MiniWidget({
   onMicToggle,
   onToolConfirm,
   pendingConfirmation,
+  openComposerTrigger = 0,
 }: MiniWidgetProps) {
   const { expand } = useWindow();
   const pointerStateRef = useRef<{ x: number; y: number; dragged: boolean; active: boolean }>({
@@ -73,64 +74,19 @@ export function MiniWidget({
     }
   }, [isStreaming]);
 
-  // Global shortcuts — work even when mini window is not focused
   const composerOpenRef = useRef(false);
   composerOpenRef.current = composerOpen;
-  const onMicToggleRef = useRef(onMicToggle);
-  onMicToggleRef.current = onMicToggle;
 
+  // Open composer when triggered externally (via global shortcut in App.tsx)
   useEffect(() => {
-    const TEXT_SHORTCUT = "CommandOrControl+Shift+Space";
-    const MIC_SHORTCUT = "CommandOrControl+Shift+M";
-    const registered: string[] = [];
-
-    const setup = async () => {
-      try {
-        // Cmd+Shift+Space — open text composer
-        await register(TEXT_SHORTCUT, async (event) => {
-          if (event.state === "Pressed") {
-            try { await getCurrentWindow().setFocus(); } catch {}
-            if (!composerOpenRef.current) {
-              setSizePresetIndex((prev) => {
-                if (prev === 0) {
-                  void getCurrentWindow().setSize(new LogicalSize(MINI_WINDOW_PRESETS[1].width, MINI_WINDOW_PRESETS[1].height));
-                  return 1;
-                }
-                return prev;
-              });
-              setComposerOpen(true);
-            } else {
-              inputRef.current?.focus();
-            }
-          }
-        });
-        registered.push(TEXT_SHORTCUT);
-      } catch (err) {
-        console.error("Failed to register text shortcut:", err);
+    if (openComposerTrigger > 0) {
+      if (sizePresetIndex === 0) {
+        void getCurrentWindow().setSize(new LogicalSize(MINI_WINDOW_PRESETS[1].width, MINI_WINDOW_PRESETS[1].height));
+        setSizePresetIndex(1);
       }
-
-      try {
-        // Cmd+Shift+M — toggle mic
-        await register(MIC_SHORTCUT, async (event) => {
-          if (event.state === "Pressed") {
-            try { await getCurrentWindow().setFocus(); } catch {}
-            onMicToggleRef.current();
-          }
-        });
-        registered.push(MIC_SHORTCUT);
-      } catch (err) {
-        console.error("Failed to register mic shortcut:", err);
-      }
-    };
-
-    void setup();
-
-    return () => {
-      for (const s of registered) {
-        unregister(s).catch(() => {});
-      }
-    };
-  }, []);
+      setComposerOpen(true);
+    }
+  }, [openComposerTrigger]);
 
   // Drag handling
   const isInteractiveTarget = (target: EventTarget | null) =>
@@ -184,18 +140,10 @@ export function MiniWidget({
     setComposerOpen(true);
   };
 
-  // Keyboard shortcuts: / or Cmd+K opens composer, Esc closes it
   const handleRootKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
       setComposerOpen(false);
       setInput("");
-      return;
-    }
-    if (!composerOpen) {
-      if (event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key === "k")) {
-        event.preventDefault();
-        openComposer();
-      }
     }
   };
 
