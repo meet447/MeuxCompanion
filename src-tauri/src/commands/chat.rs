@@ -553,6 +553,10 @@ async fn run_chat_stream(
             },
         );
 
+        // Context management: compress stale tool results + enforce token budget
+        // ~6000 tokens budget leaves room for the LLM response (~1024 max_tokens)
+        meux_core::context::manage_context(&mut conversation, 6000);
+
         // Stream LLM response with tools
         let mut stream = state.llm.stream_chat_with_tools(
             conversation.clone(),

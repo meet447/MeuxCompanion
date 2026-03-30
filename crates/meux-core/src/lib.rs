@@ -1,5 +1,6 @@
 pub mod character;
 pub mod config;
+pub mod context;
 pub mod error;
 pub mod expressions;
 pub mod llm;

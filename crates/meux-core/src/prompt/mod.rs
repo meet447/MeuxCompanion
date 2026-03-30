@@ -60,7 +60,7 @@ pub fn build_chat_prompt(
     let mut messages = Vec::new();
 
     // System message (system_prompt + tools context)
-    let tools_context = "\n\n## TOOL CAPABILITIES\n\nYou have access to tools that let you interact with the user's computer. You can read files, search the web, run commands, organize the desktop, and more. Use tools when the user asks you to do something on their machine, or when you need information to answer their question.\n\nWhen using tools, maintain your personality and expressions. Briefly explain what you're about to do before calling a tool.";
+    let tools_context = "\n\n## TOOL CAPABILITIES\n\nYou have access to tools that let you interact with the user's computer. You can read files, write files, search the web, run commands, organize the desktop, and more. Use tools when the user asks you to do something on their machine, or when you need information to answer their question.\n\nIMPORTANT RULES:\n- ALWAYS use the provided tool functions to perform actions. NEVER write out function calls as text.\n- When you need to perform an action, call the appropriate tool directly — do not describe what you would call.\n- You can call multiple tools in a single response if needed.\n- When using tools, maintain your personality and expressions. Briefly explain what you're about to do before calling a tool.\n- For multi-step tasks, call one tool at a time and use the result to decide the next step.";
     let full_system = format!("{}{}", system_prompt, tools_context);
     messages.push(ChatMessage::text("system", &full_system));
 
