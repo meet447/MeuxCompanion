@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { ChatPanel } from "./components/ChatPanel";
 import { AddCharacterModal } from "./components/AddCharacterModal";
 import { CharacterSelect } from "./components/CharacterSelect";
@@ -33,9 +34,94 @@ const VRMCanvas = lazy(() =>
 function App() {
   const { isMiniMode, miniCharacterId, toggleMini } = useWindow();
 
+  // Refs for global shortcut callbacks (so they always see latest state)
+  const selectedCharIdRef = useRef("");
+
+  // Trigger to open mini composer from global shortcut
+  const [miniComposerTrigger, setMiniComposerTrigger] = useState(0);
+  // Ref for focus chat input in full mode
+  const fullChatInputRef = useRef<HTMLInputElement>(null);
+  // Ref for mic toggle
+  const handleMicToggleRef = useRef<() => void>(() => {});
+
+  // Global shortcuts — registered once from main window, work in all modes
+  // Actions are dispatched via Tauri events so both windows can respond
+  useEffect(() => {
+    if (isMiniMode) return; // only main window registers shortcuts
+
+    const TOGGLE = "CommandOrControl+Shift+E";
+    const TEXT = "CommandOrControl+Shift+Space";
+    const MIC = "CommandOrControl+Shift+M";
+    const registered: string[] = [];
+
+    const setup = async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const broadcast = (event: string) => invoke("broadcast_event", { event }).catch(() => {});
+
+      try {
+        await register(TOGGLE, (event) => {
+          if (event.state === "Pressed") {
+            toggleMini(selectedCharIdRef.current || undefined);
+          }
+        });
+        registered.push(TOGGLE);
+      } catch (err) {
+        console.error("Failed to register toggle shortcut:", err);
+      }
+
+      try {
+        await register(TEXT, (event) => {
+          if (event.state === "Pressed") {
+            broadcast("shortcut:text");
+          }
+        });
+        registered.push(TEXT);
+      } catch (err) {
+        console.error("Failed to register text shortcut:", err);
+      }
+
+      try {
+        await register(MIC, (event) => {
+          if (event.state === "Pressed") {
+            broadcast("shortcut:mic");
+          }
+        });
+        registered.push(MIC);
+      } catch (err) {
+        console.error("Failed to register mic shortcut:", err);
+      }
+    };
+
+    void setup();
+    return () => {
+      for (const s of registered) {
+        unregister(s).catch(() => {});
+      }
+    };
+  }, [isMiniMode, toggleMini]);
+
+  // Listen for shortcut events (both windows listen, only the active one acts)
+  useEffect(() => {
+    const unlistenText = listen("shortcut:text", () => {
+      if (isMiniMode) {
+        setMiniComposerTrigger((n) => n + 1);
+      } else {
+        fullChatInputRef.current?.focus();
+      }
+    });
+    const unlistenMic = listen("shortcut:mic", () => {
+      handleMicToggleRef.current();
+    });
+    return () => {
+      unlistenText.then((fn) => fn());
+      unlistenMic.then((fn) => fn());
+    };
+  }, [isMiniMode]);
+
   const [characters, setCharacters] = useState<Character[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [selectedCharId, setSelectedCharId] = useState("");
+  selectedCharIdRef.current = selectedCharId;
   const [charSelectOpen, setCharSelectOpen] = useState(false);
   const [addCharacterOpen, setAddCharacterOpen] = useState(false);
   const [currentExpression, setCurrentExpression] = useState("neutral");
@@ -263,6 +349,7 @@ function App() {
       });
     }
   }, [listening, startListening, stopListening, handleSend]);
+  handleMicToggleRef.current = handleMicToggle;
 
   const handleCharacterChange = useCallback(
     (id: string) => {
@@ -351,6 +438,7 @@ function App() {
         onMicToggle={handleMicToggle}
         onToolConfirm={handleConfirm}
         pendingConfirmation={pendingToolConfirm !== null}
+        openComposerTrigger={miniComposerTrigger}
       />
     );
   }
@@ -517,6 +605,7 @@ function App() {
               onMicToggle={handleMicToggle}
               toolCalls={toolCalls}
               onToolConfirm={handleConfirm}
+              inputRef={fullChatInputRef}
             />
           )}
         </div>

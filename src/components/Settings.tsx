@@ -224,6 +224,8 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
   const [testing, setTesting] = useState(false);
 
+  const isMac = navigator.platform.toUpperCase().includes("MAC");
+
   // Derive configured status from the config object itself
   const [configuredLlm, setConfiguredLlm] = useState<Record<string, { configured: boolean; model: string }>>({});
   const [configuredTts, setConfiguredTts] = useState<Record<string, { configured: boolean; voice: string }>>({});
@@ -445,6 +447,39 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
         >
           {saving ? "Saving..." : saved ? "Saved!" : "Save Profile"}
         </button>
+
+        {/* Keyboard Shortcuts */}
+        <div className="mt-10">
+          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 pl-1">Keyboard Shortcuts</h3>
+          <div className="rounded-2xl border border-slate-100 bg-white overflow-hidden">
+            {[
+              { keys: isMac ? "Cmd + Shift + E" : "Ctrl + Shift + E", action: "Toggle mini mode", context: "Global — works from any app" },
+              { keys: isMac ? "Cmd + Shift + Space" : "Ctrl + Shift + Space", action: "Open text input", context: "Global — mini mode" },
+              { keys: isMac ? "Cmd + Shift + M" : "Ctrl + Shift + M", action: "Toggle microphone", context: "Global — mini mode" },
+              { keys: "Escape", action: "Close text input", context: "Mini mode" },
+            ].map((shortcut, i) => (
+              <div
+                key={i}
+                className={`flex items-center justify-between px-4 py-3 ${i > 0 ? "border-t border-slate-50" : ""}`}
+              >
+                <div className="flex-1">
+                  <span className="text-[13px] text-slate-700">{shortcut.action}</span>
+                  <span className="text-[11px] text-slate-400 ml-2">{shortcut.context}</span>
+                </div>
+                <div className="flex gap-1">
+                  {shortcut.keys.split(" + ").map((key, j) => (
+                    <span key={j}>
+                      {j > 0 && <span className="text-slate-300 text-[11px] mx-0.5">+</span>}
+                      <kbd className="inline-block px-2 py-0.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
+                        {key}
+                      </kbd>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
