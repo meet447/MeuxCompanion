@@ -28,6 +28,7 @@ pub struct AppState {
     pub whisper_ctx: Option<Arc<WhisperContext>>,
     pub tool_registry: ToolRegistry,
     pub pending_confirmations: DashMap<String, tokio::sync::oneshot::Sender<bool>>,
+    pub chat_cancel: std::sync::Mutex<Option<tokio_util::sync::CancellationToken>>,
 }
 
 // Command to get the app data directory path
@@ -102,6 +103,7 @@ pub fn run() {
                 whisper_ctx,
                 tool_registry: ToolRegistry::with_defaults(),
                 pending_confirmations: DashMap::new(),
+                chat_cancel: std::sync::Mutex::new(None),
             };
 
             app.manage(Arc::new(state));
