@@ -21,7 +21,7 @@ interface TTSPreset {
   needs_key: boolean;
 }
 
-type SettingsPage = null | "profile" | "llm" | "tts" | "expressions" | "memory";
+type SettingsPage = null | "profile" | "llm" | "tts" | "search" | "expressions" | "memory";
 
 // Hardcoded presets — the web app fetches these from /api/config/presets,
 // but the Rust backend exposes them as constants. Kept in sync manually.
@@ -51,6 +51,9 @@ const SpeakerIcon = () => (
 const MaskIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 );
+const SearchIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+);
 const ArchiveIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 8h14M5 12h10M5 16h8M4 4h16v16H4z" /></svg>
 );
@@ -59,6 +62,7 @@ const MENU_ITEMS: { id: SettingsPage & string; label: string; description: strin
   { id: "profile", label: "Your Profile", description: "Name and about yourself", icon: ProfileIcon },
   { id: "llm", label: "LLM Provider", description: "AI model and API connection", icon: BrainIcon },
   { id: "tts", label: "Voice & TTS", description: "Text-to-speech provider and voice", icon: SpeakerIcon },
+  { id: "search", label: "Web Search", description: "Search provider and API keys", icon: SearchIcon },
   { id: "expressions", label: "Expression Mapping", description: "Map emotions to model expressions", icon: MaskIcon },
   { id: "memory", label: "Memory & State", description: "Inspect local memories and relationship state", icon: ArchiveIcon },
 ];
@@ -98,6 +102,9 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
   const [ttsProvider, setTtsProvider] = useState("tiktok");
   const [ttsApiKey, setTtsApiKey] = useState("");
   const [ttsVoice, setTtsVoice] = useState("jp_001");
+  const [searchProvider, setSearchProvider] = useState("duckduckgo");
+  const [serpApiKey, setSerpApiKey] = useState("");
+  const [exaApiKey, setExaApiKey] = useState("");
 
   const deriveConfigured = (cfg: any) => {
     // Derive which providers are configured from stored config
@@ -148,6 +155,9 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
         setTtsProvider(cfg.tts?.provider || "tiktok");
         setTtsApiKey("");
         setTtsVoice(cfg.tts?.voice || "jp_001");
+        setSearchProvider(cfg.search?.provider || "duckduckgo");
+        setSerpApiKey("");
+        setExaApiKey("");
       })
       .catch((err) => console.error("Failed to load config:", err));
   }, []);
@@ -198,9 +208,12 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
       user: { name: userName, about: userAbout },
       llm: { provider: llmProvider, base_url: llmBaseUrl, model: llmModel },
       tts: { provider: ttsProvider, voice: ttsVoice },
+      search: { provider: searchProvider },
     };
     if (llmApiKey) update.llm.api_key = llmApiKey;
     if (ttsApiKey) update.tts.api_key = ttsApiKey;
+    if (serpApiKey) update.search.serp_api_key = serpApiKey;
+    if (exaApiKey) update.search.exa_api_key = exaApiKey;
 
     try {
       await saveConfig(update);
@@ -470,6 +483,86 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
             {saving ? "Saving..." : saved ? "Saved!" : "Save Configuration"}
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // ========== WEB SEARCH PAGE ==========
+  if (page === "search") {
+    const SEARCH_PRESETS: Record<string, { name: string; description: string; needsKey: boolean }> = {
+      duckduckgo: { name: "DuckDuckGo", description: "Free, no API key needed", needsKey: false },
+      serpapi: { name: "SerpAPI", description: "Google results via serpapi.com", needsKey: true },
+      exa: { name: "Exa", description: "AI-powered search via exa.ai", needsKey: true },
+    };
+
+    return (
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <SubHeader title="Web Search" />
+
+        <label className={labelClass}>Search Provider</label>
+        <div className="space-y-2 mb-6">
+          {Object.entries(SEARCH_PRESETS).map(([id, preset]) => (
+            <button
+              key={id}
+              onClick={() => setSearchProvider(id)}
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-left border transition-all ${
+                searchProvider === id
+                  ? "border-blue-400 bg-blue-50 shadow-sm shadow-blue-500/10"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+              }`}
+            >
+              <div className="flex-1">
+                <div className={`text-[14px] font-semibold ${searchProvider === id ? "text-blue-700" : "text-slate-700"}`}>
+                  {preset.name}
+                </div>
+                <div className="text-[12px] text-slate-400 mt-0.5">{preset.description}</div>
+              </div>
+              {searchProvider === id && (
+                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {searchProvider === "serpapi" && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <label className={labelClass}>SerpAPI Key</label>
+            <input
+              type="password"
+              value={serpApiKey}
+              onChange={(e) => setSerpApiKey(e.target.value)}
+              placeholder="Paste your SerpAPI key (blank to keep current)"
+              className={inputClass}
+            />
+            <p className="text-[12px] text-slate-400 -mt-3 mb-5 pl-1">
+              Get your key at <span className="text-blue-500">serpapi.com</span> — 100 free searches/month
+            </p>
+          </div>
+        )}
+
+        {searchProvider === "exa" && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <label className={labelClass}>Exa API Key</label>
+            <input
+              type="password"
+              value={exaApiKey}
+              onChange={(e) => setExaApiKey(e.target.value)}
+              placeholder="Paste your Exa API key (blank to keep current)"
+              className={inputClass}
+            />
+            <p className="text-[12px] text-slate-400 -mt-3 mb-5 pl-1">
+              Get your key at <span className="text-blue-500">exa.ai</span> — AI-powered neural search
+            </p>
+          </div>
+        )}
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className={buttonClass}
+        >
+          {saving ? "Saving..." : saved ? "Saved!" : "Save Configuration"}
+        </button>
       </div>
     );
   }

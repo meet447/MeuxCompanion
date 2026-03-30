@@ -91,6 +91,18 @@ fn clean_text(text: &str) -> String {
     re.replace_all(text, "").to_string()
 }
 
+/// Strip markdown formatting for natural-sounding TTS.
+fn clean_for_tts(text: &str) -> String {
+    text.replace("**", "")
+        .replace("__", "")
+        .replace("*", "")
+        .replace("_", " ")
+        .replace("##", "")
+        .replace("#", "")
+        .replace("- ", ", ")
+        .replace("`", "")
+}
+
 #[derive(Debug, Clone)]
 enum TagAction {
     SetExpression(String),
@@ -197,7 +209,8 @@ fn spawn_tts_for_sentence(
     let app_tts = app.clone();
 
     tokio::spawn(async move {
-        match meux_core::tts::generate_tts_auto(&text, &tts_cfg).await {
+        let tts_text = clean_for_tts(&text);
+        match meux_core::tts::generate_tts_auto(&tts_text, &tts_cfg).await {
             Ok(audio_data) => {
                 use base64::Engine;
                 let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
@@ -397,7 +410,8 @@ async fn run_chat_stream(
         max_tokens: 1024,
     };
 
-    // 4. Get tools JSON for the LLM
+    // 4. Sync search config and get tools JSON for the LLM
+    state.tool_registry.update_search_config(config.search.clone());
     let tools_json = state.tool_registry.openai_tools_json();
     println!("[agent] LLM provider: {} | model: {} | tools registered: {}", config.llm.base_url, config.llm.model, tools_json.len());
 

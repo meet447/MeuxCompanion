@@ -10,6 +10,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub tts: TtsConfig,
     #[serde(default)]
+    pub search: SearchConfig,
+    #[serde(default)]
     pub llm_providers: HashMap<String, LlmProviderConfig>,
     #[serde(default)]
     pub tts_providers: HashMap<String, TtsProviderConfig>,
@@ -17,6 +19,31 @@ pub struct AppConfig {
     pub active_character: String,
     #[serde(default)]
     pub onboarding_complete: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchConfig {
+    /// "duckduckgo", "serpapi", or "exa"
+    #[serde(default = "default_search_provider")]
+    pub provider: String,
+    #[serde(default)]
+    pub serp_api_key: Option<String>,
+    #[serde(default)]
+    pub exa_api_key: Option<String>,
+}
+
+fn default_search_provider() -> String {
+    "duckduckgo".to_string()
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            provider: default_search_provider(),
+            serp_api_key: None,
+            exa_api_key: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

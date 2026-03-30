@@ -157,6 +157,27 @@ impl ConfigManager {
                 merged.tts.voice = existing.tts.voice.clone();
                 merged.tts.provider = existing.tts.provider.clone();
             }
+            // Preserve search API keys if incoming is empty/masked
+            let incoming_serp_key = merged.search.serp_api_key.clone();
+            if incoming_serp_key.is_none()
+                || incoming_serp_key
+                    .as_ref()
+                    .map_or(false, |k| k.is_empty() || is_masked_key(k))
+            {
+                merged.search.serp_api_key = existing.search.serp_api_key;
+            }
+            let incoming_exa_key = merged.search.exa_api_key.clone();
+            if incoming_exa_key.is_none()
+                || incoming_exa_key
+                    .as_ref()
+                    .map_or(false, |k| k.is_empty() || is_masked_key(k))
+            {
+                merged.search.exa_api_key = existing.search.exa_api_key;
+            }
+            if merged.search.provider.is_empty() {
+                merged.search.provider = existing.search.provider;
+            }
+
             if merged.llm_providers.is_empty() {
                 merged.llm_providers = existing.llm_providers;
             }
@@ -183,6 +204,8 @@ impl ConfigManager {
         let mut masked = config.clone();
         masked.llm.api_key = masked.llm.api_key.map(|k| mask_key(&k));
         masked.tts.api_key = masked.tts.api_key.map(|k| mask_key(&k));
+        masked.search.serp_api_key = masked.search.serp_api_key.map(|k| mask_key(&k));
+        masked.search.exa_api_key = masked.search.exa_api_key.map(|k| mask_key(&k));
         for provider in masked.llm_providers.values_mut() {
             provider.api_key = provider.api_key.as_ref().map(|k| mask_key(k));
         }
