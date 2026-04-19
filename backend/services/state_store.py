@@ -13,6 +13,13 @@ def _clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
     return max(minimum, min(maximum, value))
 
 
+def _to_float(value: object, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _state_path(character_id: str, user_id: str | None = None):
     ensure_memory_store(character_id, user_id)
     return get_memory_dir(character_id, user_id) / "state.json"
@@ -26,10 +33,10 @@ def load_character_state(character_id: str, user_id: str | None = None) -> dict:
         data = {}
 
     return {
-        "trust": float(data.get("trust", 0.0)),
-        "affection": float(data.get("affection", 0.0)),
+        "trust": _to_float(data.get("trust"), 0.0),
+        "affection": _to_float(data.get("affection"), 0.0),
         "mood": str(data.get("mood", "neutral")),
-        "energy": float(data.get("energy", 0.7)),
+        "energy": _to_float(data.get("energy"), 0.7),
         "relationship_summary": str(data.get("relationship_summary", "")).strip(),
         "updated_at": data.get("updated_at"),
     }
@@ -38,10 +45,10 @@ def load_character_state(character_id: str, user_id: str | None = None) -> dict:
 def save_character_state(character_id: str, state: dict, user_id: str | None = None) -> dict:
     current = load_character_state(character_id, user_id)
     merged = {
-        "trust": _clamp(float(state.get("trust", current["trust"]))),
-        "affection": _clamp(float(state.get("affection", current["affection"]))),
+        "trust": _clamp(_to_float(state.get("trust", current["trust"]), current["trust"])),
+        "affection": _clamp(_to_float(state.get("affection", current["affection"]), current["affection"])),
         "mood": str(state.get("mood", current["mood"])) or "neutral",
-        "energy": _clamp(float(state.get("energy", current["energy"]))),
+        "energy": _clamp(_to_float(state.get("energy", current["energy"]), current["energy"])),
         "relationship_summary": str(state.get("relationship_summary", current["relationship_summary"])).strip(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }

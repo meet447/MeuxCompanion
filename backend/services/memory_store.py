@@ -90,6 +90,9 @@ def list_memories(
     memory_type: str | None = None,
     limit: int = 50,
 ) -> list[dict]:
+    if memory_type and memory_type not in MEMORY_FILES:
+        raise ValueError(f"Unsupported memory type: {memory_type}")
+
     memory_dir = ensure_memory_store(character_id, user_id)
     filenames = [MEMORY_FILES[memory_type]] if memory_type else list(MEMORY_FILES.values())
 
@@ -118,6 +121,9 @@ def clear_memories(
     user_id: str | None = None,
     memory_type: str | None = None,
 ) -> None:
+    if memory_type and memory_type not in MEMORY_FILES:
+        raise ValueError(f"Unsupported memory type: {memory_type}")
+
     memory_dir = ensure_memory_store(character_id, user_id)
     filenames = [MEMORY_FILES[memory_type]] if memory_type else list(MEMORY_FILES.values())
 
