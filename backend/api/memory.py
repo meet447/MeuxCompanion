@@ -26,11 +26,11 @@ def get_character_memory(
 ):
     _require_character(character_id)
     ensure_memory_store(character_id)
-    return {
-        "character_id": character_id,
-        "state": load_character_state(character_id),
-        "memories": list_memories(character_id, memory_type=memory_type, limit=limit),
-    }
+    try:
+        memories = list_memories(character_id, memory_type=memory_type, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"character_id": character_id, "state": load_character_state(character_id), "memories": memories}
 
 
 @router.get("/api/memory/{character_id}/search")
@@ -56,7 +56,10 @@ class MemoryClearRequest(BaseModel):
 @router.post("/api/memory/{character_id}/clear")
 def clear_character_memory(character_id: str, body: MemoryClearRequest):
     _require_character(character_id)
-    clear_memories(character_id, memory_type=body.memory_type)
+    try:
+        clear_memories(character_id, memory_type=body.memory_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     state = None
     if body.reset_state:
         state = reset_character_state(character_id)
