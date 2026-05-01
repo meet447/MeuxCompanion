@@ -136,7 +136,7 @@ impl ConfigManager {
             if incoming_llm_key.is_none()
                 || incoming_llm_key
                     .as_ref()
-                    .map_or(false, |k| k.is_empty() || is_masked_key(k))
+                    .is_some_and(|k| k.is_empty() || is_masked_key(k))
             {
                 merged.llm.api_key = existing.llm.api_key;
             }
@@ -145,7 +145,7 @@ impl ConfigManager {
             if incoming_tts_key.is_none()
                 || incoming_tts_key
                     .as_ref()
-                    .map_or(false, |k| k.is_empty() || is_masked_key(k))
+                    .is_some_and(|k| k.is_empty() || is_masked_key(k))
             {
                 merged.tts.api_key = existing.tts.api_key;
             }
@@ -162,7 +162,7 @@ impl ConfigManager {
             if incoming_serp_key.is_none()
                 || incoming_serp_key
                     .as_ref()
-                    .map_or(false, |k| k.is_empty() || is_masked_key(k))
+                    .is_some_and(|k| k.is_empty() || is_masked_key(k))
             {
                 merged.search.serp_api_key = existing.search.serp_api_key;
             }
@@ -170,7 +170,7 @@ impl ConfigManager {
             if incoming_exa_key.is_none()
                 || incoming_exa_key
                     .as_ref()
-                    .map_or(false, |k| k.is_empty() || is_masked_key(k))
+                    .is_some_and(|k| k.is_empty() || is_masked_key(k))
             {
                 merged.search.exa_api_key = existing.search.exa_api_key;
             }
@@ -233,7 +233,7 @@ impl ConfigManager {
                     provider_cfg
                         .api_key
                         .as_ref()
-                        .map_or(false, |k| !k.is_empty())
+                        .is_some_and(|k| !k.is_empty())
                 } else {
                     true
                 }
@@ -252,7 +252,7 @@ impl ConfigManager {
                     provider_cfg
                         .api_key
                         .as_ref()
-                        .map_or(false, |k| !k.is_empty())
+                        .is_some_and(|k| !k.is_empty())
                 } else {
                     true
                 }
