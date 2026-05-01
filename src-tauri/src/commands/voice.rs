@@ -189,9 +189,10 @@ pub async fn voice_transcribe(
         return Err("Configure an LLM provider before using voice input.".to_string());
     }
 
-    let audio_bytes = STANDARD
+    let audio_bytes_vec = STANDARD
         .decode(audio_base64.trim())
         .map_err(|e| format!("Invalid audio payload: {e}"))?;
+    let audio_bytes = bytes::Bytes::from(audio_bytes_vec);
 
     let extension = audio_extension(&mime_type);
     let file_name = format!("voice-input.{extension}");
@@ -203,7 +204,7 @@ pub async fn voice_transcribe(
         let models = transcription_model_candidates(&backend.provider, &backend.base_url);
 
         for model in models {
-            let part = Part::bytes(audio_bytes.clone())
+            let part = Part::stream(reqwest::Body::from(audio_bytes.clone()))
                 .file_name(file_name.clone())
                 .mime_str(&mime_type)
                 .map_err(|e| e.to_string())?;
