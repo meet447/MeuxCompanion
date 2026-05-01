@@ -275,7 +275,10 @@ fn find_sentence_boundary(text: &str, allow_end_boundary: bool) -> Option<usize>
 
         let mut end = idx + ch.len_utf8();
         while let Some(&(next_idx, next_ch)) = chars.peek() {
-            if matches!(next_ch, '"' | '\'' | ')' | ']' | '}' | '\u{201D}' | '\u{2019}') {
+            if matches!(
+                next_ch,
+                '"' | '\'' | ')' | ']' | '}' | '\u{201D}' | '\u{2019}'
+            ) {
                 end = next_idx + next_ch.len_utf8();
                 chars.next();
             } else {
@@ -310,13 +313,7 @@ fn spawn_tts_for_sentence(
             Ok(audio_data) => {
                 use base64::Engine;
                 let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
-                let _ = app_tts.emit(
-                    "chat:audio",
-                    AudioEvent {
-                        index,
-                        data: b64,
-                    },
-                );
+                let _ = app_tts.emit("chat:audio", AudioEvent { index, data: b64 });
             }
             Err(e) => {
                 eprintln!("TTS error for sentence {}: {}", index, e);
@@ -478,7 +475,9 @@ pub async fn tool_confirm(
     approved: bool,
 ) -> Result<(), String> {
     if let Some((_, sender)) = state.pending_confirmations.remove(&request_id) {
-        sender.send(approved).map_err(|_| "Confirmation channel closed".to_string())?;
+        sender
+            .send(approved)
+            .map_err(|_| "Confirmation channel closed".to_string())?;
     }
     Ok(())
 }
@@ -525,9 +524,18 @@ async fn run_chat_stream(
     };
 
     // 4. Sync search config and get tools JSON for the LLM
-    state.tool_registry.update_search_config(config.search.clone());
-    let tools_json = state.tool_registry.openai_tools_json_filtered(&config.disabled_tools);
-    println!("[agent] LLM provider: {} | model: {} | tools enabled: {}", config.llm.base_url, config.llm.model, tools_json.len());
+    state
+        .tool_registry
+        .update_search_config(config.search.clone());
+    let tools_json = state
+        .tool_registry
+        .openai_tools_json_filtered(&config.disabled_tools);
+    println!(
+        "[agent] LLM provider: {} | model: {} | tools enabled: {}",
+        config.llm.base_url,
+        config.llm.model,
+        tools_json.len()
+    );
 
     let tts_config = config.tts.clone();
 
@@ -565,7 +573,11 @@ async fn run_chat_stream(
         // Retry streaming up to 2 times on transient errors
         for stream_attempt in 0..6u8 {
             if stream_attempt > 0 {
-                println!("[agent] stream retry attempt {}/2 (accumulated {}B text)", stream_attempt, text_content.len());
+                println!(
+                    "[agent] stream retry attempt {}/2 (accumulated {}B text)",
+                    stream_attempt,
+                    text_content.len()
+                );
                 let delay = 500 * (1 << (stream_attempt - 1));
                 tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
             }
@@ -575,7 +587,10 @@ async fn run_chat_stream(
             if stream_attempt > 0 && !text_content.is_empty() {
                 // Tell the LLM to continue from where it left off
                 attempt_conv.push(ChatMessage::text("assistant", &text_content));
-                attempt_conv.push(ChatMessage::text("user", "[continue from where you left off]"));
+                attempt_conv.push(ChatMessage::text(
+                    "user",
+                    "[continue from where you left off]",
+                ));
             }
 
             let mut stream = state.llm.stream_chat_with_tools(
@@ -605,78 +620,89 @@ async fn run_chat_stream(
                     }
                 };
 
-            match event {
-                StreamEvent::TextDelta(token) => {
-                    // Emit raw text chunk to frontend
-                    let _ = app.emit("chat:text-chunk", TextChunkEvent { text: token.clone() });
+                match event {
+                    StreamEvent::TextDelta(token) => {
+                        // Emit raw text chunk to frontend
+                        let _ = app.emit(
+                            "chat:text-chunk",
+                            TextChunkEvent {
+                                text: token.clone(),
+                            },
+                        );
 
-                    text_content.push_str(&token);
-                    buffer.push_str(&token);
+                        text_content.push_str(&token);
+                        buffer.push_str(&token);
 
-                    // Process sentences from buffer
-                    drain_buffer_sentences(
-                        &app,
-                        &state,
-                        &model_id,
-                        &current_expression,
-                        &tts_config,
-                        &mut sentence_index,
-                        &mut buffer,
-                        false,
-                    );
+                        // Process sentences from buffer
+                        drain_buffer_sentences(
+                            &app,
+                            &state,
+                            &model_id,
+                            &current_expression,
+                            &tts_config,
+                            &mut sentence_index,
+                            &mut buffer,
+                            false,
+                        );
 
-                    // Check for expression tags
-                    loop {
-                        if let Some(tag_match) =
-                            find_next_tag(&buffer)
-                        {
-                            let before_tag = buffer[..tag_match.start].to_string();
+                        // Check for expression tags
+                        loop {
+                            if let Some(tag_match) = find_next_tag(&buffer) {
+                                let before_tag = buffer[..tag_match.start].to_string();
 
-                            emit_ready_sentences(
-                                &app,
-                                &state,
-                                &model_id,
-                                &current_expression,
-                                &tts_config,
-                                &mut sentence_index,
-                                &before_tag,
-                                true,
-                                true,
-                            );
+                                emit_ready_sentences(
+                                    &app,
+                                    &state,
+                                    &model_id,
+                                    &current_expression,
+                                    &tts_config,
+                                    &mut sentence_index,
+                                    &before_tag,
+                                    true,
+                                    true,
+                                );
 
-                            match tag_match.action {
-                                TagAction::SetExpression(tag_content) => {
-                                    current_expression = tag_content;
+                                match tag_match.action {
+                                    TagAction::SetExpression(tag_content) => {
+                                        current_expression = tag_content;
+                                    }
+                                    TagAction::ResetExpression => {
+                                        current_expression = "neutral".to_string();
+                                    }
                                 }
-                                TagAction::ResetExpression => {
-                                    current_expression = "neutral".to_string();
-                                }
+
+                                buffer = buffer[tag_match.end..].to_string();
+                                continue;
                             }
-
-                            buffer = buffer[tag_match.end..].to_string();
-                            continue;
+                            break;
                         }
-                        break;
+                    }
+
+                    StreamEvent::ToolCallComplete {
+                        id,
+                        name,
+                        arguments,
+                    } => {
+                        println!(
+                            "[agent] tool call received: {} id={} args={}",
+                            name, id, arguments
+                        );
+                        tool_calls.push((id, name, arguments));
+                    }
+
+                    StreamEvent::Done {
+                        finish_reason: reason,
+                    } => {
+                        println!(
+                            "[agent] stream done — finish_reason={} | tool_calls={} | text_len={}",
+                            reason,
+                            tool_calls.len(),
+                            text_content.len()
+                        );
+                        finish_reason = reason;
                     }
                 }
-
-                StreamEvent::ToolCallComplete {
-                    id,
-                    name,
-                    arguments,
-                } => {
-                    println!("[agent] tool call received: {} id={} args={}", name, id, arguments);
-                    tool_calls.push((id, name, arguments));
-                }
-
-                StreamEvent::Done {
-                    finish_reason: reason,
-                } => {
-                    println!("[agent] stream done — finish_reason={} | tool_calls={} | text_len={}", reason, tool_calls.len(), text_content.len());
-                    finish_reason = reason;
-                }
-            }
-        } // end while stream events
+            } // end while stream events
 
             if stream_error {
                 continue; // retry the stream
@@ -735,11 +761,18 @@ async fn run_chat_stream(
 
         // If no tool calls, we're done
         if finish_reason != "tool_calls" || tool_calls.is_empty() {
-            println!("[agent] no tool calls, exiting loop after iteration {}", iteration);
+            println!(
+                "[agent] no tool calls, exiting loop after iteration {}",
+                iteration
+            );
             break;
         }
 
-        println!("[agent] executing {} tool call(s) in iteration {}", tool_calls.len(), iteration);
+        println!(
+            "[agent] executing {} tool call(s) in iteration {}",
+            tool_calls.len(),
+            iteration
+        );
 
         // Separate tool calls into safe (parallel) and dangerous (need confirmation)
         let mut safe_calls: Vec<(String, String, serde_json::Value)> = Vec::new();
@@ -792,9 +825,10 @@ async fn run_chat_stream(
                         .await
                         {
                             Ok(result) => result,
-                            Err(_) => Err(meux_core::MeuxError::Tool(
-                                format!("{} timed out after 60s", tool_name),
-                            )),
+                            Err(_) => Err(meux_core::MeuxError::Tool(format!(
+                                "{} timed out after 60s",
+                                tool_name
+                            ))),
                         }
                     }
                 })
@@ -820,7 +854,10 @@ async fn run_chat_stream(
                     },
                 );
                 // Truncate for LLM context to avoid blowing up token usage
-                conversation.push(ChatMessage::tool_result(tc_id, &truncate_tool_result(&content)));
+                conversation.push(ChatMessage::tool_result(
+                    tc_id,
+                    &truncate_tool_result(&content),
+                ));
                 tool_exchanges.push(serde_json::json!({
                     "tool": tc_name,
                     "arguments": args,
@@ -846,13 +883,10 @@ async fn run_chat_stream(
             let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
             state.pending_confirmations.insert(tc_id.clone(), tx);
 
-            let approved = tokio::time::timeout(
-                std::time::Duration::from_secs(30),
-                rx,
-            )
-            .await
-            .unwrap_or(Ok(false))
-            .unwrap_or(false);
+            let approved = tokio::time::timeout(std::time::Duration::from_secs(30), rx)
+                .await
+                .unwrap_or(Ok(false))
+                .unwrap_or(false);
 
             if !approved {
                 conversation.push(ChatMessage::tool_result(tc_id, "User denied this action."));
@@ -910,7 +944,10 @@ async fn run_chat_stream(
                 },
             );
             // Truncate for LLM context
-            conversation.push(ChatMessage::tool_result(tc_id, &truncate_tool_result(&content)));
+            conversation.push(ChatMessage::tool_result(
+                tc_id,
+                &truncate_tool_result(&content),
+            ));
             tool_exchanges.push(serde_json::json!({
                 "tool": tc_name,
                 "arguments": args,
