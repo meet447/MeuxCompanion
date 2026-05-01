@@ -1,0 +1,1 @@
+# whisper-rs handles Accelerate framework linking internally via its build script
