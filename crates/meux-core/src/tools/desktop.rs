@@ -11,6 +11,14 @@ use super::Tool;
 // open_application
 // ---------------------------------------------------------------------------
 
+fn is_valid_app_name(name: &str) -> bool {
+    if name.is_empty() || name.starts_with('-') {
+        return false;
+    }
+    // Allow alphanumeric, space, dot, hyphen, underscore
+    name.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '.' || c == '-' || c == '_')
+}
+
 pub struct OpenApplicationTool;
 
 #[async_trait]
@@ -37,6 +45,10 @@ impl Tool for OpenApplicationTool {
         let name = arguments["name"]
             .as_str()
             .ok_or_else(|| MeuxError::Tool("Missing 'name' argument".to_string()))?;
+
+        if !is_valid_app_name(name) {
+            return Err(MeuxError::Tool(format!("Invalid application name: {}", name)));
+        }
 
         let output = tokio::process::Command::new("open")
             .arg("-a")
@@ -390,4 +402,25 @@ fn extract_vm_stat_value(line: &str) -> Option<u64> {
         return None;
     }
     parts[1].trim().trim_end_matches('.').parse::<u64>().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_valid_app_name() {
+        assert!(is_valid_app_name("Safari"));
+        assert!(is_valid_app_name("Visual Studio Code"));
+        assert!(is_valid_app_name("iTerm2"));
+        assert!(is_valid_app_name("TextEdit.app"));
+        assert!(is_valid_app_name("App_Name-1.0"));
+
+        assert!(!is_valid_app_name(""));
+        assert!(!is_valid_app_name("-Safari"));
+        assert!(!is_valid_app_name("--args"));
+        assert!(!is_valid_app_name("Not an app; rm -rf /"));
+        assert!(!is_valid_app_name("App|Name"));
+        assert!(!is_valid_app_name("App&Name"));
+    }
 }
