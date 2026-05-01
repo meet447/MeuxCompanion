@@ -142,6 +142,7 @@ impl CharacterLoader {
     }
 
     /// Create a new character from basic parameters. Returns the character id.
+    #[allow(clippy::too_many_arguments)] // Mirrors the onboarding form; grouping would churn many call sites.
     pub fn create_character(
         &self,
         name: &str,

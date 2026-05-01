@@ -24,6 +24,7 @@ pub fn characters_get(state: State<Arc<AppState>>, id: String) -> Result<Charact
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri command mirrors frontend create form fields.
 pub fn characters_create(
     state: State<Arc<AppState>>,
     name: String,
