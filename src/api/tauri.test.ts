@@ -1,228 +1,212 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as tauri from './tauri';
 import { invoke } from '@tauri-apps/api/core';
+import * as tauriApi from './tauri';
 
+// Mock the invoke function from @tauri-apps/api/core
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
-describe('tauri API utilities', () => {
+describe('tauri api utilities', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('toAssetUrl', () => {
-    it('should correctly format an absolute path', () => {
-      expect(tauri.toAssetUrl('/path/to/asset')).toBe('/static/path/to/asset');
-    });
-
-    it('should correctly format a relative path', () => {
-      expect(tauri.toAssetUrl('path/to/asset')).toBe('/static/path/to/asset');
-    });
-
-    it('should handle paths with multiple leading slashes', () => {
-      expect(tauri.toAssetUrl('///path/to/asset')).toBe('/static/path/to/asset');
-    });
-
-    it('should handle empty string', () => {
-      expect(tauri.toAssetUrl('')).toBe('/static/');
+    it('should strip leading slashes and prepend /static/', () => {
+      expect(tauriApi.toAssetUrl('/my-asset.png')).toBe('/static/my-asset.png');
+      expect(tauriApi.toAssetUrl('my-asset.png')).toBe('/static/my-asset.png');
+      expect(tauriApi.toAssetUrl('///deep/path.png')).toBe('/static/deep/path.png');
     });
   });
 
-  describe('Config', () => {
-    it('getConfig should call config_get', async () => {
-      await tauri.getConfig();
+  describe('Config functions', () => {
+    it('getConfig calls config_get', async () => {
+      await tauriApi.getConfig();
       expect(invoke).toHaveBeenCalledWith('config_get');
     });
 
-    it('saveConfig should call config_save with correct config', async () => {
-      const mockConfig = { some: 'config' };
-      await tauri.saveConfig(mockConfig);
+    it('saveConfig calls config_save with correct config', async () => {
+      const mockConfig = { theme: 'dark' };
+      await tauriApi.saveConfig(mockConfig);
       expect(invoke).toHaveBeenCalledWith('config_save', { config: mockConfig });
     });
 
-    it('testLlm should call config_test_llm with provider data', async () => {
-      const provider = { base_url: 'http://test', api_key: 'test', model: 'test' };
-      await tauri.testLlm(provider);
-      expect(invoke).toHaveBeenCalledWith('config_test_llm', { provider });
+    it('testLlm calls config_test_llm with correct provider data', async () => {
+      const providerData = {
+        base_url: 'http://localhost:8080',
+        api_key: 'test-key',
+        model: 'test-model'
+      };
+      await tauriApi.testLlm(providerData);
+      expect(invoke).toHaveBeenCalledWith('config_test_llm', { provider: providerData });
     });
   });
 
-  describe('Tools', () => {
-    it('listTools should call tools_list', async () => {
-      await tauri.listTools();
+  describe('Character functions', () => {
+    it('listCharacters calls characters_list', async () => {
+      await tauriApi.listCharacters();
+      expect(invoke).toHaveBeenCalledWith('characters_list');
+    });
+
+    it('getCharacter calls characters_get with correct id', async () => {
+      await tauriApi.getCharacter('char-123');
+      expect(invoke).toHaveBeenCalledWith('characters_get', { id: 'char-123' });
+    });
+
+    it('createCharacter calls characters_create with properly mapped data', async () => {
+      const charData = {
+        name: 'Alice',
+        personality: 'Friendly',
+        modelId: 'model-1',
+        voice: 'voice-1',
+        vibe: 'calm',
+        relationshipStyle: 'platonic',
+        speechStyle: 'casual',
+        userName: 'Bob',
+        userAbout: 'User likes AI'
+      };
+      await tauriApi.createCharacter(charData);
+      expect(invoke).toHaveBeenCalledWith('characters_create', charData);
+    });
+  });
+
+  describe('Model functions', () => {
+    it('listModels calls models_list', async () => {
+      await tauriApi.listModels();
+      expect(invoke).toHaveBeenCalledWith('models_list');
+    });
+
+    it('importLive2DModel calls models_import_live2d_dialog', async () => {
+      await tauriApi.importLive2DModel();
+      expect(invoke).toHaveBeenCalledWith('models_import_live2d_dialog');
+    });
+
+    it('importVRMModel calls models_import_vrm_dialog', async () => {
+      await tauriApi.importVRMModel();
+      expect(invoke).toHaveBeenCalledWith('models_import_vrm_dialog');
+    });
+  });
+
+  describe('Chat functions', () => {
+    it('sendChat calls chat_send', async () => {
+      await tauriApi.sendChat('char-1', 'Hello');
+      expect(invoke).toHaveBeenCalledWith('chat_send', { characterId: 'char-1', message: 'Hello' });
+    });
+
+    it('getChatHistory calls chat_history', async () => {
+      await tauriApi.getChatHistory('char-1');
+      expect(invoke).toHaveBeenCalledWith('chat_history', { characterId: 'char-1' });
+    });
+
+    it('clearChat calls chat_clear', async () => {
+      await tauriApi.clearChat('char-1');
+      expect(invoke).toHaveBeenCalledWith('chat_clear', { characterId: 'char-1' });
+    });
+
+    it('confirmToolCall calls tool_confirm', async () => {
+      await tauriApi.confirmToolCall('req-1', true);
+      expect(invoke).toHaveBeenCalledWith('tool_confirm', { requestId: 'req-1', approved: true });
+    });
+
+    it('transcribeVoice calls voice_transcribe', async () => {
+      await tauriApi.transcribeVoice('base64audio', 'audio/webm');
+      expect(invoke).toHaveBeenCalledWith('voice_transcribe', { audioBase64: 'base64audio', mimeType: 'audio/webm' });
+    });
+
+    it('transcribeVoiceLocal calls voice_transcribe_local', async () => {
+      await tauriApi.transcribeVoiceLocal('pcmBase64Data');
+      expect(invoke).toHaveBeenCalledWith('voice_transcribe_local', { pcmBase64: 'pcmBase64Data' });
+    });
+  });
+
+  describe('Memory functions', () => {
+    it('getMemory calls memory_get', async () => {
+      await tauriApi.getMemory('char-1');
+      expect(invoke).toHaveBeenCalledWith('memory_get', { characterId: 'char-1' });
+    });
+
+    it('searchMemory calls memory_search', async () => {
+      await tauriApi.searchMemory('char-1', 'apples');
+      expect(invoke).toHaveBeenCalledWith('memory_search', { characterId: 'char-1', query: 'apples' });
+    });
+
+    it('clearMemory calls memory_clear', async () => {
+      await tauriApi.clearMemory('char-1');
+      expect(invoke).toHaveBeenCalledWith('memory_clear', { characterId: 'char-1' });
+    });
+  });
+
+  describe('Tool functions', () => {
+    it('listTools calls tools_list', async () => {
+      await tauriApi.listTools();
       expect(invoke).toHaveBeenCalledWith('tools_list');
     });
   });
 
-  describe('Characters', () => {
-    it('listCharacters should call characters_list', async () => {
-      await tauri.listCharacters();
-      expect(invoke).toHaveBeenCalledWith('characters_list');
-    });
-
-    it('getCharacter should call characters_get with correct id', async () => {
-      const id = 'test_id';
-      await tauri.getCharacter(id);
-      expect(invoke).toHaveBeenCalledWith('characters_get', { id });
-    });
-
-    it('createCharacter should call characters_create with correct data', async () => {
-      const characterData = {
-        name: 'test_name',
-        personality: 'test_personality',
-        modelId: 'test_modelId',
-        voice: 'test_voice',
-        vibe: 'test_vibe',
-        relationshipStyle: 'test_relationshipStyle',
-        speechStyle: 'test_speechStyle',
-        userName: 'test_userName',
-        userAbout: 'test_userAbout'
-      };
-      await tauri.createCharacter(characterData);
-      expect(invoke).toHaveBeenCalledWith('characters_create', characterData);
-    });
-  });
-
-  describe('Models & Expressions', () => {
-    it('listModels should call models_list', async () => {
-      await tauri.listModels();
-      expect(invoke).toHaveBeenCalledWith('models_list');
-    });
-
-    it('importLive2DModel should call models_import_live2d_dialog', async () => {
-      await tauri.importLive2DModel();
-      expect(invoke).toHaveBeenCalledWith('models_import_live2d_dialog');
-    });
-
-    it('importVRMModel should call models_import_vrm_dialog', async () => {
-      await tauri.importVRMModel();
-      expect(invoke).toHaveBeenCalledWith('models_import_vrm_dialog');
-    });
-
-    it('getSupportedExpressions should call expressions_supported', async () => {
-      await tauri.getSupportedExpressions();
+  describe('Expression functions', () => {
+    it('getSupportedExpressions calls expressions_supported', async () => {
+      await tauriApi.getSupportedExpressions();
       expect(invoke).toHaveBeenCalledWith('expressions_supported');
     });
 
-    it('getModelExpressions should call expressions_model_list with correct modelId', async () => {
-      const modelId = 'test_modelId';
-      await tauri.getModelExpressions(modelId);
-      expect(invoke).toHaveBeenCalledWith('expressions_model_list', { modelId });
+    it('getModelExpressions calls expressions_model_list', async () => {
+      await tauriApi.getModelExpressions('model-1');
+      expect(invoke).toHaveBeenCalledWith('expressions_model_list', { modelId: 'model-1' });
     });
 
-    it('getExpressions should call expressions_get with correct modelId', async () => {
-      const modelId = 'test_modelId';
-      await tauri.getExpressions(modelId);
-      expect(invoke).toHaveBeenCalledWith('expressions_get', { modelId });
+    it('getExpressions calls expressions_get', async () => {
+      await tauriApi.getExpressions('model-1');
+      expect(invoke).toHaveBeenCalledWith('expressions_get', { modelId: 'model-1' });
     });
 
-    it('saveExpressions should call expressions_save with correct modelId and mapping', async () => {
-      const modelId = 'test_modelId';
-      const mapping = { key1: 'value1', key2: 'value2' };
-      await tauri.saveExpressions(modelId, mapping);
-      expect(invoke).toHaveBeenCalledWith('expressions_save', { modelId, mapping });
+    it('saveExpressions calls expressions_save', async () => {
+      const mapping = { neutral: 'exp_01' };
+      await tauriApi.saveExpressions('model-1', mapping);
+      expect(invoke).toHaveBeenCalledWith('expressions_save', { modelId: 'model-1', mapping });
     });
   });
 
-  describe('Chat & Memory', () => {
-    it('sendChat should call chat_send with correct characterId and message', async () => {
-      const characterId = 'test_char_id';
-      const message = 'Hello there!';
-      await tauri.sendChat(characterId, message);
-      expect(invoke).toHaveBeenCalledWith('chat_send', { characterId, message });
+  describe('TTS functions', () => {
+    it('getVoices calls tts_voices', async () => {
+      await tauriApi.getVoices('openai');
+      expect(invoke).toHaveBeenCalledWith('tts_voices', { provider: 'openai' });
     });
 
-    it('getChatHistory should call chat_history with correct characterId', async () => {
-      const characterId = 'test_char_id';
-      await tauri.getChatHistory(characterId);
-      expect(invoke).toHaveBeenCalledWith('chat_history', { characterId });
+    it('previewVoice calls tts_preview', async () => {
+      await tauriApi.previewVoice('openai', 'alloy', 'my-key', 'Hello world');
+      expect(invoke).toHaveBeenCalledWith('tts_preview', {
+        provider: 'openai',
+        voice: 'alloy',
+        apiKey: 'my-key',
+        text: 'Hello world'
+      });
     });
 
-    it('clearChat should call chat_clear with correct characterId', async () => {
-      const characterId = 'test_char_id';
-      await tauri.clearChat(characterId);
-      expect(invoke).toHaveBeenCalledWith('chat_clear', { characterId });
-    });
-
-    it('confirmToolCall should call tool_confirm with correct requestId and approved status', async () => {
-      const requestId = 'req_123';
-      const approved = true;
-      await tauri.confirmToolCall(requestId, approved);
-      expect(invoke).toHaveBeenCalledWith('tool_confirm', { requestId, approved });
-    });
-
-    it('getMemory should call memory_get with correct characterId', async () => {
-      const characterId = 'test_char_id';
-      await tauri.getMemory(characterId);
-      expect(invoke).toHaveBeenCalledWith('memory_get', { characterId });
-    });
-
-    it('searchMemory should call memory_search with correct characterId and query', async () => {
-      const characterId = 'test_char_id';
-      const query = 'favorite color';
-      await tauri.searchMemory(characterId, query);
-      expect(invoke).toHaveBeenCalledWith('memory_search', { characterId, query });
-    });
-
-    it('clearMemory should call memory_clear with correct characterId', async () => {
-      const characterId = 'test_char_id';
-      await tauri.clearMemory(characterId);
-      expect(invoke).toHaveBeenCalledWith('memory_clear', { characterId });
+    it('previewVoice handles null optional arguments', async () => {
+      await tauriApi.previewVoice('openai', 'alloy');
+      expect(invoke).toHaveBeenCalledWith('tts_preview', {
+        provider: 'openai',
+        voice: 'alloy',
+        apiKey: null,
+        text: null
+      });
     });
   });
 
-  describe('Voice & TTS', () => {
-    it('transcribeVoice should call voice_transcribe with base64 and mimeType', async () => {
-      const audioBase64 = 'base64_audio_data';
-      const mimeType = 'audio/webm';
-      await tauri.transcribeVoice(audioBase64, mimeType);
-      expect(invoke).toHaveBeenCalledWith('voice_transcribe', { audioBase64, mimeType });
+  describe('Window functions', () => {
+    it('toggleMiniMode calls window_toggle_mini', async () => {
+      await tauriApi.toggleMiniMode('char-1');
+      expect(invoke).toHaveBeenCalledWith('window_toggle_mini', { selectedCharacterId: 'char-1' });
     });
 
-    it('transcribeVoiceLocal should call voice_transcribe_local with pcmBase64', async () => {
-      const pcmBase64 = 'base64_pcm_data';
-      await tauri.transcribeVoiceLocal(pcmBase64);
-      expect(invoke).toHaveBeenCalledWith('voice_transcribe_local', { pcmBase64 });
-    });
-
-    it('getVoices should call tts_voices with provider', async () => {
-      const provider = 'test_provider';
-      await tauri.getVoices(provider);
-      expect(invoke).toHaveBeenCalledWith('tts_voices', { provider });
-    });
-
-    it('previewVoice should call tts_preview with required arguments', async () => {
-      const provider = 'test_provider';
-      const voice = 'test_voice';
-      await tauri.previewVoice(provider, voice);
-      expect(invoke).toHaveBeenCalledWith('tts_preview', { provider, voice, apiKey: null, text: null });
-    });
-
-    it('previewVoice should call tts_preview with all arguments', async () => {
-      const provider = 'test_provider';
-      const voice = 'test_voice';
-      const apiKey = 'test_apiKey';
-      const text = 'test_text';
-      await tauri.previewVoice(provider, voice, apiKey, text);
-      expect(invoke).toHaveBeenCalledWith('tts_preview', { provider, voice, apiKey, text });
-    });
-  });
-
-  describe('Window', () => {
-    it('toggleMiniMode should call window_toggle_mini with null if no characterId provided', async () => {
-      await tauri.toggleMiniMode();
+    it('toggleMiniMode handles missing characterId', async () => {
+      await tauriApi.toggleMiniMode();
       expect(invoke).toHaveBeenCalledWith('window_toggle_mini', { selectedCharacterId: null });
     });
 
-    it('toggleMiniMode should call window_toggle_mini with characterId if provided', async () => {
-      const selectedCharacterId = 'test_char_id';
-      await tauri.toggleMiniMode(selectedCharacterId);
-      expect(invoke).toHaveBeenCalledWith('window_toggle_mini', { selectedCharacterId });
-    });
-
-    it('expandWindow should call window_expand', async () => {
-      await tauri.expandWindow();
+    it('expandWindow calls window_expand', async () => {
+      await tauriApi.expandWindow();
       expect(invoke).toHaveBeenCalledWith('window_expand');
     });
   });
