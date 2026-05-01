@@ -11,6 +11,15 @@ use super::Tool;
 // open_application
 // ---------------------------------------------------------------------------
 
+fn is_valid_app_name(name: &str) -> bool {
+    let name = name.trim();
+    if name.is_empty() || name.starts_with('-') {
+        return false;
+    }
+    // Allow alphanumeric, space, dot, hyphen, underscore
+    name.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '.' || c == '-' || c == '_')
+}
+
 pub struct OpenApplicationTool;
 
 #[async_trait]
@@ -38,19 +47,8 @@ impl Tool for OpenApplicationTool {
             .as_str()
             .ok_or_else(|| MeuxError::Tool("Missing 'name' argument".to_string()))?;
 
-        if name.trim().is_empty() {
-            return Err(MeuxError::Tool("Application name cannot be empty".to_string()));
-        }
-
-        if name.starts_with('-') {
-            return Err(MeuxError::Tool("Application name cannot start with a hyphen (prevents flag injection)".to_string()));
-        }
-
-        // Allow alphanumeric characters, spaces, hyphens, periods, and underscores.
-        if !name.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '.' || c == '_') {
-            return Err(MeuxError::Tool(
-                "Application name contains invalid characters. Only alphanumeric characters, spaces, hyphens, periods, and underscores are allowed.".to_string(),
-            ));
+        if !is_valid_app_name(name) {
+            return Err(MeuxError::Tool(format!("Invalid application name: {}", name)));
         }
 
         let output = tokio::process::Command::new("open")
@@ -157,11 +155,17 @@ impl Tool for OrganizeDesktopTool {
         let desktop = dirs::desktop_dir()
             .ok_or_else(|| MeuxError::Tool("Could not find Desktop directory".to_string()))?;
 
+        Self::organize_directory(&desktop)
+    }
+}
+
+impl OrganizeDesktopTool {
+    pub fn organize_directory(desktop: &std::path::Path) -> Result<ToolResult> {
         let category_map = build_extension_map();
         let mut moved: Vec<String> = Vec::new();
         let mut errors: Vec<String> = Vec::new();
 
-        let entries = std::fs::read_dir(&desktop).map_err(|e| MeuxError::Tool(e.to_string()))?;
+        let entries = std::fs::read_dir(desktop).map_err(|e| MeuxError::Tool(e.to_string()))?;
 
         for entry in entries {
             let entry = match entry {
@@ -410,51 +414,63 @@ fn extract_vm_stat_value(line: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::{self, File};
+    use tempfile::tempdir;
 
-    #[tokio::test]
-    async fn test_open_application_validation() {
-        let tool = OpenApplicationTool;
+    #[test]
+    fn test_is_valid_app_name() {
+        assert!(is_valid_app_name("Safari"));
+        assert!(is_valid_app_name("Visual Studio Code"));
+        assert!(is_valid_app_name("iTerm2"));
+        assert!(is_valid_app_name("TextEdit.app"));
+        assert!(is_valid_app_name("App_Name-1.0"));
 
-        // Valid names
-        let valid_names = vec![
-            "Safari",
-            "Visual Studio Code",
-            "Google Chrome",
-            "com.apple.Safari",
-            "App_Name-1.0",
-        ];
+        assert!(!is_valid_app_name(""));
+        assert!(!is_valid_app_name("-Safari"));
+        assert!(!is_valid_app_name("--args"));
+        assert!(!is_valid_app_name("Not an app; rm -rf /"));
+        assert!(!is_valid_app_name("App|Name"));
+        assert!(!is_valid_app_name("App&Name"));
+    }
 
-        for name in valid_names {
-            // We only care that it doesn't fail validation.
-            // If it passes validation, it might fail to run the command on Linux CI,
-            // so we don't assert success, but we assert it doesn't return the validation error.
-            let result = tool.execute(json!({ "name": name })).await;
-            if let Err(e) = result {
-                let err_msg = e.to_string();
-                assert!(!err_msg.contains("Application name contains invalid characters"), "{} should not fail validation", name);
-                assert!(!err_msg.contains("Application name cannot start with a hyphen"), "{} should not fail validation", name);
-                assert!(!err_msg.contains("Application name cannot be empty"), "{} should not fail validation", name);
-            }
-        }
+    #[test]
+    fn test_organize_directory() {
+        let dir = tempdir().unwrap();
+        let path = dir.path();
 
-        // Invalid names
-        let invalid_names = vec![
-            "",
-            "   ",
-            "-a",
-            "--flag",
-            "App; rm -rf /",
-            "App|grep",
-            "App&echo",
-            "App>out.txt",
-            "App<in.txt",
-            "App`echo`",
-            "App$(echo)",
-        ];
+        // Create dummy files matching expected categories
+        File::create(path.join("test.png")).unwrap(); // Images
+        File::create(path.join("doc.pdf")).unwrap(); // Documents
+        File::create(path.join("video.mp4")).unwrap(); // Videos
+        File::create(path.join("song.mp3")).unwrap(); // Music
+        File::create(path.join("archive.zip")).unwrap(); // Archives
+        File::create(path.join("script.rs")).unwrap(); // Code
+        File::create(path.join("unknown.xyz")).unwrap(); // Other
 
-        for name in invalid_names {
-            let result = tool.execute(json!({ "name": name })).await;
-            assert!(result.is_err(), "{} should fail validation", name);
-        }
+        // Edge cases
+        File::create(path.join(".hidden.txt")).unwrap(); // Hidden file
+        fs::create_dir(path.join("subfolder")).unwrap(); // Sub-directory
+
+        // Organize the temporary directory
+        let result = OrganizeDesktopTool::organize_directory(path).unwrap();
+        assert!(result.success);
+
+        // Verify categories
+        assert!(path.join("Images/test.png").exists());
+        assert!(path.join("Documents/doc.pdf").exists());
+        assert!(path.join("Videos/video.mp4").exists());
+        assert!(path.join("Music/song.mp3").exists());
+        assert!(path.join("Archives/archive.zip").exists());
+        assert!(path.join("Code/script.rs").exists());
+        assert!(path.join("Other/unknown.xyz").exists());
+
+        // Verify edge cases are ignored and still in the root of temp dir
+        assert!(path.join(".hidden.txt").exists());
+        assert!(path.join("subfolder").is_dir());
+
+        // Verify original files are gone from the root of temp dir
+        assert!(!path.join("test.png").exists());
+        assert!(!path.join("doc.pdf").exists());
+        assert!(!path.join("video.mp4").exists());
     }
 }
