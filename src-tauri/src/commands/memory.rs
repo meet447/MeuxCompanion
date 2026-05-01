@@ -39,8 +39,7 @@ pub fn memory_search(
         .memories
         .list(&character_id, &user_id, None, usize::MAX)
         .map_err(|e| e.to_string())?;
-    let relevant =
-        meux_core::memory::retriever::retrieve_relevant(&query, &all_memories, 4);
+    let relevant = meux_core::memory::retriever::retrieve_relevant(&query, &all_memories, 4);
     let values: Vec<serde_json::Value> = relevant
         .iter()
         .map(|m| serde_json::to_value(m).unwrap_or_default())
@@ -49,10 +48,7 @@ pub fn memory_search(
 }
 
 #[tauri::command]
-pub fn memory_clear(
-    state: State<Arc<AppState>>,
-    character_id: String,
-) -> Result<(), String> {
+pub fn memory_clear(state: State<Arc<AppState>>, character_id: String) -> Result<(), String> {
     let user_id = get_user_id(&state);
     state
         .memories

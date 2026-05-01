@@ -1,6 +1,6 @@
 use crate::AppState;
-use meux_core::character::types::{Character, CharacterSummary, ModelInfo};
 use meux_core::character::slugify;
+use meux_core::character::types::{Character, CharacterSummary, ModelInfo};
 use rfd::FileDialog;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,7 +9,10 @@ use tauri::State;
 
 #[tauri::command]
 pub fn characters_list(state: State<Arc<AppState>>) -> Result<Vec<CharacterSummary>, String> {
-    state.characters.list_characters().map_err(|e| e.to_string())
+    state
+        .characters
+        .list_characters()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -61,7 +64,10 @@ pub async fn models_import_live2d_dialog(
     let data_dir = state.data_dir.clone();
 
     tokio::task::spawn_blocking(move || {
-        let Some(source_dir) = FileDialog::new().set_title("Select Live2D Model Folder").pick_folder() else {
+        let Some(source_dir) = FileDialog::new()
+            .set_title("Select Live2D Model Folder")
+            .pick_folder()
+        else {
             return Ok(None);
         };
 
@@ -91,7 +97,9 @@ pub async fn models_import_live2d_dialog(
             .map_err(|e| e.to_string())?
             .into_iter()
             .find(|model| model.id == imported_id)
-            .ok_or_else(|| "Imported Live2D model was copied but could not be indexed.".to_string())?;
+            .ok_or_else(|| {
+                "Imported Live2D model was copied but could not be indexed.".to_string()
+            })?;
 
         Ok(Some(imported))
     })
