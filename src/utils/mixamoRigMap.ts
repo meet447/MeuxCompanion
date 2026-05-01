@@ -1,0 +1,66 @@
+/**
+ * Maps Mixamo bone names to VRM humanoid bone names.
+ * Used when retargeting Mixamo FBX animations to VRM models.
+ */
+export const mixamoVRMRigMap: Record<string, string> = {
+  mixamorigHips: "hips",
+  mixamorigSpine: "spine",
+  mixamorigSpine1: "chest",
+  mixamorigSpine2: "upperChest",
+  mixamorigNeck: "neck",
+  mixamorigHead: "head",
+
+  mixamorigLeftShoulder: "leftShoulder",
+  mixamorigLeftArm: "leftUpperArm",
+  mixamorigLeftForeArm: "leftLowerArm",
+  mixamorigLeftHand: "leftHand",
+
+  mixamorigRightShoulder: "rightShoulder",
+  mixamorigRightArm: "rightUpperArm",
+  mixamorigRightForeArm: "rightLowerArm",
+  mixamorigRightHand: "rightHand",
+
+  mixamorigLeftUpLeg: "leftUpperLeg",
+  mixamorigLeftLeg: "leftLowerLeg",
+  mixamorigLeftFoot: "leftFoot",
+  mixamorigLeftToeBase: "leftToes",
+
+  mixamorigRightUpLeg: "rightUpperLeg",
+  mixamorigRightLeg: "rightLowerLeg",
+  mixamorigRightFoot: "rightFoot",
+  mixamorigRightToeBase: "rightToes",
+
+  // Fingers — left
+  mixamorigLeftHandThumb1: "leftThumbMetacarpal",
+  mixamorigLeftHandThumb2: "leftThumbProximal",
+  mixamorigLeftHandThumb3: "leftThumbDistal",
+  mixamorigLeftHandIndex1: "leftIndexProximal",
+  mixamorigLeftHandIndex2: "leftIndexIntermediate",
+  mixamorigLeftHandIndex3: "leftIndexDistal",
+  mixamorigLeftHandMiddle1: "leftMiddleProximal",
+  mixamorigLeftHandMiddle2: "leftMiddleIntermediate",
+  mixamorigLeftHandMiddle3: "leftMiddleDistal",
+  mixamorigLeftHandRing1: "leftRingProximal",
+  mixamorigLeftHandRing2: "leftRingIntermediate",
+  mixamorigLeftHandRing3: "leftRingDistal",
+  mixamorigLeftHandPinky1: "leftLittleProximal",
+  mixamorigLeftHandPinky2: "leftLittleIntermediate",
+  mixamorigLeftHandPinky3: "leftLittleDistal",
+
+  // Fingers — right
+  mixamorigRightHandThumb1: "rightThumbMetacarpal",
+  mixamorigRightHandThumb2: "rightThumbProximal",
+  mixamorigRightHandThumb3: "rightThumbDistal",
+  mixamorigRightHandIndex1: "rightIndexProximal",
+  mixamorigRightHandIndex2: "rightIndexIntermediate",
+  mixamorigRightHandIndex3: "rightIndexDistal",
+  mixamorigRightHandMiddle1: "rightMiddleProximal",
+  mixamorigRightHandMiddle2: "rightMiddleIntermediate",
+  mixamorigRightHandMiddle3: "rightMiddleDistal",
+  mixamorigRightHandRing1: "rightRingProximal",
+  mixamorigRightHandRing2: "rightRingIntermediate",
+  mixamorigRightHandRing3: "rightRingDistal",
+  mixamorigRightHandPinky1: "rightLittleProximal",
+  mixamorigRightHandPinky2: "rightLittleIntermediate",
+  mixamorigRightHandPinky3: "rightLittleDistal",
+};
