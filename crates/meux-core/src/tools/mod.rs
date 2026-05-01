@@ -1,7 +1,8 @@
-pub mod types;
+pub mod clipboard;
 pub mod desktop;
 pub mod file_ops;
 pub mod shell;
+pub mod types;
 pub mod web_search;
 
 use std::collections::HashMap;
@@ -38,7 +39,7 @@ impl ToolRegistry {
     }
 
     /// Create a registry with all built-in tools registered.
-    pub fn with_defaults() -> Self {
+    pub fn with_defaults(base_dir: std::path::PathBuf) -> Self {
         let mut registry = Self::new();
         // File tools
         registry.register(Box::new(file_ops::ReadFileTool));
@@ -48,9 +49,9 @@ impl ToolRegistry {
         registry.register(Box::new(file_ops::FindFilesTool));
         registry.register(Box::new(file_ops::EditFileTool));
         registry.register(Box::new(file_ops::MoveFileTool));
-        registry.register(Box::new(file_ops::DeleteFileTool));
+        registry.register(Box::new(file_ops::DeleteFileTool::new(base_dir)));
         // Shell
-        registry.register(Box::new(shell::RunCommandTool));
+        registry.register(Box::new(shell::RunCommandTool::new()));
         // Desktop
         registry.register(Box::new(desktop::OpenApplicationTool));
         registry.register(Box::new(desktop::OpenUrlTool));
@@ -118,7 +119,9 @@ impl ToolRegistry {
 
     /// Get the permission level for a tool by name.
     pub fn permission_level(&self, name: &str) -> Option<PermissionLevel> {
-        self.tools.get(name).map(|t| t.definition().permission_level)
+        self.tools
+            .get(name)
+            .map(|t| t.definition().permission_level)
     }
 
     /// Update the search provider config (called when settings change).

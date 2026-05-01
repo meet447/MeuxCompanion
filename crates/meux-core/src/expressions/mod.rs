@@ -77,11 +77,7 @@ impl ExpressionManager {
 
     /// Save an expression mapping for a model. Creates the mappings directory if needed,
     /// writes pretty JSON, and updates the cache.
-    pub fn save_mapping(
-        &self,
-        model_id: &str,
-        mapping: HashMap<String, String>,
-    ) -> Result<()> {
+    pub fn save_mapping(&self, model_id: &str, mapping: HashMap<String, String>) -> Result<()> {
         std::fs::create_dir_all(&self.mappings_dir)?;
 
         let path = self.mappings_dir.join(format!("{}.json", model_id));
@@ -164,11 +160,7 @@ mod tests {
 
     #[test]
     fn test_validate_expression() {
-        let available = vec![
-            "Happy".to_string(),
-            "Sad".to_string(),
-            "Angry".to_string(),
-        ];
+        let available = vec!["Happy".to_string(), "Sad".to_string(), "Angry".to_string()];
 
         // Case-insensitive match works.
         assert_eq!(

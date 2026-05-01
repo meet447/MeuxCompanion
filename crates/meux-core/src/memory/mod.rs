@@ -25,7 +25,9 @@ pub fn remember_exchange(
     for candidate in &extracted {
         // Deduplicate: skip if an existing memory has the same normalised summary
         let normalised = candidate.summary.to_lowercase();
-        let is_duplicate = existing.iter().any(|m| m.summary.to_lowercase() == normalised);
+        let is_duplicate = existing
+            .iter()
+            .any(|m| m.summary.to_lowercase() == normalised);
         if is_duplicate {
             continue;
         }
