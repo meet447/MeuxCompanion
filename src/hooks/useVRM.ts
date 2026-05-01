@@ -403,8 +403,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
           // Play idle animation if available
           const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
+          const clipKeys = Array.from(clipsRef.current.keys());
           for (const name of idleNames) {
-            const match = [...clipsRef.current.keys()].find(
+            const match = clipKeys.find(
               (k) => k.toLowerCase().includes(name)
             );
             if (match) {
@@ -492,8 +493,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     // Return to idle animation
     const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
+    const clipKeys = Array.from(clipsRef.current.keys());
     for (const name of idleNames) {
-      const match = [...clipsRef.current.keys()].find(
+      const match = clipKeys.find(
         (k) => k.toLowerCase().includes(name)
       );
       if (match) {
