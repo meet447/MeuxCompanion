@@ -111,7 +111,7 @@ const MarkdownContent = memo(({ content }: { content: string }) => (
   </ReactMarkdown>
 ));
 
-function MessageBubble({
+const MessageBubble = memo(function MessageBubble({
   msg,
   characterName,
 }: {
@@ -156,7 +156,7 @@ function MessageBubble({
       </div>
     </div>
   );
-}
+});
 
 export function ChatPanel({
   messages,
