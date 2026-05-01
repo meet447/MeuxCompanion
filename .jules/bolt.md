@@ -1,0 +1,1 @@
+## 2026-05-01 - Prevent Repository Pollution\n**Learning:** When writing scratchpad scripts or temporary files to verify rust commands, they need to be deleted before code review to prevent repository pollution.\n**Action:** Add a step to review git status and remove scratchpads and binaries before finishing the step.
