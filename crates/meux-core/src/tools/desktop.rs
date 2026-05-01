@@ -38,6 +38,21 @@ impl Tool for OpenApplicationTool {
             .as_str()
             .ok_or_else(|| MeuxError::Tool("Missing 'name' argument".to_string()))?;
 
+        if name.trim().is_empty() {
+            return Err(MeuxError::Tool("Application name cannot be empty".to_string()));
+        }
+
+        if name.starts_with('-') {
+            return Err(MeuxError::Tool("Application name cannot start with a hyphen (prevents flag injection)".to_string()));
+        }
+
+        // Allow alphanumeric characters, spaces, hyphens, periods, and underscores.
+        if !name.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '.' || c == '_') {
+            return Err(MeuxError::Tool(
+                "Application name contains invalid characters. Only alphanumeric characters, spaces, hyphens, periods, and underscores are allowed.".to_string(),
+            ));
+        }
+
         let output = tokio::process::Command::new("open")
             .arg("-a")
             .arg(name)
@@ -390,4 +405,56 @@ fn extract_vm_stat_value(line: &str) -> Option<u64> {
         return None;
     }
     parts[1].trim().trim_end_matches('.').parse::<u64>().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_open_application_validation() {
+        let tool = OpenApplicationTool;
+
+        // Valid names
+        let valid_names = vec![
+            "Safari",
+            "Visual Studio Code",
+            "Google Chrome",
+            "com.apple.Safari",
+            "App_Name-1.0",
+        ];
+
+        for name in valid_names {
+            // We only care that it doesn't fail validation.
+            // If it passes validation, it might fail to run the command on Linux CI,
+            // so we don't assert success, but we assert it doesn't return the validation error.
+            let result = tool.execute(json!({ "name": name })).await;
+            if let Err(e) = result {
+                let err_msg = e.to_string();
+                assert!(!err_msg.contains("Application name contains invalid characters"), "{} should not fail validation", name);
+                assert!(!err_msg.contains("Application name cannot start with a hyphen"), "{} should not fail validation", name);
+                assert!(!err_msg.contains("Application name cannot be empty"), "{} should not fail validation", name);
+            }
+        }
+
+        // Invalid names
+        let invalid_names = vec![
+            "",
+            "   ",
+            "-a",
+            "--flag",
+            "App; rm -rf /",
+            "App|grep",
+            "App&echo",
+            "App>out.txt",
+            "App<in.txt",
+            "App`echo`",
+            "App$(echo)",
+        ];
+
+        for name in invalid_names {
+            let result = tool.execute(json!({ "name": name })).await;
+            assert!(result.is_err(), "{} should fail validation", name);
+        }
+    }
 }
