@@ -13,6 +13,12 @@ pub struct WebSearchTool {
     config: Arc<RwLock<SearchConfig>>,
 }
 
+impl Default for WebSearchTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebSearchTool {
     pub fn new() -> Self {
         Self {

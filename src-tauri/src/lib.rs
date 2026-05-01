@@ -65,10 +65,7 @@ fn load_whisper_model(data_dir: &PathBuf) -> Option<Arc<WhisperContext>> {
     for path in &candidates {
         if path.exists() {
             let path_str = path.to_string_lossy().to_string();
-            match WhisperContext::new_with_params(
-                &path_str,
-                WhisperContextParameters::default(),
-            ) {
+            match WhisperContext::new_with_params(&path_str, WhisperContextParameters::default()) {
                 Ok(ctx) => {
                     println!("Whisper model loaded from: {path_str}");
                     return Some(Arc::new(ctx));
