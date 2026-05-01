@@ -114,7 +114,7 @@ impl ExpressionManager {
             .get("neutral")
             .filter(|value| !value.is_empty())
             .cloned()
-            .unwrap_or_else(|| normalized)
+            .unwrap_or(normalized)
     }
 
     /// Validate an expression name against a list of available expressions.

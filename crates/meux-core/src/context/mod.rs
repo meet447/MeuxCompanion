@@ -4,7 +4,7 @@ use crate::llm::types::ChatMessage;
 /// This is a fast heuristic — not exact, but good enough for budget management.
 fn estimate_tokens(text: &str) -> usize {
     // ~4 chars per token on average for English
-    (text.len() + 3) / 4
+    text.len().div_ceil(4)
 }
 
 fn message_tokens(msg: &ChatMessage) -> usize {
@@ -102,7 +102,7 @@ fn find_tool_name_for_result(messages: &[ChatMessage], tool_result_idx: usize) -
 /// If still over budget after dropping all droppable messages, keeps what we have
 /// (the system prompt alone might exceed the budget for very small models).
 pub fn apply_token_budget(messages: &mut Vec<ChatMessage>, max_tokens: usize) {
-    let total = messages.iter().map(|m| message_tokens(m)).sum::<usize>();
+    let total = messages.iter().map(message_tokens).sum::<usize>();
     if total <= max_tokens {
         return;
     }
@@ -121,7 +121,7 @@ pub fn apply_token_budget(messages: &mut Vec<ChatMessage>, max_tokens: usize) {
     // Calculate fixed token cost (system + last user message)
     let system_tokens: usize = messages[..system_count]
         .iter()
-        .map(|m| message_tokens(m))
+        .map(message_tokens)
         .sum();
 
     let last_msg_tokens = if has_user_at_end {
@@ -168,7 +168,7 @@ pub fn apply_token_budget(messages: &mut Vec<ChatMessage>, max_tokens: usize) {
             "[context] trimmed {} messages to fit budget ({} → {} est. tokens)",
             dropped,
             total,
-            messages.iter().map(|m| message_tokens(m)).sum::<usize>()
+            messages.iter().map(message_tokens).sum::<usize>()
         );
     }
 }

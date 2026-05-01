@@ -568,7 +568,7 @@ pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
                         model_file: "model.vrm".to_string(),
                         path: format!("models/vrm/{}/model.vrm", id),
                     });
-                } else if path.extension().map_or(false, |e| e == "vrm") {
+                } else if path.extension().is_some_and(|e| e == "vrm") {
                     let id = path.file_stem().unwrap().to_string_lossy().to_string();
                     let fname = path.file_name().unwrap().to_string_lossy().to_string();
                     models.push(ModelInfo {
