@@ -1,3 +1,7 @@
+## 2023-10-27 - Fast Request Bodies
+**Learning:** `reqwest`'s multipart `Part::bytes` with `Vec<u8>` or `Cow::Owned(Vec)` triggers deep copies when cloned inside a loop. `reqwest` inherently supports `bytes::Bytes` efficiently, but it requires using `Part::stream` instead.
+**Action:** Use `Part::stream(reqwest::Body::from(bytes::Bytes))` for large binary payloads that need to be sent repeatedly, to leverage O(1) atomic reference counting.
+
 ## 2024-05-18 - React Timer Update Batching
 **Learning:** Sequential calls to `setTimeout` within an iteration loop that dispatch independent React state updaters can result in non-batched N renders (especially when delays interact with JS event loop task queue processing or React 18+ automatic batching boundaries like setTimeout). Additionally, inner asynchronous timer effects (`setTimeout` within `setTimeout`) should always be tracked via refs or cleared appropriately, as un-tracked inner timers continue executing their closures containing outdated state captures or force component updates after unmount.
 **Action:** When updating lists of items via intervals/timeouts, collect keys/IDs and perform a single batched timeout state update `setVisible(prev => prev.map(...))` to ensure atomic updates, significantly reducing render counts and memory leaks. Save all timer handles uniformly in refs and clear them on re-render/unmount.
