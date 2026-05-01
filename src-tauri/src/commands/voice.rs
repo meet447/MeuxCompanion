@@ -96,11 +96,10 @@ fn transcription_backends(config: &AppConfig) -> Vec<TranscriptionBackend> {
     backends
 }
 
-fn whisper_transcribe_inner(
-    ctx: &WhisperContext,
-    pcm_samples: &[f32],
-) -> Result<String, String> {
-    let mut state = ctx.create_state().map_err(|e| format!("whisper state: {e}"))?;
+fn whisper_transcribe_inner(ctx: &WhisperContext, pcm_samples: &[f32]) -> Result<String, String> {
+    let mut state = ctx
+        .create_state()
+        .map_err(|e| format!("whisper state: {e}"))?;
 
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     params.set_n_threads(num_cpus());
@@ -160,10 +159,9 @@ pub async fn voice_transcribe_local(
     }
 
     // Clone the context out of state so we can move it into spawn_blocking
-    let ctx = state
-        .whisper_ctx
-        .clone()
-        .ok_or_else(|| "Whisper model not loaded. Place ggml-tiny.bin in models/whisper/".to_string())?;
+    let ctx = state.whisper_ctx.clone().ok_or_else(|| {
+        "Whisper model not loaded. Place ggml-tiny.bin in models/whisper/".to_string()
+    })?;
 
     let text = tokio::task::spawn_blocking(move || whisper_transcribe_inner(&ctx, &pcm_samples))
         .await
@@ -191,9 +189,10 @@ pub async fn voice_transcribe(
         return Err("Configure an LLM provider before using voice input.".to_string());
     }
 
-    let audio_bytes = STANDARD
+    let audio_bytes_vec = STANDARD
         .decode(audio_base64.trim())
         .map_err(|e| format!("Invalid audio payload: {e}"))?;
+    let audio_bytes = bytes::Bytes::from(audio_bytes_vec);
 
     let extension = audio_extension(&mime_type);
     let file_name = format!("voice-input.{extension}");
@@ -205,7 +204,7 @@ pub async fn voice_transcribe(
         let models = transcription_model_candidates(&backend.provider, &backend.base_url);
 
         for model in models {
-            let part = Part::bytes(audio_bytes.clone())
+            let part = Part::stream(reqwest::Body::from(audio_bytes.clone()))
                 .file_name(file_name.clone())
                 .mime_str(&mime_type)
                 .map_err(|e| e.to_string())?;

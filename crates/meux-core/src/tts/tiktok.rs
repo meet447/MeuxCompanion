@@ -1,5 +1,4 @@
-use std::sync::{Mutex, OnceLock};
-use std::time::Instant;
+use std::sync::OnceLock;
 
 use base64::Engine;
 use reqwest::Client;
@@ -173,7 +172,7 @@ pub fn split_text(text: &str, chunk_size: usize) -> Vec<String> {
     let mut current = String::new();
 
     for word in words {
-        if current.len() + word.len() + 1 <= chunk_size {
+        if current.len() + word.len() < chunk_size {
             if !current.is_empty() {
                 current.push(' ');
             }

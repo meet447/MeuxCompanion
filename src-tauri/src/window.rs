@@ -1,16 +1,17 @@
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
-pub fn create_mini_widget(app: &AppHandle, selected_character_id: Option<&str>) -> Result<(), String> {
+pub fn create_mini_widget(
+    app: &AppHandle,
+    selected_character_id: Option<&str>,
+) -> Result<(), String> {
     if app.get_webview_window("mini").is_some() {
         return Ok(());
     }
     let mut query = "index.html?mode=mini".to_string();
     if let Some(character_id) = selected_character_id.filter(|id| !id.is_empty()) {
-        let encoded = percent_encoding::utf8_percent_encode(
-            character_id,
-            percent_encoding::NON_ALPHANUMERIC,
-        )
-        .to_string();
+        let encoded =
+            percent_encoding::utf8_percent_encode(character_id, percent_encoding::NON_ALPHANUMERIC)
+                .to_string();
         query.push_str("&character=");
         query.push_str(&encoded);
     }
@@ -53,11 +54,19 @@ struct ModeChangedEvent {
 }
 
 #[tauri::command]
-pub fn window_toggle_mini(app: AppHandle, selected_character_id: Option<String>) -> Result<(), String> {
+pub fn window_toggle_mini(
+    app: AppHandle,
+    selected_character_id: Option<String>,
+) -> Result<(), String> {
     if app.get_webview_window("mini").is_some() {
         close_mini_widget(&app);
         show_main_window(&app);
-        let _ = app.emit("app:mode-changed", ModeChangedEvent { mode: "full".to_string() });
+        let _ = app.emit(
+            "app:mode-changed",
+            ModeChangedEvent {
+                mode: "full".to_string(),
+            },
+        );
     } else {
         hide_main_window(&app);
         create_mini_widget(&app, selected_character_id.as_deref())?;
@@ -69,7 +78,12 @@ pub fn window_toggle_mini(app: AppHandle, selected_character_id: Option<String>)
 pub fn window_expand(app: AppHandle) -> Result<(), String> {
     close_mini_widget(&app);
     show_main_window(&app);
-    let _ = app.emit("app:mode-changed", ModeChangedEvent { mode: "full".to_string() });
+    let _ = app.emit(
+        "app:mode-changed",
+        ModeChangedEvent {
+            mode: "full".to_string(),
+        },
+    );
     Ok(())
 }
 
