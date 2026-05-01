@@ -93,6 +93,11 @@ impl Tool for OpenUrlTool {
             .as_str()
             .ok_or_else(|| MeuxError::Tool("Missing 'url' argument".to_string()))?;
 
+        let lower_url = url.trim().to_lowercase();
+        if !lower_url.starts_with("http://") && !lower_url.starts_with("https://") {
+            return Err(MeuxError::Tool("Invalid URL scheme. Only http:// and https:// are allowed.".to_string()));
+        }
+
         let output = tokio::process::Command::new("open")
             .arg(url)
             .output()
