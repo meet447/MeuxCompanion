@@ -32,7 +32,7 @@ fn message_tokens(msg: &ChatMessage) -> usize {
 ///
 /// This preserves the conversation structure (the LLM still sees that a tool
 /// was called and returned something) without wasting tokens on the full output.
-pub fn compress_stale_tool_results(messages: &mut Vec<ChatMessage>, recent_tool_turns: usize) {
+pub fn compress_stale_tool_results(messages: &mut [ChatMessage], recent_tool_turns: usize) {
     // Find all tool-result messages (role == "tool") and count from the end
     let tool_indices: Vec<usize> = messages
         .iter()
