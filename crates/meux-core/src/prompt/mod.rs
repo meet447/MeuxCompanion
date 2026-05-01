@@ -89,7 +89,17 @@ mod tests {
         let expr_mgr = ExpressionManager::new(tmp.path());
 
         char_loader
-            .create_character("Test", "A helpful companion", "model1", "jp_001", "friendly", "casual", "natural", "User", "A dev")
+            .create_character(
+                "Test",
+                "A helpful companion",
+                "model1",
+                "jp_001",
+                "friendly",
+                "casual",
+                "natural",
+                "User",
+                "A dev",
+            )
             .unwrap();
 
         let result = build_chat_prompt(
@@ -108,7 +118,10 @@ mod tests {
         assert!(result.messages.len() >= 2); // system + user at minimum
         assert_eq!(result.messages[0].role, "system");
         assert_eq!(result.messages.last().unwrap().role, "user");
-        assert_eq!(result.messages.last().unwrap().content_str(), "Hello there!");
+        assert_eq!(
+            result.messages.last().unwrap().content_str(),
+            "Hello there!"
+        );
         assert!(result.system_prompt.contains("EXPRESSION RULES"));
     }
 }

@@ -1,8 +1,8 @@
 use crate::window;
 use tauri::{
-    AppHandle,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle,
 };
 
 pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
@@ -13,8 +13,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
     let quit =
         MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).map_err(|e| e.to_string())?;
 
-    let menu =
-        Menu::with_items(app, &[&open, &toggle_mini, &quit]).map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(app, &[&open, &toggle_mini, &quit]).map_err(|e| e.to_string())?;
 
     TrayIconBuilder::new()
         .menu(&menu)

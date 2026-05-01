@@ -18,8 +18,9 @@ impl Tool for ReadFileTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "read_file".to_string(),
-            description: "Read the contents of a file. Returns the text content. Limited to ~100KB."
-                .to_string(),
+            description:
+                "Read the contents of a file. Returns the text content. Limited to ~100KB."
+                    .to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -53,11 +54,16 @@ impl Tool for ReadFileTool {
         let metadata = std::fs::metadata(path).map_err(|e| MeuxError::Tool(e.to_string()))?;
         if metadata.len() > 100_000 {
             // Read first 100KB
-            let content = std::fs::read_to_string(path).map_err(|e| MeuxError::Tool(e.to_string()))?;
+            let content =
+                std::fs::read_to_string(path).map_err(|e| MeuxError::Tool(e.to_string()))?;
             let truncated: String = content.chars().take(100_000).collect();
             return Ok(ToolResult {
                 tool_call_id: String::new(),
-                content: format!("{}\n\n[File truncated — showing first 100KB of {}]", truncated, metadata.len()),
+                content: format!(
+                    "{}\n\n[File truncated — showing first 100KB of {}]",
+                    truncated,
+                    metadata.len()
+                ),
                 success: true,
             });
         }
@@ -120,7 +126,9 @@ impl Tool for ListDirectoryTool {
         for entry in read_dir {
             let entry = entry.map_err(|e| MeuxError::Tool(e.to_string()))?;
             let name = entry.file_name().to_string_lossy().to_string();
-            let file_type = entry.file_type().map_err(|e| MeuxError::Tool(e.to_string()))?;
+            let file_type = entry
+                .file_type()
+                .map_err(|e| MeuxError::Tool(e.to_string()))?;
             if file_type.is_dir() {
                 entries.push(format!("{}/", name));
             } else {
@@ -338,7 +346,13 @@ impl Tool for FindFilesTool {
     }
 }
 
-fn find_recursive(dir: &Path, pattern: &str, results: &mut Vec<String>, max: usize, max_depth: usize) {
+fn find_recursive(
+    dir: &Path,
+    pattern: &str,
+    results: &mut Vec<String>,
+    max: usize,
+    max_depth: usize,
+) {
     if results.len() >= max || max_depth == 0 {
         return;
     }
@@ -438,8 +452,8 @@ impl Tool for EditFileTool {
             });
         }
 
-        let content = std::fs::read_to_string(file_path)
-            .map_err(|e| MeuxError::Tool(e.to_string()))?;
+        let content =
+            std::fs::read_to_string(file_path).map_err(|e| MeuxError::Tool(e.to_string()))?;
 
         if !content.contains(find) {
             return Ok(ToolResult {
@@ -456,8 +470,7 @@ impl Tool for EditFileTool {
             (content.replacen(find, replace, 1), 1)
         };
 
-        std::fs::write(file_path, &new_content)
-            .map_err(|e| MeuxError::Tool(e.to_string()))?;
+        std::fs::write(file_path, &new_content).map_err(|e| MeuxError::Tool(e.to_string()))?;
 
         Ok(ToolResult {
             tool_call_id: String::new(),
@@ -576,10 +589,14 @@ impl Tool for DeleteFileTool {
 
         // Security fix: Path Traversal Prevention
         // Canonicalize both the requested path and the base directory to resolve any ".." or symlinks.
-        let canonical_path = path.canonicalize().map_err(|e| MeuxError::Tool(format!("Failed to canonicalize path: {}", e)))?;
+        let canonical_path = path
+            .canonicalize()
+            .map_err(|e| MeuxError::Tool(format!("Failed to canonicalize path: {}", e)))?;
 
         let canonical_base = if self.base_dir.exists() {
-            self.base_dir.canonicalize().map_err(|e| MeuxError::Tool(format!("Failed to canonicalize base_dir: {}", e)))?
+            self.base_dir
+                .canonicalize()
+                .map_err(|e| MeuxError::Tool(format!("Failed to canonicalize base_dir: {}", e)))?
         } else {
             self.base_dir.clone() // Fallback if base_dir doesn't exist (though it should)
         };
@@ -587,7 +604,10 @@ impl Tool for DeleteFileTool {
         if !canonical_path.starts_with(&canonical_base) {
             return Ok(ToolResult {
                 tool_call_id: String::new(),
-                content: format!("Access denied: Path {} is outside the allowed directory.", path.display()),
+                content: format!(
+                    "Access denied: Path {} is outside the allowed directory.",
+                    path.display()
+                ),
                 success: false,
             });
         }

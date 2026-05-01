@@ -35,9 +35,10 @@ impl SessionStore {
         user_id: &str,
         limit: Option<usize>,
     ) -> Result<Vec<SessionMessage>> {
-        let _guard = self._lock.read().map_err(|e| {
-            std::io::Error::other(e.to_string())
-        })?;
+        let _guard = self
+            ._lock
+            .read()
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
 
         let path = self.session_path(character_id, user_id);
         if !path.exists() {
@@ -75,9 +76,10 @@ impl SessionStore {
         content: &str,
         metadata: Option<serde_json::Value>,
     ) -> Result<()> {
-        let _guard = self._lock.write().map_err(|e| {
-            std::io::Error::other(e.to_string())
-        })?;
+        let _guard = self
+            ._lock
+            .write()
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
 
         let path = self.session_path(character_id, user_id);
         if let Some(parent) = path.parent() {
@@ -103,9 +105,10 @@ impl SessionStore {
     }
 
     pub fn clear_history(&self, character_id: &str, user_id: &str) -> Result<()> {
-        let _guard = self._lock.write().map_err(|e| {
-            std::io::Error::other(e.to_string())
-        })?;
+        let _guard = self
+            ._lock
+            .write()
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
 
         let path = self.session_path(character_id, user_id);
         if path.exists() {
