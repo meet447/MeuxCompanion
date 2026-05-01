@@ -1,4 +1,5 @@
 pub mod types;
+pub mod clipboard;
 pub mod desktop;
 pub mod file_ops;
 pub mod shell;
@@ -50,7 +51,7 @@ impl ToolRegistry {
         registry.register(Box::new(file_ops::MoveFileTool));
         registry.register(Box::new(file_ops::DeleteFileTool));
         // Shell
-        registry.register(Box::new(shell::RunCommandTool));
+        registry.register(Box::new(shell::RunCommandTool::new()));
         // Desktop
         registry.register(Box::new(desktop::OpenApplicationTool));
         registry.register(Box::new(desktop::OpenUrlTool));
