@@ -1,4 +1,5 @@
 pub mod types;
+pub mod clipboard;
 pub mod desktop;
 pub mod file_ops;
 pub mod shell;

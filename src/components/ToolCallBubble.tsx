@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 
 interface ToolCallStatus {
   requestId: string;
@@ -74,7 +74,7 @@ const STATUS_CONFIG = {
   },
 };
 
-export function ToolCallBubble({
+export const ToolCallBubble = memo(function ToolCallBubble({
   call,
   onConfirm,
 }: {
@@ -165,6 +165,6 @@ export function ToolCallBubble({
       </div>
     </div>
   );
-}
+});
 
 export type { ToolCallStatus, ConfirmRequest };
