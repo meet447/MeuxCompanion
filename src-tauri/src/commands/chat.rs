@@ -352,6 +352,7 @@ fn emit_sentence_chunk(
     *sentence_index += 1;
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_ready_sentences(
     app: &AppHandle,
     state: &Arc<AppState>,
@@ -392,6 +393,7 @@ fn emit_ready_sentences(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn drain_buffer_sentences(
     app: &AppHandle,
     state: &Arc<AppState>,
@@ -501,17 +503,17 @@ async fn run_chat_stream(
     let model_id = character.live2d_model.clone();
 
     // 2. Build prompt
-    let prompt_result = meux_core::prompt::build_chat_prompt(
-        &state.characters,
-        &state.sessions,
-        &state.memories,
-        &state.expressions,
-        &character_id,
-        &user_id,
-        &message,
-        None,
-        None,
-    )
+    let prompt_result = meux_core::prompt::build_chat_prompt(meux_core::prompt::ChatPromptParams {
+        character_loader: &state.characters,
+        session_store: &state.sessions,
+        memory_store: &state.memories,
+        _expression_manager: &state.expressions,
+        character_id: &character_id,
+        user_id: &user_id,
+        user_message: &message,
+        history_limit: None,
+        memory_limit: None,
+    })
     .map_err(|e| e.to_string())?;
 
     // 3. Create LlmStreamConfig

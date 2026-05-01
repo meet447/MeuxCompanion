@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 use std::sync::RwLock;
@@ -167,7 +168,7 @@ impl MemoryStore {
             }
         }
 
-        memories.sort_by(|a, b| b.ts.cmp(&a.ts));
+        memories.sort_by_key(|m| Reverse(m.ts));
         memories.truncate(limit);
         Ok(memories)
     }
