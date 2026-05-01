@@ -10,7 +10,7 @@ use meux_core::llm::OpenAiCompatClient;
 use meux_core::memory::store::MemoryStore;
 use meux_core::session::SessionStore;
 use meux_core::tools::ToolRegistry;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::Manager;
 use whisper_rs::{WhisperContext, WhisperContextParameters};
@@ -54,7 +54,7 @@ fn resolve_asset_path(state: tauri::State<Arc<AppState>>, path: String) -> Resul
     }
 }
 
-fn load_whisper_model(data_dir: &PathBuf) -> Option<Arc<WhisperContext>> {
+fn load_whisper_model(data_dir: &Path) -> Option<Arc<WhisperContext>> {
     // Search for model in multiple locations
     let candidates = [
         data_dir.join("models/whisper/ggml-tiny.bin"),

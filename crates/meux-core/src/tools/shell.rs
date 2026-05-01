@@ -63,6 +63,12 @@ impl RunCommandTool {
     }
 }
 
+impl Default for RunCommandTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Tool for RunCommandTool {
     fn definition(&self) -> ToolDefinition {
