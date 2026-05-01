@@ -106,7 +106,7 @@ pub fn run() {
                 expressions: ExpressionManager::new(&data_dir),
                 llm: OpenAiCompatClient::new(),
                 whisper_ctx,
-                tool_registry: ToolRegistry::with_defaults(),
+                tool_registry: ToolRegistry::with_defaults(data_dir.clone()),
                 pending_confirmations: DashMap::new(),
                 chat_cancel: std::sync::Mutex::new(None),
             };

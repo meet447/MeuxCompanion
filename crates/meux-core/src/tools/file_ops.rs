@@ -526,7 +526,17 @@ impl Tool for MoveFileTool {
 // delete_file
 // ---------------------------------------------------------------------------
 
-pub struct DeleteFileTool;
+use std::path::PathBuf;
+
+pub struct DeleteFileTool {
+    base_dir: PathBuf,
+}
+
+impl DeleteFileTool {
+    pub fn new(base_dir: PathBuf) -> Self {
+        Self { base_dir }
+    }
+}
 
 #[async_trait]
 impl Tool for DeleteFileTool {
@@ -560,6 +570,24 @@ impl Tool for DeleteFileTool {
             return Ok(ToolResult {
                 tool_call_id: String::new(),
                 content: format!("Path not found: {}", path.display()),
+                success: false,
+            });
+        }
+
+        // Security fix: Path Traversal Prevention
+        // Canonicalize both the requested path and the base directory to resolve any ".." or symlinks.
+        let canonical_path = path.canonicalize().map_err(|e| MeuxError::Tool(format!("Failed to canonicalize path: {}", e)))?;
+
+        let canonical_base = if self.base_dir.exists() {
+            self.base_dir.canonicalize().map_err(|e| MeuxError::Tool(format!("Failed to canonicalize base_dir: {}", e)))?
+        } else {
+            self.base_dir.clone() // Fallback if base_dir doesn't exist (though it should)
+        };
+
+        if !canonical_path.starts_with(&canonical_base) {
+            return Ok(ToolResult {
+                tool_call_id: String::new(),
+                content: format!("Access denied: Path {} is outside the allowed directory.", path.display()),
                 success: false,
             });
         }
