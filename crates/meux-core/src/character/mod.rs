@@ -102,13 +102,13 @@ impl CharacterLoader {
             .ok_or_else(|| MeuxError::CharacterNotFound(character_id.to_string()))?;
 
         let (mtime_path, source_type_tag) = match &source {
-            CharacterSource::Directory { path, .. } => {
-                (path.join("character.yaml"), "directory")
-            }
+            CharacterSource::Directory { path, .. } => (path.join("character.yaml"), "directory"),
             CharacterSource::Markdown { path, .. } => (path.clone(), "markdown"),
         };
 
-        let mtime = fs::metadata(&mtime_path)?.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        let mtime = fs::metadata(&mtime_path)?
+            .modified()
+            .unwrap_or(SystemTime::UNIX_EPOCH);
 
         // Check cache
         {
@@ -210,19 +210,11 @@ impl CharacterLoader {
             let path = entry.path();
             if path.is_dir() {
                 if path.join("character.yaml").exists() {
-                    let id = path
-                        .file_name()
-                        .unwrap()
-                        .to_string_lossy()
-                        .to_string();
+                    let id = path.file_name().unwrap().to_string_lossy().to_string();
                     sources.push(CharacterSource::Directory { id, path });
                 }
             } else if path.extension().map(|e| e == "md").unwrap_or(false) {
-                let id = path
-                    .file_stem()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
+                let id = path.file_stem().unwrap().to_string_lossy().to_string();
                 sources.push(CharacterSource::Markdown { id, path });
             }
         }
@@ -318,7 +310,8 @@ fn build_rules_section(input: &CharacterBlueprintInput<'_>) -> String {
 
 fn build_context_section(input: &CharacterBlueprintInput<'_>) -> String {
     let user_about = if input.user_about.trim().is_empty() {
-        "No personal notes were written yet, so learn the user's rhythms through conversation.".to_string()
+        "No personal notes were written yet, so learn the user's rhythms through conversation."
+            .to_string()
     } else {
         input.user_about.trim().to_string()
     };
@@ -374,7 +367,10 @@ fn load_from_directory(id: &str, dir: &Path) -> Result<Character> {
 
     let read_section = |filename: &str| -> String {
         let p = dir.join(filename);
-        fs::read_to_string(&p).unwrap_or_default().trim().to_string()
+        fs::read_to_string(&p)
+            .unwrap_or_default()
+            .trim()
+            .to_string()
     };
 
     let sections = PromptSections {
@@ -458,11 +454,7 @@ pub fn slugify(value: &str) -> String {
 
 /// Build a full system prompt from character sections and expression list.
 pub fn build_system_prompt(character: &Character, expressions: &[&str]) -> String {
-    build_system_prompt_from_sections(
-        &character.name,
-        &character.prompt_sections,
-        expressions,
-    )
+    build_system_prompt_from_sections(&character.name, &character.prompt_sections, expressions)
 }
 
 fn build_system_prompt_from_sections(
@@ -619,7 +611,12 @@ pub fn get_model_expressions(data_dir: &Path, model_id: &str) -> Result<Vec<Stri
 
     // Try VRM
     let vrm_dir = models_dir.join("vrm").join(model_id);
-    if vrm_dir.exists() || models_dir.join("vrm").join(format!("{}.vrm", model_id)).exists() {
+    if vrm_dir.exists()
+        || models_dir
+            .join("vrm")
+            .join(format!("{}.vrm", model_id))
+            .exists()
+    {
         // VRM models have standard blend shape expressions
         return Ok(vec![
             "happy".to_string(),

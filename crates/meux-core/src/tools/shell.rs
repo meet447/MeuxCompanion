@@ -128,8 +128,6 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-
-
     struct MockCommandRunner {
         result: Result<CommandOutput>,
         // We can track the command that was run if we want, but for these tests
@@ -184,7 +182,10 @@ mod tests {
         let mock_runner = MockCommandRunner::new_success("test output", "", 0);
         let tool = RunCommandTool::with_runner(Box::new(mock_runner));
 
-        let result = tool.execute(json!({"command": "echo 'test output'"})).await.unwrap();
+        let result = tool
+            .execute(json!({"command": "echo 'test output'"}))
+            .await
+            .unwrap();
 
         assert!(result.success);
         assert_eq!(result.content, "Exit code: 0\n\ntest output");
@@ -211,7 +212,10 @@ mod tests {
         let result = tool.execute(json!({"command": "some_cmd"})).await.unwrap();
 
         assert!(!result.success);
-        assert_eq!(result.content, "Exit code: 1\n\nStdout:\nout\n\nStderr:\nerr");
+        assert_eq!(
+            result.content,
+            "Exit code: 1\n\nStdout:\nout\n\nStderr:\nerr"
+        );
     }
 
     #[tokio::test]
@@ -220,11 +224,19 @@ mod tests {
         let mock_runner = MockCommandRunner::new_success(&large_stdout, "", 0);
         let tool = RunCommandTool::with_runner(Box::new(mock_runner));
 
-        let result = tool.execute(json!({"command": "large_output_cmd"})).await.unwrap();
+        let result = tool
+            .execute(json!({"command": "large_output_cmd"}))
+            .await
+            .unwrap();
 
         assert!(result.success);
-        assert!(result.content.ends_with("\n\n[Output truncated — showing first 50KB]"));
-        assert_eq!(result.content.len(), 50000 + "\n\n[Output truncated — showing first 50KB]".len());
+        assert!(result
+            .content
+            .ends_with("\n\n[Output truncated — showing first 50KB]"));
+        assert_eq!(
+            result.content.len(),
+            50000 + "\n\n[Output truncated — showing first 50KB]".len()
+        );
     }
 
     #[tokio::test]

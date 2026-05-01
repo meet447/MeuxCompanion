@@ -73,7 +73,6 @@ impl Tool for ClipboardReadTool {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

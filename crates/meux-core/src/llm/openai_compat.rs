@@ -248,12 +248,9 @@ impl OpenAiCompatClient {
         messages: Vec<ChatMessage>,
         config: &LlmStreamConfig,
     ) -> Result<String> {
-        crate::retry::retry_with_backoff(
-            5,
-            500,
-            crate::retry::is_retryable_llm_error,
-            || self.chat_once(messages.clone(), config),
-        )
+        crate::retry::retry_with_backoff(5, 500, crate::retry::is_retryable_llm_error, || {
+            self.chat_once(messages.clone(), config)
+        })
         .await
     }
 
@@ -287,8 +284,7 @@ impl OpenAiCompatClient {
             return Err(MeuxError::Llm(format!("HTTP {}: {}", status, text)));
         }
 
-        let completion: ChatCompletionResponse =
-            response.json().await.map_err(MeuxError::Http)?;
+        let completion: ChatCompletionResponse = response.json().await.map_err(MeuxError::Http)?;
 
         completion
             .choices

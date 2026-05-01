@@ -1,8 +1,8 @@
-pub mod types;
 pub mod clipboard;
 pub mod desktop;
 pub mod file_ops;
 pub mod shell;
+pub mod types;
 pub mod web_search;
 
 use std::collections::HashMap;
@@ -119,7 +119,9 @@ impl ToolRegistry {
 
     /// Get the permission level for a tool by name.
     pub fn permission_level(&self, name: &str) -> Option<PermissionLevel> {
-        self.tools.get(name).map(|t| t.definition().permission_level)
+        self.tools
+            .get(name)
+            .map(|t| t.definition().permission_level)
     }
 
     /// Update the search provider config (called when settings change).
