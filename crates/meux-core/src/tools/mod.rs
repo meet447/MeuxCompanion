@@ -39,7 +39,7 @@ impl ToolRegistry {
     }
 
     /// Create a registry with all built-in tools registered.
-    pub fn with_defaults() -> Self {
+    pub fn with_defaults(base_dir: std::path::PathBuf) -> Self {
         let mut registry = Self::new();
         // File tools
         registry.register(Box::new(file_ops::ReadFileTool));
@@ -49,7 +49,7 @@ impl ToolRegistry {
         registry.register(Box::new(file_ops::FindFilesTool));
         registry.register(Box::new(file_ops::EditFileTool));
         registry.register(Box::new(file_ops::MoveFileTool));
-        registry.register(Box::new(file_ops::DeleteFileTool));
+        registry.register(Box::new(file_ops::DeleteFileTool::new(base_dir)));
         // Shell
         registry.register(Box::new(shell::RunCommandTool::new()));
         // Desktop
