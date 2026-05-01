@@ -122,9 +122,7 @@ pub enum StreamEvent {
         arguments: String,
     },
     /// Stream finished. finish_reason is "stop" or "tool_calls".
-    Done {
-        finish_reason: String,
-    },
+    Done { finish_reason: String },
 }
 
 // ---------------------------------------------------------------------------

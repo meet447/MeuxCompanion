@@ -44,7 +44,10 @@ impl MemoryStore {
 
     /// Build the directory path for a specific character + user pair.
     fn store_path(&self, character_id: &str, user_id: &str) -> PathBuf {
-        self.data_dir.join(character_id).join(user_id).join("memory")
+        self.data_dir
+            .join(character_id)
+            .join(user_id)
+            .join("memory")
     }
 
     /// Ensure the on-disk directory and empty JSONL files exist.
@@ -103,9 +106,10 @@ impl MemoryStore {
             metadata: serde_json::Value::Object(serde_json::Map::new()),
         };
 
-        let _guard = self._lock.write().map_err(|e| {
-            MeuxError::Memory(format!("Lock poisoned: {e}"))
-        })?;
+        let _guard = self
+            ._lock
+            .write()
+            .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
 
         let dir = self.store_path(character_id, user_id);
         let path = dir.join(Self::filename_for(memory_type));
@@ -134,9 +138,10 @@ impl MemoryStore {
             return Ok(vec![]);
         }
 
-        let _guard = self._lock.read().map_err(|e| {
-            MeuxError::Memory(format!("Lock poisoned: {e}"))
-        })?;
+        let _guard = self
+            ._lock
+            .read()
+            .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
 
         let types_to_read: Vec<&str> = match memory_type {
             Some(mt) => vec![mt],
@@ -184,9 +189,10 @@ impl MemoryStore {
             return Ok(());
         }
 
-        let _guard = self._lock.write().map_err(|e| {
-            MeuxError::Memory(format!("Lock poisoned: {e}"))
-        })?;
+        let _guard = self
+            ._lock
+            .write()
+            .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
 
         let types_to_clear: Vec<&str> = match memory_type {
             Some(mt) => vec![mt],
@@ -214,13 +220,34 @@ mod tests {
         let store = MemoryStore::new(tmp.path().to_path_buf());
 
         store
-            .append("char1", "user1", "semantic", "User likes Rust", 0.9, vec!["preferences".into()])
+            .append(
+                "char1",
+                "user1",
+                "semantic",
+                "User likes Rust",
+                0.9,
+                vec!["preferences".into()],
+            )
             .unwrap();
         store
-            .append("char1", "user1", "episodic", "Discussed project plan", 0.7, vec!["project".into()])
+            .append(
+                "char1",
+                "user1",
+                "episodic",
+                "Discussed project plan",
+                0.7,
+                vec!["project".into()],
+            )
             .unwrap();
         store
-            .append("char1", "user1", "semantic", "User's name is Alice", 1.0, vec!["identity".into()])
+            .append(
+                "char1",
+                "user1",
+                "semantic",
+                "User's name is Alice",
+                1.0,
+                vec!["identity".into()],
+            )
             .unwrap();
 
         // List all
@@ -243,8 +270,12 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let store = MemoryStore::new(tmp.path().to_path_buf());
 
-        store.append("char1", "user1", "semantic", "Fact A", 0.8, vec![]).unwrap();
-        store.append("char1", "user1", "episodic", "Event B", 0.7, vec![]).unwrap();
+        store
+            .append("char1", "user1", "semantic", "Fact A", 0.8, vec![])
+            .unwrap();
+        store
+            .append("char1", "user1", "episodic", "Event B", 0.7, vec![])
+            .unwrap();
 
         // Clear only semantic
         store.clear("char1", "user1", Some("semantic")).unwrap();
