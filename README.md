@@ -1,97 +1,109 @@
 # MeuxCompanion
 
-A local-first AI companion desktop app with Live2D and VRM avatars, layered character writing, persistent memory, and evolving relationship state.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-> **Desktop Port** — This application has been ported from a web app to a standalone desktop application using **Tauri 2**.
+A **local-first** AI companion **desktop app** with Live2D and VRM avatars, layered character writing, persistent memory, and evolving relationship state.
 
-![MeuxCompanion Demo](assets/demo.png)
+> Built with [**Tauri 2**](https://v2.tauri.app/) (Rust + web frontend). Your chats and memory stay on your machine unless you configure external APIs.
 
-## What It Does
+![MeuxCompanion demo](assets/demo.png)
 
-MeuxCompanion is a native desktop application that lets you talk to an anime-style companion through text or voice. It features a high-performance Rust backend for:
+## Table of contents
 
-- **Layered character identity** — written as `.yaml` and `.md` files
-- **Session history** — local persistence of chats
-- **Local long-term memory** — semantic, episodic, and reflection memories
-- **Persistent relationship state** — trust, affection, mood, and energy
-- **Expression-aware streaming** — parse LLM output for emotion tags in real-time
-- **Parallel TTS generation** — high-speed speech synthesis per sentence
-
-## Quick Start
-
-### Prerequisites
-
-- **Node.js 18+**
-- **Rust (Cargo) 1.75+**
-
-### Install & Run
-
-```bash
-git clone https://github.com/meuxtw/MeuxVtuber.git
-cd MeuxVtuber
-
-# Install frontend dependencies
-npm install
-
-# Run the desktop app in development mode
-npm run tauri dev
-```
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Development](#development)
+- [Releases](#releases)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
 
 ## Features
 
-### Companion Core
-- **Layered Characters**: companions are modularly written (`soul.md`, `style.md`, `rules.md`, etc.)
-- **Local Memory**: Semantic and episodic memories stored as local JSONL files.
-- **Relationship State**: Trust and affection evolve over time based on your interactions.
+### Companion core
+
+- **Layered characters** — written as `.yaml` and `.md` files (`soul.md`, `style.md`, `rules.md`, etc.)
+- **Session history** — local persistence of chats
+- **Local long-term memory** — semantic, episodic, and reflection-style memories (local storage)
+- **Relationship state** — trust, affection, mood, and energy evolve over time
+- **Expression-aware streaming** — parses LLM output for emotion tags in real time (`<<expression>>`)
 
 ### Interaction
-- **Streaming Chat**: Real-time text streaming.
-- **Per-sentence Expressions**: Live parsing of `<<expression>>` tags for avatar reaction.
-- **Parallel TTS**: Synthesizes speech segments in parallel for minimal latency.
-- **Voice Input**: Integrated microphone support.
 
-### Avatar System
-- **Live2D**: Support for Cubism models with lip sync and expression mapping.
-- **VRM**: Support for 3D avatars with custom animations.
-- **Mini-Mode**: Toggle a transparent "Mini Widget" that floats on your desktop.
+- **Streaming chat** — real-time text streaming
+- **Parallel TTS** — synthesizes speech segments in parallel for lower latency
+- **Voice input** — microphone capture, VAD, and optional Whisper-based transcription
 
-## Development
+### Avatars
 
-The project is structured as a Tauri monorepo:
+- **Live2D** — Cubism models with lip sync and expression mapping
+- **VRM** — 3D avatars with custom animations
+- **Mini mode** — transparent “mini widget” that can float on your desktop
 
-- `src/`: React frontend (Vite)
-- `src-tauri/`: Tauri Rust core and command handlers
-- `crates/meux-core/`: Shared Rust logic for LLM, TTS, and memory
+## Quick start
+
+### Prerequisites
+
+- **Node.js** 18 or newer
+- **Rust** stable with **Cargo** (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
+- **Linux:** WebKitGTK and related dev packages (the same set [used in CI](.github/workflows/release.yml) is a good reference)
+
+### Install and run (development)
 
 ```bash
-# Start development server
+git clone https://github.com/meet447/MeuxCompanion.git
+cd MeuxCompanion
+npm install
 npm run tauri dev
 ```
 
-## Providers
+### Production build
 
-### LLM
-Uses the OpenAI SDK protocol against any compatible endpoint (OpenAI, Groq, Ollama, OpenRouter, etc.).
+```bash
+npm run tauri build
+```
 
-### TTS
-Supports multiple providers including:
-- **TikTok TTS**: Local-friendly, no API key required.
-- **ElevenLabs**: High-quality neural voices.
-- **OpenAI TTS**: Native OpenAI voice support.
+## Providers (optional)
 
-## Project Structure
+You choose which remote services to use, if any:
+
+- **LLM** — OpenAI-compatible HTTP APIs (OpenAI, Groq, Ollama, OpenRouter, and similar). Configure endpoints and keys in the app; nothing is sent until you set this up.
+- **TTS** — includes options such as local-friendly TikTok TTS (no key), ElevenLabs, and OpenAI TTS, depending on your configuration.
+
+## Project structure
 
 ```text
 MeuxCompanion/
-├── src/                # React / Vite Frontend
-├── src-tauri/          # Tauri Rust App
-├── crates/             # Shared Rust logic
-│   └── meux-core/      # Core logic (LLM, Memory, State)
-├── characters/         # Local companion profiles
-├── models/             # Live2D and VRM models
-└── data/               # Persistent session and memory data
+├── src/                 # React (Vite) frontend
+├── src-tauri/           # Tauri shell and Rust commands
+├── crates/meux-core/    # Shared Rust logic (LLM, memory, state, …)
+├── characters/          # Local companion profiles
+├── models/              # Live2D and VRM assets
+└── data/                # Local session and memory data (created at runtime)
 ```
+
+## Development
+
+```bash
+npm run tauri dev    # desktop app + hot reload
+npm run dev          # Vite frontend only (without Tauri shell)
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how we handle issues, pull requests, and code review.
+
+## Releases
+
+Tagged releases are built with [GitHub Actions](.github/workflows/release.yml). Maintainers publish draft GitHub Releases from CI artifacts when ready.
+
+## Contributing
+
+We welcome issues and pull requests. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before participating.
+
+## Security
+
+If you discover a security vulnerability in **this repository**, please follow [SECURITY.md](SECURITY.md) so we can address it responsibly.
 
 ## License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).
