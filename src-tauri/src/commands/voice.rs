@@ -96,11 +96,10 @@ fn transcription_backends(config: &AppConfig) -> Vec<TranscriptionBackend> {
     backends
 }
 
-fn whisper_transcribe_inner(
-    ctx: &WhisperContext,
-    pcm_samples: &[f32],
-) -> Result<String, String> {
-    let mut state = ctx.create_state().map_err(|e| format!("whisper state: {e}"))?;
+fn whisper_transcribe_inner(ctx: &WhisperContext, pcm_samples: &[f32]) -> Result<String, String> {
+    let mut state = ctx
+        .create_state()
+        .map_err(|e| format!("whisper state: {e}"))?;
 
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     params.set_n_threads(num_cpus());
@@ -160,10 +159,9 @@ pub async fn voice_transcribe_local(
     }
 
     // Clone the context out of state so we can move it into spawn_blocking
-    let ctx = state
-        .whisper_ctx
-        .clone()
-        .ok_or_else(|| "Whisper model not loaded. Place ggml-tiny.bin in models/whisper/".to_string())?;
+    let ctx = state.whisper_ctx.clone().ok_or_else(|| {
+        "Whisper model not loaded. Place ggml-tiny.bin in models/whisper/".to_string()
+    })?;
 
     let text = tokio::task::spawn_blocking(move || whisper_transcribe_inner(&ctx, &pcm_samples))
         .await

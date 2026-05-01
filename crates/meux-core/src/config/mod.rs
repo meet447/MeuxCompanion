@@ -230,10 +230,7 @@ impl ConfigManager {
         for (name, preset) in LLM_PRESETS {
             let configured = if let Some(provider_cfg) = config.llm_providers.get(*name) {
                 if preset.needs_key {
-                    provider_cfg
-                        .api_key
-                        .as_ref()
-                        .is_some_and(|k| !k.is_empty())
+                    provider_cfg.api_key.as_ref().is_some_and(|k| !k.is_empty())
                 } else {
                     true
                 }
@@ -249,10 +246,7 @@ impl ConfigManager {
         for (name, preset) in TTS_PRESETS {
             let configured = if let Some(provider_cfg) = config.tts_providers.get(*name) {
                 if preset.needs_key {
-                    provider_cfg
-                        .api_key
-                        .as_ref()
-                        .is_some_and(|k| !k.is_empty())
+                    provider_cfg.api_key.as_ref().is_some_and(|k| !k.is_empty())
                 } else {
                     true
                 }

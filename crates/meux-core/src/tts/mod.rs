@@ -38,12 +38,9 @@ async fn generate_tts_once(text: &str, config: &TtsConfig) -> Result<Vec<u8>> {
 
 /// Generate TTS audio with retry (up to 2 retries with exponential backoff).
 pub async fn generate_tts_auto(text: &str, config: &TtsConfig) -> Result<Vec<u8>> {
-    crate::retry::retry_with_backoff(
-        2,
-        500,
-        crate::retry::is_retryable_tts_error,
-        || generate_tts_once(text, config),
-    )
+    crate::retry::retry_with_backoff(2, 500, crate::retry::is_retryable_tts_error, || {
+        generate_tts_once(text, config)
+    })
     .await
 }
 

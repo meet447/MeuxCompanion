@@ -17,7 +17,8 @@ fn is_valid_app_name(name: &str) -> bool {
         return false;
     }
     // Allow alphanumeric, space, dot, hyphen, underscore
-    name.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '.' || c == '-' || c == '_')
+    name.chars()
+        .all(|c| c.is_alphanumeric() || c == ' ' || c == '.' || c == '-' || c == '_')
 }
 
 pub struct OpenApplicationTool;
@@ -48,7 +49,10 @@ impl Tool for OpenApplicationTool {
             .ok_or_else(|| MeuxError::Tool("Missing 'name' argument".to_string()))?;
 
         if !is_valid_app_name(name) {
-            return Err(MeuxError::Tool(format!("Invalid application name: {}", name)));
+            return Err(MeuxError::Tool(format!(
+                "Invalid application name: {}",
+                name
+            )));
         }
 
         let output = tokio::process::Command::new("open")
@@ -108,7 +112,9 @@ impl Tool for OpenUrlTool {
 
         let lower_url = url.trim().to_lowercase();
         if !lower_url.starts_with("http://") && !lower_url.starts_with("https://") {
-            return Err(MeuxError::Tool("Invalid URL scheme. Only http:// and https:// are allowed.".to_string()));
+            return Err(MeuxError::Tool(
+                "Invalid URL scheme. Only http:// and https:// are allowed.".to_string(),
+            ));
         }
 
         let output = tokio::process::Command::new("open")
@@ -193,10 +199,7 @@ impl OrganizeDesktopTool {
                 .map(|e| e.to_string_lossy().to_lowercase())
                 .unwrap_or_default();
 
-            let category = category_map
-                .get(ext.as_str())
-                .cloned()
-                .unwrap_or("Other");
+            let category = category_map.get(ext.as_str()).cloned().unwrap_or("Other");
 
             let target_dir = desktop.join(category);
             if let Err(e) = std::fs::create_dir_all(&target_dir) {
@@ -246,11 +249,16 @@ impl OrganizeDesktopTool {
 fn build_extension_map() -> HashMap<&'static str, &'static str> {
     let mut m = HashMap::new();
     // Images
-    for ext in &["png", "jpg", "jpeg", "gif", "bmp", "svg", "webp", "ico", "tiff", "heic"] {
+    for ext in &[
+        "png", "jpg", "jpeg", "gif", "bmp", "svg", "webp", "ico", "tiff", "heic",
+    ] {
         m.insert(*ext, "Images");
     }
     // Documents
-    for ext in &["pdf", "doc", "docx", "txt", "rtf", "odt", "xls", "xlsx", "ppt", "pptx", "csv", "md", "pages", "numbers", "key"] {
+    for ext in &[
+        "pdf", "doc", "docx", "txt", "rtf", "odt", "xls", "xlsx", "ppt", "pptx", "csv", "md",
+        "pages", "numbers", "key",
+    ] {
         m.insert(*ext, "Documents");
     }
     // Videos
@@ -266,7 +274,10 @@ fn build_extension_map() -> HashMap<&'static str, &'static str> {
         m.insert(*ext, "Archives");
     }
     // Code
-    for ext in &["rs", "py", "js", "ts", "jsx", "tsx", "html", "css", "json", "yaml", "yml", "toml", "sh", "go", "java", "c", "cpp", "h", "swift"] {
+    for ext in &[
+        "rs", "py", "js", "ts", "jsx", "tsx", "html", "css", "json", "yaml", "yml", "toml", "sh",
+        "go", "java", "c", "cpp", "h", "swift",
+    ] {
         m.insert(*ext, "Code");
     }
     m

@@ -123,10 +123,16 @@ async fn generate_audio(text: &str, voice: &str, endpoint: &str) -> Result<Vec<u
         .await
         .map_err(|e| MeuxError::Tts(format!("TikTok TTS request failed: {e}")))?;
 
-    eprintln!("[TTS] Response status: {}, url: {}", resp.status(), resp.url());
+    eprintln!(
+        "[TTS] Response status: {}, url: {}",
+        resp.status(),
+        resp.url()
+    );
 
     // Don't check status code — just read body like the Python version
-    let bytes = resp.bytes().await
+    let bytes = resp
+        .bytes()
+        .await
         .map_err(|e| MeuxError::Tts(format!("TikTok TTS read error: {e}")))?;
 
     eprintln!("[TTS] Response body size: {} bytes", bytes.len());
@@ -136,7 +142,12 @@ async fn generate_audio(text: &str, voice: &str, endpoint: &str) -> Result<Vec<u
 
 fn extract_base64(audio_response: &[u8], endpoint_index: usize) -> Result<String> {
     let body_preview = String::from_utf8_lossy(&audio_response[..audio_response.len().min(200)]);
-    eprintln!("[TTS] Endpoint {} response ({} bytes): {}", endpoint_index, audio_response.len(), body_preview);
+    eprintln!(
+        "[TTS] Endpoint {} response ({} bytes): {}",
+        endpoint_index,
+        audio_response.len(),
+        body_preview
+    );
 
     let data: Value = serde_json::from_slice(audio_response)
         .map_err(|e| MeuxError::Tts(format!("TTS JSON parse error: {e}")))?;
