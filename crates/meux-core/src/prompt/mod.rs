@@ -15,37 +15,42 @@ pub struct ChatPromptResult {
     pub memory_prompt: String,
 }
 
-pub fn build_chat_prompt(
-    character_loader: &CharacterLoader,
-    session_store: &SessionStore,
-    memory_store: &MemoryStore,
-    _expression_manager: &ExpressionManager,
-    character_id: &str,
-    user_id: &str,
-    user_message: &str,
-    history_limit: Option<usize>,
-    memory_limit: Option<usize>,
-) -> Result<ChatPromptResult> {
-    let history_limit = history_limit.unwrap_or(DEFAULT_HISTORY_LIMIT);
-    let memory_limit = memory_limit.unwrap_or(DEFAULT_MEMORY_LIMIT);
+/// Inputs for [`build_chat_prompt`] (keeps the public API readable for Clippy).
+pub struct ChatPromptParams<'a> {
+    pub character_loader: &'a CharacterLoader,
+    pub session_store: &'a SessionStore,
+    pub memory_store: &'a MemoryStore,
+    pub _expression_manager: &'a ExpressionManager,
+    pub character_id: &'a str,
+    pub user_id: &'a str,
+    pub user_message: &'a str,
+    pub history_limit: Option<usize>,
+    pub memory_limit: Option<usize>,
+}
+
+pub fn build_chat_prompt(p: ChatPromptParams<'_>) -> Result<ChatPromptResult> {
+    let history_limit = p.history_limit.unwrap_or(DEFAULT_HISTORY_LIMIT);
+    let memory_limit = p.memory_limit.unwrap_or(DEFAULT_MEMORY_LIMIT);
 
     // 1. Load character
-    let char_data = character_loader.load_character(character_id)?;
+    let char_data = p.character_loader.load_character(p.character_id)?;
 
     // 2. Build system prompt with global expressions
     let global_exprs: Vec<&str> = GLOBAL_EXPRESSIONS.to_vec();
     let system_prompt = character::build_system_prompt(&char_data, &global_exprs);
 
     // 3. Ensure memory store exists, list all memories, retrieve relevant ones
-    let _ = memory_store.ensure_store(character_id, user_id);
-    let all_memories = memory_store.list(character_id, user_id, None, 100)?;
-    let relevant = retriever::retrieve_relevant(user_message, &all_memories, memory_limit);
+    let _ = p.memory_store.ensure_store(p.character_id, p.user_id);
+    let all_memories = p.memory_store.list(p.character_id, p.user_id, None, 100)?;
+    let relevant = retriever::retrieve_relevant(p.user_message, &all_memories, memory_limit);
 
     // 4. Format memory prompt
     let memory_prompt = retriever::format_memory_prompt(&relevant);
 
     // 5. Load session history
-    let history = session_store.load_history(character_id, user_id, Some(history_limit))?;
+    let history = p
+        .session_store
+        .load_history(p.character_id, p.user_id, Some(history_limit))?;
 
     // 6. Assemble messages array
     let mut messages = Vec::new();
@@ -66,7 +71,7 @@ pub fn build_chat_prompt(
     }
 
     // Current user message
-    messages.push(ChatMessage::text("user", user_message));
+    messages.push(ChatMessage::text("user", p.user_message));
 
     Ok(ChatPromptResult {
         messages,
@@ -102,17 +107,17 @@ mod tests {
             )
             .unwrap();
 
-        let result = build_chat_prompt(
-            &char_loader,
-            &session_store,
-            &memory_store,
-            &expr_mgr,
-            "test",
-            "default-user",
-            "Hello there!",
-            None,
-            None,
-        )
+        let result = build_chat_prompt(ChatPromptParams {
+            character_loader: &char_loader,
+            session_store: &session_store,
+            memory_store: &memory_store,
+            _expression_manager: &expr_mgr,
+            character_id: "test",
+            user_id: "default-user",
+            user_message: "Hello there!",
+            history_limit: None,
+            memory_limit: None,
+        })
         .unwrap();
 
         assert!(result.messages.len() >= 2); // system + user at minimum
