@@ -16,7 +16,9 @@ fn message_tokens(msg: &ChatMessage) -> usize {
         .map(|calls| {
             calls
                 .iter()
-                .map(|tc| estimate_tokens(&tc.function.name) + estimate_tokens(&tc.function.arguments))
+                .map(|tc| {
+                    estimate_tokens(&tc.function.name) + estimate_tokens(&tc.function.arguments)
+                })
                 .sum::<usize>()
         })
         .unwrap_or(0);
@@ -57,10 +59,8 @@ pub fn compress_stale_tool_results(messages: &mut Vec<ChatMessage>, recent_tool_
                 format!("{} chars", content_len)
             };
             let summary = format!("[tool result: {} returned {}]", tool_name, size_label);
-            messages[idx] = ChatMessage::tool_result(
-                msg.tool_call_id.as_deref().unwrap_or(""),
-                &summary,
-            );
+            messages[idx] =
+                ChatMessage::tool_result(msg.tool_call_id.as_deref().unwrap_or(""), &summary);
         }
     }
 }
@@ -108,21 +108,12 @@ pub fn apply_token_budget(messages: &mut Vec<ChatMessage>, max_tokens: usize) {
     }
 
     // Separate: system messages (front), droppable middle, last user message
-    let system_count = messages
-        .iter()
-        .take_while(|m| m.role == "system")
-        .count();
+    let system_count = messages.iter().take_while(|m| m.role == "system").count();
 
-    let has_user_at_end = messages
-        .last()
-        .map(|m| m.role == "user")
-        .unwrap_or(false);
+    let has_user_at_end = messages.last().map(|m| m.role == "user").unwrap_or(false);
 
     // Calculate fixed token cost (system + last user message)
-    let system_tokens: usize = messages[..system_count]
-        .iter()
-        .map(message_tokens)
-        .sum();
+    let system_tokens: usize = messages[..system_count].iter().map(message_tokens).sum();
 
     let last_msg_tokens = if has_user_at_end {
         message_tokens(messages.last().unwrap())

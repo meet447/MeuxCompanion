@@ -37,9 +37,7 @@ impl Tool for WebSearchTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "web_search".to_string(),
-            description:
-                "Search the internet and return a summary of the top results."
-                    .to_string(),
+            description: "Search the internet and return a summary of the top results.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -71,7 +69,12 @@ impl Tool for WebSearchTool {
                     .serp_api_key
                     .as_deref()
                     .filter(|k| !k.is_empty())
-                    .ok_or_else(|| MeuxError::Tool("SerpAPI key not configured. Go to Settings → Web Search to add it.".to_string()))?;
+                    .ok_or_else(|| {
+                        MeuxError::Tool(
+                            "SerpAPI key not configured. Go to Settings → Web Search to add it."
+                                .to_string(),
+                        )
+                    })?;
                 search_serpapi(query, api_key).await
             }
             "exa" => {
@@ -79,7 +82,12 @@ impl Tool for WebSearchTool {
                     .exa_api_key
                     .as_deref()
                     .filter(|k| !k.is_empty())
-                    .ok_or_else(|| MeuxError::Tool("Exa API key not configured. Go to Settings → Web Search to add it.".to_string()))?;
+                    .ok_or_else(|| {
+                        MeuxError::Tool(
+                            "Exa API key not configured. Go to Settings → Web Search to add it."
+                                .to_string(),
+                        )
+                    })?;
                 search_exa(query, api_key).await
             }
             _ => search_duckduckgo(query).await,
@@ -184,7 +192,13 @@ async fn search_serpapi(query: &str, api_key: &str) -> Result<ToolResult> {
             let title = result.get("title").and_then(|t| t.as_str()).unwrap_or("");
             let link = result.get("link").and_then(|l| l.as_str()).unwrap_or("");
             let snippet = result.get("snippet").and_then(|s| s.as_str()).unwrap_or("");
-            output.push_str(&format!("{}. {}\n   {}\n   {}\n\n", i + 1, title, link, snippet));
+            output.push_str(&format!(
+                "{}. {}\n   {}\n   {}\n\n",
+                i + 1,
+                title,
+                link,
+                snippet
+            ));
         }
     }
 
@@ -247,7 +261,13 @@ async fn search_exa(query: &str, api_key: &str) -> Result<ToolResult> {
             let title = result.get("title").and_then(|t| t.as_str()).unwrap_or("");
             let url = result.get("url").and_then(|u| u.as_str()).unwrap_or("");
             let text = result.get("text").and_then(|t| t.as_str()).unwrap_or("");
-            output.push_str(&format!("{}. {}\n   {}\n   {}\n\n", i + 1, title, url, text));
+            output.push_str(&format!(
+                "{}. {}\n   {}\n   {}\n\n",
+                i + 1,
+                title,
+                url,
+                text
+            ));
         }
     }
 

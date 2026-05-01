@@ -47,18 +47,24 @@ export function MiniFloatingMessages({ messages, streamingText, isStreaming }: P
     }
     fadeTimers.current.clear();
 
-    // Set fade timers for each message
-    for (const msg of newVisible) {
+    if (newVisible.length > 0) {
+      // Batch set fade timers for the new messages
+      const keysToFade = new Set(newVisible.map((m) => m.key));
+
       const timer = setTimeout(() => {
         setVisible((prev) =>
-          prev.map((m) => (m.key === msg.key ? { ...m, fading: true } : m)),
+          prev.map((m) => (keysToFade.has(m.key) ? { ...m, fading: true } : m)),
         );
+
         // Remove after fade animation completes
-        setTimeout(() => {
-          setVisible((prev) => prev.filter((m) => m.key !== msg.key));
+        const removeTimer = setTimeout(() => {
+          setVisible((prev) => prev.filter((m) => !keysToFade.has(m.key)));
         }, 500);
+
+        fadeTimers.current.set('remove-batch', removeTimer);
       }, FADE_AFTER_MS);
-      fadeTimers.current.set(msg.key, timer);
+
+      fadeTimers.current.set('fade-batch', timer);
     }
 
     return () => {

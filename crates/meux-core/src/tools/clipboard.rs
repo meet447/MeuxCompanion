@@ -73,6 +73,51 @@ impl Tool for ClipboardReadTool {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn test_clipboard_read_definition() {
+        let tool = ClipboardReadTool;
+        let def = tool.definition();
+
+        assert_eq!(def.name, "clipboard_read");
+        assert_eq!(def.permission_level, PermissionLevel::Safe);
+        assert_eq!(def.parameters["type"], "object");
+        assert!(def.parameters["required"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_clipboard_write_definition() {
+        let tool = ClipboardWriteTool;
+        let def = tool.definition();
+
+        assert_eq!(def.name, "clipboard_write");
+        assert_eq!(def.permission_level, PermissionLevel::Cautious);
+        assert_eq!(def.parameters["type"], "object");
+
+        let required = def.parameters["required"].as_array().unwrap();
+        assert_eq!(required.len(), 1);
+        assert_eq!(required[0].as_str().unwrap(), "content");
+    }
+
+    #[tokio::test]
+    async fn test_clipboard_write_missing_content() {
+        let tool = ClipboardWriteTool;
+        let args = json!({});
+
+        let result = tool.execute(args).await;
+        assert!(result.is_err());
+        if let Err(MeuxError::Tool(msg)) = result {
+            assert_eq!(msg, "Missing 'content' argument");
+        } else {
+            panic!("Expected Tool error with missing content message");
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // clipboard_write
 // ---------------------------------------------------------------------------

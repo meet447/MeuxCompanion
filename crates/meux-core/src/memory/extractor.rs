@@ -11,18 +11,16 @@ pub struct ExtractedMemory {
 
 /// Common English stopwords filtered during tokenisation.
 const STOPWORDS: &[&str] = &[
-    "a", "an", "the", "is", "am", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
-    "may", "might", "shall", "can", "need", "dare", "ought", "used", "to", "of",
-    "in", "for", "on", "with", "at", "by", "from", "as", "into", "through",
-    "during", "before", "after", "above", "below", "between", "out", "off", "over",
-    "under", "again", "further", "then", "once", "here", "there", "when", "where",
-    "why", "how", "all", "each", "every", "both", "few", "more", "most", "other",
-    "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
-    "too", "very", "just", "because", "but", "and", "or", "if", "while", "about",
-    "up", "it", "its", "i", "me", "my", "myself", "we", "our", "you", "your",
-    "he", "him", "his", "she", "her", "they", "them", "their", "what", "which",
-    "who", "this", "that", "these", "those",
+    "a", "an", "the", "is", "am", "are", "was", "were", "be", "been", "being", "have", "has",
+    "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "shall", "can",
+    "need", "dare", "ought", "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+    "as", "into", "through", "during", "before", "after", "above", "below", "between", "out",
+    "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where",
+    "why", "how", "all", "each", "every", "both", "few", "more", "most", "other", "some", "such",
+    "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "just", "because",
+    "but", "and", "or", "if", "while", "about", "up", "it", "its", "i", "me", "my", "myself", "we",
+    "our", "you", "your", "he", "him", "his", "she", "her", "they", "them", "their", "what",
+    "which", "who", "this", "that", "these", "those",
 ];
 
 /// Extract candidate memories from a user message using heuristic patterns.
@@ -230,7 +228,9 @@ mod tests {
     fn test_extract_preference() {
         let mems = extract_memories("I like dark themes. I love Rust programming.");
         assert_eq!(mems.len(), 2);
-        assert!(mems.iter().all(|m| m.tags.contains(&"preferences".to_string())));
+        assert!(mems
+            .iter()
+            .all(|m| m.tags.contains(&"preferences".to_string())));
     }
 
     #[test]

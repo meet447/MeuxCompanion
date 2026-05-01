@@ -46,8 +46,7 @@ pub fn retrieve_relevant(query: &str, memories: &[Memory], limit: usize) -> Vec<
             let age_days = (now - mem.ts).num_seconds().max(0) as f64 / 86400.0;
             let recency_bonus = (0.3 - (age_days / 365.0).min(0.3)).max(0.0);
 
-            let score =
-                token_overlap * 1.6 + tag_overlap * 1.2 + mem.importance + recency_bonus;
+            let score = token_overlap * 1.6 + tag_overlap * 1.2 + mem.importance + recency_bonus;
 
             (score, mem)
         })
@@ -91,8 +90,18 @@ mod tests {
     #[test]
     fn test_retrieve_relevant() {
         let memories = vec![
-            make_memory("User likes Rust programming", "semantic", 0.8, vec!["preferences"]),
-            make_memory("User deployed the API server", "episodic", 0.68, vec!["project_context"]),
+            make_memory(
+                "User likes Rust programming",
+                "semantic",
+                0.8,
+                vec!["preferences"],
+            ),
+            make_memory(
+                "User deployed the API server",
+                "episodic",
+                0.68,
+                vec!["project_context"],
+            ),
             make_memory("User's name is Alice", "semantic", 1.0, vec!["identity"]),
         ];
 
