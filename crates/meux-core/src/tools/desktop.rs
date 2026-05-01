@@ -12,6 +12,7 @@ use super::Tool;
 // ---------------------------------------------------------------------------
 
 fn is_valid_app_name(name: &str) -> bool {
+    let name = name.trim();
     if name.is_empty() || name.starts_with('-') {
         return false;
     }
@@ -154,11 +155,17 @@ impl Tool for OrganizeDesktopTool {
         let desktop = dirs::desktop_dir()
             .ok_or_else(|| MeuxError::Tool("Could not find Desktop directory".to_string()))?;
 
+        Self::organize_directory(&desktop)
+    }
+}
+
+impl OrganizeDesktopTool {
+    pub fn organize_directory(desktop: &std::path::Path) -> Result<ToolResult> {
         let category_map = build_extension_map();
         let mut moved: Vec<String> = Vec::new();
         let mut errors: Vec<String> = Vec::new();
 
-        let entries = std::fs::read_dir(&desktop).map_err(|e| MeuxError::Tool(e.to_string()))?;
+        let entries = std::fs::read_dir(desktop).map_err(|e| MeuxError::Tool(e.to_string()))?;
 
         for entry in entries {
             let entry = match entry {
@@ -407,6 +414,8 @@ fn extract_vm_stat_value(line: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::{self, File};
+    use tempfile::tempdir;
 
     #[test]
     fn test_is_valid_app_name() {
@@ -422,5 +431,46 @@ mod tests {
         assert!(!is_valid_app_name("Not an app; rm -rf /"));
         assert!(!is_valid_app_name("App|Name"));
         assert!(!is_valid_app_name("App&Name"));
+    }
+
+    #[test]
+    fn test_organize_directory() {
+        let dir = tempdir().unwrap();
+        let path = dir.path();
+
+        // Create dummy files matching expected categories
+        File::create(path.join("test.png")).unwrap(); // Images
+        File::create(path.join("doc.pdf")).unwrap(); // Documents
+        File::create(path.join("video.mp4")).unwrap(); // Videos
+        File::create(path.join("song.mp3")).unwrap(); // Music
+        File::create(path.join("archive.zip")).unwrap(); // Archives
+        File::create(path.join("script.rs")).unwrap(); // Code
+        File::create(path.join("unknown.xyz")).unwrap(); // Other
+
+        // Edge cases
+        File::create(path.join(".hidden.txt")).unwrap(); // Hidden file
+        fs::create_dir(path.join("subfolder")).unwrap(); // Sub-directory
+
+        // Organize the temporary directory
+        let result = OrganizeDesktopTool::organize_directory(path).unwrap();
+        assert!(result.success);
+
+        // Verify categories
+        assert!(path.join("Images/test.png").exists());
+        assert!(path.join("Documents/doc.pdf").exists());
+        assert!(path.join("Videos/video.mp4").exists());
+        assert!(path.join("Music/song.mp3").exists());
+        assert!(path.join("Archives/archive.zip").exists());
+        assert!(path.join("Code/script.rs").exists());
+        assert!(path.join("Other/unknown.xyz").exists());
+
+        // Verify edge cases are ignored and still in the root of temp dir
+        assert!(path.join(".hidden.txt").exists());
+        assert!(path.join("subfolder").is_dir());
+
+        // Verify original files are gone from the root of temp dir
+        assert!(!path.join("test.png").exists());
+        assert!(!path.join("doc.pdf").exists());
+        assert!(!path.join("video.mp4").exists());
     }
 }
