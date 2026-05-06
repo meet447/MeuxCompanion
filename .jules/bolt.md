@@ -13,3 +13,7 @@
 ## 2024-05-18 - ChatPanel React List Re-renders
 **Learning:** Managing text input state at the top level of a chat panel (`ChatPanel.tsx`) causes O(N) re-renders (where N is the number of messages) on every single keystroke. This causes a significant performance bottleneck, as all historical `MessageBubble` and `ToolCallBubble` components re-render unless explicitly memoized.
 **Action:** Always wrap heavy list item components (like message bubbles) in `React.memo` when the parent container handles frequently updating state like text input, to prevent massive unnecessary re-render trees.
+
+## 2024-05-18 - ChatPanel React List Re-renders 2
+**Learning:** Managing text input state at the top level of a chat panel causes O(N) re-renders (where N is the number of messages) on every single keystroke. Even if list items are memoized, the parent container still processes the entire tree.
+**Action:** Always extract frequently updating state (like text input) into an isolated `React.memo` component, keeping it out of the parent component that renders a large list, to bypass unnecessary list container re-renders.
