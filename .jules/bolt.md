@@ -13,3 +13,7 @@
 ## 2024-05-18 - ChatPanel React List Re-renders
 **Learning:** Managing text input state at the top level of a chat panel (`ChatPanel.tsx`) causes O(N) re-renders (where N is the number of messages) on every single keystroke. This causes a significant performance bottleneck, as all historical `MessageBubble` and `ToolCallBubble` components re-render unless explicitly memoized.
 **Action:** Always wrap heavy list item components (like message bubbles) in `React.memo` when the parent container handles frequently updating state like text input, to prevent massive unnecessary re-render trees.
+
+## 2024-05-18 - Replacing Map Iterables Array Spreads
+**Learning:** Using `[...map.keys()]` or `Array.from(map.keys())` creates unnecessary arrays and iterates over them, which can introduce significant O(N) performance overhead and increased garbage collection when used frequently inside React Hooks or render loops, particularly with large Maps like animation collections. Direct `for...of map.keys()` loop is significantly faster.
+**Action:** Use `for...of` iterators for early exit when searching for keys in Javascript Maps instead of spreading them into arrays.
