@@ -13,3 +13,7 @@
 ## 2024-05-18 - ChatPanel React List Re-renders
 **Learning:** Managing text input state at the top level of a chat panel (`ChatPanel.tsx`) causes O(N) re-renders (where N is the number of messages) on every single keystroke. This causes a significant performance bottleneck, as all historical `MessageBubble` and `ToolCallBubble` components re-render unless explicitly memoized.
 **Action:** Always wrap heavy list item components (like message bubbles) in `React.memo` when the parent container handles frequently updating state like text input, to prevent massive unnecessary re-render trees.
+
+## 2024-05-18 - Caching Static Metadata for React Hook Rendering
+**Learning:** When returning static metadata (like available expressions or animations) in frequent polling or animation loops (e.g., `getDebug` called via `setInterval` every 200ms), caching the arrays in `useRef` upon load instead of recreating them from iterables (e.g., `[...map.keys()]` or `Object.keys()`)
+**Action:** Always cache stable arrays retrieved from objects/maps into `useRef` instances instead of dynamically deriving them inside functions invoked frequently.
