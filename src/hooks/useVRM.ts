@@ -40,6 +40,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const blinkValueRef = useRef(0);
   const blinkClosingRef = useRef(false);
 
+  const cachedExpressionsRef = useRef<string[]>([]);
+  const cachedMotionsRef = useRef<string[]>([]);
+
   useEffect(() => {
     return () => {
       animatingRef.current = false;
@@ -422,9 +425,12 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
         clockRef.current = new THREE.Clock();
 
+        cachedExpressionsRef.current = Object.keys(vrm.expressionManager?.expressionMap || {});
+        cachedMotionsRef.current = [...clipsRef.current.keys()];
+
         console.log("[VRM] Model loaded:", modelPath);
-        console.log("[VRM] Expressions:", Object.keys(vrm.expressionManager?.expressionMap || {}));
-        console.log("[VRM] Animations:", [...clipsRef.current.keys()]);
+        console.log("[VRM] Expressions:", cachedExpressionsRef.current);
+        console.log("[VRM] Animations:", cachedMotionsRef.current);
 
         startAnimationLoop();
       } catch (err) {
@@ -543,8 +549,8 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     lipSyncActive: lipSyncActiveRef.current,
     mouthValue: Math.round(mouthValueRef.current * 100) / 100,
     mappingEmotions: [],
-    availableExpressions: Object.keys(vrmRef.current?.expressionManager?.expressionMap || {}),
-    availableMotionGroups: [...clipsRef.current.keys()],
+    availableExpressions: cachedExpressionsRef.current,
+    availableMotionGroups: cachedMotionsRef.current,
     lastError: "",
   }), []);
 
