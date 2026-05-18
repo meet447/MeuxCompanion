@@ -6,6 +6,9 @@ __pycache__/
 venv/
 env/
 
+# Recorded demos (uploaded to PRs, not committed)
+artifacts/
+
 # Node
 node_modules/
 dist/

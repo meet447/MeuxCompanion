@@ -1,0 +1,4 @@
+/* Tailwind must scan app sources — demo Vite root is scripts/onboarding-demo, not src/. */
+@import "tailwindcss";
+@source "../../src/**/*.{js,ts,jsx,tsx}";
+@source "./**/*.{js,ts,jsx,tsx}";
