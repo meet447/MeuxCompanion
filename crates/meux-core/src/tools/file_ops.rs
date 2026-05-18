@@ -130,7 +130,7 @@ impl Tool for ListDirectoryTool {
                 .file_type()
                 .map_err(|e| MeuxError::Tool(e.to_string()))?;
             if file_type.is_dir() {
-                entries.push(format!("{}/", name));
+                entries.push(format!("{name}/"));
             } else {
                 entries.push(name);
             }
@@ -339,7 +339,7 @@ impl Tool for FindFilesTool {
             let result = matches.join("\n");
             Ok(ToolResult {
                 tool_call_id: String::new(),
-                content: format!("Found {} file(s):\n{}", count, result),
+                content: format!("Found {count} file(s):\n{result}"),
                 success: true,
             })
         }
@@ -529,7 +529,7 @@ impl Tool for MoveFileTool {
 
         Ok(ToolResult {
             tool_call_id: String::new(),
-            content: format!("Moved {} → {}", src, dst),
+            content: format!("Moved {src} → {dst}"),
             success: true,
         })
     }
@@ -591,12 +591,12 @@ impl Tool for DeleteFileTool {
         // Canonicalize both the requested path and the base directory to resolve any ".." or symlinks.
         let canonical_path = path
             .canonicalize()
-            .map_err(|e| MeuxError::Tool(format!("Failed to canonicalize path: {}", e)))?;
+            .map_err(|e| MeuxError::Tool(format!("Failed to canonicalize path: {e}")))?;
 
         let canonical_base = if self.base_dir.exists() {
             self.base_dir
                 .canonicalize()
-                .map_err(|e| MeuxError::Tool(format!("Failed to canonicalize base_dir: {}", e)))?
+                .map_err(|e| MeuxError::Tool(format!("Failed to canonicalize base_dir: {e}")))?
         } else {
             self.base_dir.clone() // Fallback if base_dir doesn't exist (though it should)
         };

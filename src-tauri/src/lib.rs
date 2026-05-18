@@ -156,6 +156,7 @@ pub fn run() {
             commands::memory::composio_authorize_toolkit,
             commands::memory::composio_refresh_toolkit,
             commands::memory::composio_sync_github_readme,
+            commands::memory::composio_sync_gmail,
             commands::expressions::expressions_supported,
             commands::expressions::expressions_model_list,
             commands::expressions::expressions_get,

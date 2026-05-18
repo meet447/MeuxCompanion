@@ -13,6 +13,9 @@ import {
   authorizeComposioToolkit,
   refreshComposioToolkit,
 } from "../api/tauri";
+import { ComposioToolkitPicker } from "./ComposioToolkitPicker";
+import { DEFAULT_ENABLED_COMPOSIO_TOOLKITS } from "../lib/composioToolkits";
+import type { ComposioToolkitStatus } from "../types";
 
 interface Voice {
   id: string;
@@ -296,8 +299,8 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
   const [serpApiKey, setSerpApiKey] = useState("");
   const [exaApiKey, setExaApiKey] = useState("");
   const [composioApiKey, setComposioApiKey] = useState("");
-  const [composioToolkits, setComposioToolkits] = useState<string[]>(["github", "gmail"]);
-  const [composioStatus, setComposioStatus] = useState<{ slug: string; name: string; connected: boolean; status: string; redirect_url?: string | null; connected_account_id?: string | null }[]>([]);
+  const [composioToolkits, setComposioToolkits] = useState<string[]>(DEFAULT_ENABLED_COMPOSIO_TOOLKITS);
+  const [composioStatus, setComposioStatus] = useState<ComposioToolkitStatus[]>([]);
   const [composioRedirectUrl, setComposioRedirectUrl] = useState<string | null>(null);
 
   const deriveConfigured = (cfg: any) => {
@@ -353,7 +356,11 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
         setSerpApiKey("");
         setExaApiKey("");
         setComposioApiKey("");
-        setComposioToolkits(cfg.composio?.enabled_toolkits?.length ? cfg.composio.enabled_toolkits : ["github", "gmail"]);
+        setComposioToolkits(
+          cfg.composio?.enabled_toolkits?.length
+            ? cfg.composio.enabled_toolkits
+            : DEFAULT_ENABLED_COMPOSIO_TOOLKITS,
+        );
         void getComposioStatus().then((data: any) => setComposioStatus(data || [])).catch(() => setComposioStatus([]));
       })
       .catch((err) => console.error("Failed to load config:", err));
@@ -906,7 +913,7 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Composio</div>
           <h3 className="mt-2 text-lg font-bold text-slate-800">OAuth and connected sources</h3>
           <p className="mt-2 text-sm leading-relaxed text-slate-500">
-            Composio is optional. When configured, it can connect services like GitHub and Gmail and feed read-only source data into the local memory vault.
+            Composio is optional. Enable the services you want, connect them with OAuth, and sync read-only GitHub or Gmail context into the local memory vault through authenticated Composio tools.
           </p>
 
           <label className={`${labelClass} mt-5`}>Composio API Key</label>
@@ -918,57 +925,15 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
             className={inputClass}
           />
 
-          <label className={labelClass}>Enabled Toolkits</label>
-          <div className="mb-6 grid grid-cols-2 gap-2">
-            {["github", "gmail"].map((slug) => (
-              <button
-                key={slug}
-                onClick={() => toggleToolkit(slug)}
-                className={`rounded-2xl border px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] ${
-                  composioToolkits.includes(slug)
-                    ? "border-blue-300 bg-blue-50 text-blue-700"
-                    : "border-slate-200 bg-white text-slate-500"
-                }`}
-              >
-                {slug}
-              </button>
-            ))}
-          </div>
-
-          <div className="mb-6 grid gap-3">
-            {composioStatus.map((toolkit) => (
-              <div key={toolkit.slug} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <span className="text-sm font-bold text-slate-700">{toolkit.name}</span>
-                    {toolkit.connected_account_id && (
-                      <div className="mt-1 font-mono text-[10px] text-slate-400">{toolkit.connected_account_id}</div>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-xs font-semibold ${toolkit.connected ? "text-emerald-600" : "text-amber-600"}`}>
-                      {toolkit.status}
-                    </span>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        onClick={() => void handleAuthorizeComposio(toolkit.slug)}
-                        disabled={saving}
-                        className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-600 border border-blue-100 disabled:opacity-50"
-                      >
-                        {toolkit.connected ? "Reconnect" : "Connect"}
-                      </button>
-                      <button
-                        onClick={() => void handleRefreshComposio(toolkit.slug)}
-                        disabled={saving}
-                        className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 border border-slate-200 disabled:opacity-50"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <label className={labelClass}>Connected Services</label>
+          <div className="mb-6">
+            <ComposioToolkitPicker
+              enabledToolkits={composioToolkits}
+              statuses={composioStatus}
+              onToggle={toggleToolkit}
+              onConnect={(slug) => void handleAuthorizeComposio(slug)}
+              onRefresh={(slug) => void handleRefreshComposio(slug)}
+            />
           </div>
 
           {composioRedirectUrl && (

@@ -190,6 +190,11 @@ describe('tauri api utilities', () => {
       await tauriApi.syncComposioGithubReadme('char-1', 'owner', 'repo');
       expect(invoke).toHaveBeenCalledWith('composio_sync_github_readme', { characterId: 'char-1', owner: 'owner', repo: 'repo' });
     });
+
+    it('syncComposioGmail calls composio_sync_gmail', async () => {
+      await tauriApi.syncComposioGmail('char-1', 20);
+      expect(invoke).toHaveBeenCalledWith('composio_sync_gmail', { characterId: 'char-1', maxResults: 20 });
+    });
   });
 
   describe('Tool functions', () => {

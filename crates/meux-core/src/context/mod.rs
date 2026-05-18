@@ -56,9 +56,9 @@ pub fn compress_stale_tool_results(messages: &mut [ChatMessage], recent_tool_tur
             let size_label = if content_len > 1024 {
                 format!("{:.1}KB", content_len as f64 / 1024.0)
             } else {
-                format!("{} chars", content_len)
+                format!("{content_len} chars")
             };
-            let summary = format!("[tool result: {} returned {}]", tool_name, size_label);
+            let summary = format!("[tool result: {tool_name} returned {size_label}]");
             messages[idx] =
                 ChatMessage::tool_result(msg.tool_call_id.as_deref().unwrap_or(""), &summary);
         }
