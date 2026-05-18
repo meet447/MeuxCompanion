@@ -107,11 +107,12 @@ struct AgentLoopEvent {
 // ---------------------------------------------------------------------------
 
 fn derive_user_id(config: &meux_core::config::types::AppConfig) -> String {
-    let name = &config.user.name;
-    if name.is_empty() {
+    if !config.user.id.is_empty() {
+        config.user.id.clone()
+    } else if config.user.name.is_empty() {
         "default-user".to_string()
     } else {
-        meux_core::character::slugify(name)
+        meux_core::character::slugify(&config.user.name)
     }
 }
 
@@ -507,6 +508,7 @@ async fn run_chat_stream(
         character_loader: &state.characters,
         session_store: &state.sessions,
         memory_store: &state.memories,
+        memory_vault: Some(&state.memory_vault),
         _expression_manager: &state.expressions,
         character_id: &character_id,
         user_id: &user_id,
@@ -990,6 +992,17 @@ async fn run_chat_stream(
         .map_err(|e| e.to_string())?;
 
     // 8. Remember exchange (extract memories)
+    let vault_ingest = state.memory_vault.ingest_chat_exchange(
+        &character_id,
+        &user_id,
+        &message,
+        &cleaned_response,
+    );
+    if let Err(err) = &vault_ingest {
+        eprintln!("[memory-vault] failed to ingest chat exchange: {err}");
+    }
+
+    // Keep the legacy JSONL store populated until all old callers are removed.
     let _ = meux_core::memory::remember_exchange(
         &state.memories,
         &character_id,
@@ -998,12 +1011,15 @@ async fn run_chat_stream(
         &cleaned_response,
     );
 
-    let _ = app.emit(
-        "chat:done",
-        ChatDoneEvent {
-            state_update: serde_json::Value::Null,
-        },
-    );
+    let state_update = state
+        .memory_vault
+        .overview(&character_id, &user_id)
+        .map(serde_json::to_value)
+        .ok()
+        .and_then(Result::ok)
+        .unwrap_or(serde_json::Value::Null);
+
+    let _ = app.emit("chat:done", ChatDoneEvent { state_update });
 
     Ok(())
 }

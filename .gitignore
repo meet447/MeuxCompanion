@@ -8,7 +8,13 @@ env/
 
 # Node
 node_modules/
-frontend/dist/
+dist/
+coverage/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # IDE
 .vscode/
@@ -27,6 +33,12 @@ Thumbs.db
 chats/
 data/
 *.mp3
+*.wav
+*.webm
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
 
 # Live2D models — ignore all except haru (default sample)
 models/live2d/*
@@ -40,18 +52,28 @@ characters/*
 # VRM models — user-provided
 models/vrm/*
 
+# Whisper / local AI model weights — user-provided
+models/whisper/*.bin
+models/whisper/*.gguf
+models/whisper/*.ggml
+
 # Expression mappings — user-configured per model (manual via UI)
 models/expression_mappings/*.json
 
 # Environment — secrets
 .env
+.env.*
+!.env.example
 .env.local
 config.json
+
+# Tauri / Rust generated output
+target/
+src-tauri/target/
+src-tauri/gen/schemas/
 
 # Worktrees
 .worktrees/
 
 # Superpowers
 .superpowers/
-dist/
-target/

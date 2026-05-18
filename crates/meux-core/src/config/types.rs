@@ -12,6 +12,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub search: SearchConfig,
     #[serde(default)]
+    pub composio: ComposioConfig,
+    #[serde(default)]
     pub llm_providers: HashMap<String, LlmProviderConfig>,
     #[serde(default)]
     pub tts_providers: HashMap<String, TtsProviderConfig>,
@@ -35,6 +37,30 @@ pub struct SearchConfig {
     pub exa_api_key: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ComposioConfig {
+    #[serde(default)]
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub enabled_toolkits: Vec<String>,
+    #[serde(default)]
+    pub connections: HashMap<String, ComposioConnectionConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ComposioConnectionConfig {
+    #[serde(default)]
+    pub auth_config_id: Option<String>,
+    #[serde(default)]
+    pub connected_account_id: Option<String>,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub redirect_url: Option<String>,
+    #[serde(default)]
+    pub last_checked_at: Option<String>,
+}
+
 fn default_search_provider() -> String {
     "duckduckgo".to_string()
 }
@@ -51,6 +77,9 @@ impl Default for SearchConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserConfig {
+    /// Stable local identity for memory namespaces. `name` is display-only.
+    #[serde(default)]
+    pub id: String,
     #[serde(default)]
     pub name: String,
     #[serde(default)]
