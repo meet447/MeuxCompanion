@@ -16,11 +16,51 @@ export interface ChatMessage {
 export interface MemoryRecord {
   id: string;
   ts: string;
+  character_id?: string;
   type: "episodic" | "semantic" | "reflections" | string;
   summary: string;
   importance: number;
   tags: string[];
+  source_kind?: string;
+  source_id?: string | null;
+  provenance?: string | null;
   metadata?: Record<string, unknown>;
+}
+
+export interface RelationshipSnapshot {
+  character_id: string;
+  user_id: string;
+  mood: string;
+  trust: number;
+  affection: number;
+  energy: number;
+  relationship_summary: string;
+  updated_at: string;
+}
+
+export interface MemoryVaultOverview {
+  total_memories: number;
+  total_sources: number;
+  total_dreams: number;
+  semantic_count: number;
+  episodic_count: number;
+  reflection_count: number;
+  latest_memory_at?: string | null;
+  latest_dream_at?: string | null;
+  vault_path: string;
+  database_path: string;
+  relationship?: RelationshipSnapshot | null;
+}
+
+export interface DreamRun {
+  id: string;
+  character_id: string;
+  user_id: string;
+  status: string;
+  summary: string;
+  started_at: string;
+  finished_at?: string | null;
+  error?: string | null;
 }
 
 export interface ModelMapping {
