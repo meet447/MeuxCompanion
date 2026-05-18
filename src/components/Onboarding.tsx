@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { saveConfig, createCharacter, getVoices, testLlm, previewVoice, listModels } from "../api/tauri";
+import {
+  saveConfig,
+  createCharacter,
+  getVoices,
+  testLlm,
+  previewVoice,
+  listModels,
+  getComposioStatus,
+  saveComposioConfig,
+  authorizeComposioToolkit,
+  refreshComposioToolkit,
+} from "../api/tauri";
+import { ComposioToolkitPicker } from "./ComposioToolkitPicker";
+import { DEFAULT_ENABLED_COMPOSIO_TOOLKITS } from "../lib/composioToolkits";
+import type { ComposioToolkitStatus } from "../types";
 
 interface LLMPreset {
   name: string;
@@ -82,7 +96,7 @@ const SPEECH_STYLES = [
   { id: "Intimate", title: "Intimate", blurb: "Close, emotionally tuned-in, and personal." },
 ];
 
-const STEPS = ["Local-First", "About You", "LLM Provider", "Voice & TTS", "Build Companion"];
+const STEPS = ["Local-First", "About You", "LLM Provider", "Voice & TTS", "Integrations", "Build Companion"];
 
 const VIBE_DESCRIPTIONS: Record<string, string> = {
   Cheerful: "They bring bright energy, celebrate small wins, and want the user to feel more alive after talking to them.",
@@ -188,6 +202,10 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [personalityTouched, setPersonalityTouched] = useState(false);
+  const [composioApiKey, setComposioApiKey] = useState("");
+  const [composioToolkits, setComposioToolkits] = useState<string[]>(DEFAULT_ENABLED_COMPOSIO_TOOLKITS);
+  const [composioStatus, setComposioStatus] = useState<ComposioToolkitStatus[]>([]);
+  const [composioRedirectUrl, setComposioRedirectUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const llmPresets = LLM_PRESETS;
@@ -211,6 +229,9 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
     listModels()
       .then((data) => setModels(data as Model[]))
       .catch(console.error);
+    void getComposioStatus()
+      .then((data) => setComposioStatus((data as ComposioToolkitStatus[]) || []))
+      .catch(() => setComposioStatus([]));
   }, []);
 
   useEffect(() => {
@@ -322,6 +343,8 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
       case 3:
         return form.tts.voice !== "";
       case 4:
+        return true;
+      case 5:
         return (
           form.companion.name.trim() !== "" &&
           form.companion.personality.trim() !== "" &&
@@ -372,7 +395,11 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
         onboarding_complete: true,
       });
 
-      setStep(5);
+      if (composioApiKey.trim() || composioToolkits.length > 0) {
+        await saveComposioConfig(composioApiKey.trim() || null, composioToolkits);
+      }
+
+      setStep(6);
       setTimeout(onComplete, 2200);
     } catch {
       setError("Something went wrong while creating your companion. Please try again.");
@@ -389,7 +416,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
       <div className="min-h-full flex flex-col items-center justify-center p-6 py-12">
         <div className="w-full max-w-2xl z-10 relative">
-          {step < 5 && (
+          {step < 6 && (
             <div className="flex items-center justify-center gap-2 mb-10">
               {STEPS.map((label, i) => (
                 <div key={label} className="flex items-center gap-2">
@@ -634,6 +661,68 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
             {step === 4 && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h2 className={headingClass}>Connect optional sources</h2>
+                <p className={descriptionClass}>
+                  Link services through Composio if you want GitHub READMEs, Gmail context, or other toolkits available in chat later. You can skip this and configure integrations anytime in Settings.
+                </p>
+
+                <label className={labelClass}>Composio API Key</label>
+                <input
+                  type="password"
+                  value={composioApiKey}
+                  onChange={(e) => setComposioApiKey(e.target.value)}
+                  placeholder="Optional — paste your Composio API key"
+                  className={inputClass}
+                />
+
+                <ComposioToolkitPicker
+                  enabledToolkits={composioToolkits}
+                  statuses={composioStatus}
+                  compact
+                  onToggle={(slug) =>
+                    setComposioToolkits((prev) =>
+                      prev.includes(slug) ? prev.filter((item) => item !== slug) : [...prev, slug],
+                    )
+                  }
+                  onConnect={async (slug) => {
+                    try {
+                      const result: any = await authorizeComposioToolkit(slug);
+                      setComposioRedirectUrl(result.redirect_url || null);
+                      const data = await getComposioStatus();
+                      setComposioStatus((data as ComposioToolkitStatus[]) || []);
+                    } catch (err) {
+                      console.error("Composio authorize failed:", err);
+                    }
+                  }}
+                  onRefresh={async (slug) => {
+                    try {
+                      await refreshComposioToolkit(slug);
+                      const data = await getComposioStatus();
+                      setComposioStatus((data as ComposioToolkitStatus[]) || []);
+                    } catch (err) {
+                      console.error("Composio refresh failed:", err);
+                    }
+                  }}
+                />
+
+                {composioRedirectUrl && (
+                  <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700">Connect link ready</div>
+                    <p className="mt-2 text-sm text-blue-700">Open this link, finish OAuth, then return and press Refresh on the service card.</p>
+                    <button
+                      type="button"
+                      onClick={() => window.open(composioRedirectUrl, "_blank", "noopener,noreferrer")}
+                      className="mt-3 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white"
+                    >
+                      Open Connect Link
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step === 5 && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <h2 className={headingClass}>Build your companion</h2>
                 <p className={descriptionClass}>
                   This step now creates a layered character profile: soul, style, rules, and user context. Pick the emotional shape first, then fine-tune the written draft.
@@ -760,7 +849,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             )}
 
-            {step === 5 && (
+            {step === 6 && (
               <div className="text-center py-12 animate-in fade-in zoom-in-95 duration-500">
                 <div className="w-20 h-20 bg-gradient-to-tr from-green-400 to-emerald-400 text-white shadow-lg shadow-green-500/30 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
                   {"\u2713"}
@@ -778,7 +867,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             )}
 
-            {step < 5 && (
+            {step < 6 && (
               <div className="flex justify-between mt-10 space-x-4">
                 <button
                   onClick={() => setStep(step - 1)}
@@ -789,7 +878,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                 >
                   Back
                 </button>
-                {step < 4 ? (
+                {step < 5 ? (
                   <button
                     onClick={() => setStep(step + 1)}
                     disabled={!canProceed()}
