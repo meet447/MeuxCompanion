@@ -189,6 +189,10 @@ export async function syncComposioGithubReadme(characterId: string, owner: strin
   return invoke<number>("composio_sync_github_readme", { characterId, owner, repo });
 }
 
+export async function syncComposioGmail(characterId: string, maxResults?: number) {
+  return invoke<number>("composio_sync_gmail", { characterId, maxResults });
+}
+
 // Tools
 export async function listTools() {
   return invoke<{ name: string; description: string; permission: string; enabled: boolean }[]>("tools_list");
