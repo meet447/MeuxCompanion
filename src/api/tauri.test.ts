@@ -176,6 +176,16 @@ describe('tauri api utilities', () => {
       expect(invoke).toHaveBeenCalledWith('composio_status');
     });
 
+    it('authorizeComposioToolkit calls composio_authorize_toolkit', async () => {
+      await tauriApi.authorizeComposioToolkit('github');
+      expect(invoke).toHaveBeenCalledWith('composio_authorize_toolkit', { toolkit: 'github' });
+    });
+
+    it('refreshComposioToolkit calls composio_refresh_toolkit', async () => {
+      await tauriApi.refreshComposioToolkit('github');
+      expect(invoke).toHaveBeenCalledWith('composio_refresh_toolkit', { toolkit: 'github' });
+    });
+
     it('syncComposioGithubReadme calls composio_sync_github_readme', async () => {
       await tauriApi.syncComposioGithubReadme('char-1', 'owner', 'repo');
       expect(invoke).toHaveBeenCalledWith('composio_sync_github_readme', { characterId: 'char-1', owner: 'owner', repo: 'repo' });

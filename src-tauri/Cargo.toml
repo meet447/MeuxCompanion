@@ -26,3 +26,4 @@ whisper-rs = "0.14"
 dashmap = "6"
 tokio-util = "0.7"
 bytes = "1.11.1"
+chrono = { version = "0.4", features = ["serde"] }

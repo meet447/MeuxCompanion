@@ -190,6 +190,9 @@ impl ConfigManager {
             if merged.composio.enabled_toolkits.is_empty() {
                 merged.composio.enabled_toolkits = existing.composio.enabled_toolkits;
             }
+            if merged.composio.connections.is_empty() {
+                merged.composio.connections = existing.composio.connections;
+            }
 
             if merged.llm_providers.is_empty() {
                 merged.llm_providers = existing.llm_providers;
