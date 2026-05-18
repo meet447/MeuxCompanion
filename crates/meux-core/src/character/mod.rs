@@ -535,12 +535,12 @@ pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
                 if path.is_dir() {
                     let id = path.file_name().unwrap().to_string_lossy().to_string();
                     let model_file =
-                        find_model3_json(&path).unwrap_or_else(|| format!("{}.model3.json", id));
+                        find_model3_json(&path).unwrap_or_else(|| format!("{id}.model3.json"));
                     models.push(ModelInfo {
                         id: id.clone(),
                         model_type: "live2d".to_string(),
                         model_file: model_file.clone(),
-                        path: format!("models/live2d/{}/{}", id, model_file),
+                        path: format!("models/live2d/{id}/{model_file}"),
                     });
                 }
             }
@@ -559,7 +559,7 @@ pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
                         id: id.clone(),
                         model_type: "vrm".to_string(),
                         model_file: "model.vrm".to_string(),
-                        path: format!("models/vrm/{}/model.vrm", id),
+                        path: format!("models/vrm/{id}/model.vrm"),
                     });
                 } else if path.extension().is_some_and(|e| e == "vrm") {
                     let id = path.file_stem().unwrap().to_string_lossy().to_string();
@@ -568,7 +568,7 @@ pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
                         id: id.clone(),
                         model_type: "vrm".to_string(),
                         model_file: fname.clone(),
-                        path: format!("models/vrm/{}", fname),
+                        path: format!("models/vrm/{fname}"),
                     });
                 }
             }
@@ -615,7 +615,7 @@ pub fn get_model_expressions(data_dir: &Path, model_id: &str) -> Result<Vec<Stri
     if vrm_dir.exists()
         || models_dir
             .join("vrm")
-            .join(format!("{}.vrm", model_id))
+            .join(format!("{model_id}.vrm"))
             .exists()
     {
         // VRM models have standard blend shape expressions
