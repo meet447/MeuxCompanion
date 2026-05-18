@@ -150,6 +150,36 @@ describe('tauri api utilities', () => {
       await tauriApi.runMemoryDream('char-1');
       expect(invoke).toHaveBeenCalledWith('memory_run_dream', { characterId: 'char-1' });
     });
+
+    it('deleteMemory calls memory_delete', async () => {
+      await tauriApi.deleteMemory('char-1', 'mem-1');
+      expect(invoke).toHaveBeenCalledWith('memory_delete', { characterId: 'char-1', memoryId: 'mem-1' });
+    });
+
+    it('setMemoryPinned calls memory_set_pinned', async () => {
+      await tauriApi.setMemoryPinned('char-1', 'mem-1', true);
+      expect(invoke).toHaveBeenCalledWith('memory_set_pinned', { characterId: 'char-1', memoryId: 'mem-1', pinned: true });
+    });
+
+    it('ingestMemoryNote calls memory_ingest_note', async () => {
+      await tauriApi.ingestMemoryNote('char-1', 'Note', 'Body');
+      expect(invoke).toHaveBeenCalledWith('memory_ingest_note', { characterId: 'char-1', title: 'Note', body: 'Body' });
+    });
+
+    it('getMemorySources calls memory_sources', async () => {
+      await tauriApi.getMemorySources('char-1');
+      expect(invoke).toHaveBeenCalledWith('memory_sources', { characterId: 'char-1' });
+    });
+
+    it('getComposioStatus calls composio_status', async () => {
+      await tauriApi.getComposioStatus();
+      expect(invoke).toHaveBeenCalledWith('composio_status');
+    });
+
+    it('syncComposioGithubReadme calls composio_sync_github_readme', async () => {
+      await tauriApi.syncComposioGithubReadme('char-1', 'owner', 'repo');
+      expect(invoke).toHaveBeenCalledWith('composio_sync_github_readme', { characterId: 'char-1', owner: 'owner', repo: 'repo' });
+    });
   });
 
   describe('Tool functions', () => {

@@ -12,6 +12,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub search: SearchConfig,
     #[serde(default)]
+    pub composio: ComposioConfig,
+    #[serde(default)]
     pub llm_providers: HashMap<String, LlmProviderConfig>,
     #[serde(default)]
     pub tts_providers: HashMap<String, TtsProviderConfig>,
@@ -33,6 +35,14 @@ pub struct SearchConfig {
     pub serp_api_key: Option<String>,
     #[serde(default)]
     pub exa_api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ComposioConfig {
+    #[serde(default)]
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub enabled_toolkits: Vec<String>,
 }
 
 fn default_search_provider() -> String {

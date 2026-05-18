@@ -179,6 +179,17 @@ impl ConfigManager {
             if merged.search.provider.is_empty() {
                 merged.search.provider = existing.search.provider;
             }
+            let incoming_composio_key = merged.composio.api_key.clone();
+            if incoming_composio_key.is_none()
+                || incoming_composio_key
+                    .as_ref()
+                    .is_some_and(|k| k.is_empty() || is_masked_key(k))
+            {
+                merged.composio.api_key = existing.composio.api_key;
+            }
+            if merged.composio.enabled_toolkits.is_empty() {
+                merged.composio.enabled_toolkits = existing.composio.enabled_toolkits;
+            }
 
             if merged.llm_providers.is_empty() {
                 merged.llm_providers = existing.llm_providers;
@@ -213,6 +224,7 @@ impl ConfigManager {
         masked.tts.api_key = masked.tts.api_key.map(|k| mask_key(&k));
         masked.search.serp_api_key = masked.search.serp_api_key.map(|k| mask_key(&k));
         masked.search.exa_api_key = masked.search.exa_api_key.map(|k| mask_key(&k));
+        masked.composio.api_key = masked.composio.api_key.map(|k| mask_key(&k));
         for provider in masked.llm_providers.values_mut() {
             provider.api_key = provider.api_key.as_ref().map(|k| mask_key(k));
         }

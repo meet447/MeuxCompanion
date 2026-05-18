@@ -12,6 +12,8 @@ pub enum MeuxError {
     Http(#[from] reqwest::Error),
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+    #[error("ZIP error: {0}")]
+    Zip(#[from] zip::result::ZipError),
     #[error("Character not found: {0}")]
     CharacterNotFound(String),
     #[error("Invalid config: {0}")]

@@ -15,6 +15,10 @@ pub struct VaultMemory {
     pub source_kind: String,
     pub source_id: Option<String>,
     pub provenance: Option<String>,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub topic: Option<String>,
     pub metadata: serde_json::Value,
 }
 
@@ -33,6 +37,10 @@ pub struct VaultMemoryRecord {
     pub source_kind: String,
     pub source_id: Option<String>,
     pub provenance: Option<String>,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub topic: Option<String>,
     pub metadata: serde_json::Value,
 }
 
@@ -49,6 +57,8 @@ impl From<VaultMemory> for VaultMemoryRecord {
             source_kind: memory.source_kind,
             source_id: memory.source_id,
             provenance: memory.provenance,
+            pinned: memory.pinned,
+            topic: memory.topic,
             metadata: memory.metadata,
         }
     }
@@ -65,6 +75,48 @@ pub struct MemorySourceItem {
     pub body_markdown: String,
     pub content_hash: String,
     pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemorySourceRecord {
+    pub id: String,
+    pub ts: String,
+    pub character_id: String,
+    pub source_kind: String,
+    pub title: String,
+    pub content_hash: String,
+    pub metadata: serde_json::Value,
+}
+
+impl From<MemorySourceItem> for MemorySourceRecord {
+    fn from(source: MemorySourceItem) -> Self {
+        Self {
+            id: source.id,
+            ts: source.ts.to_rfc3339(),
+            character_id: source.character_id,
+            source_kind: source.source_kind,
+            title: source.title,
+            content_hash: source.content_hash,
+            metadata: source.metadata,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TopicSummary {
+    pub topic: String,
+    pub count: usize,
+    pub summary: String,
+    pub latest_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComposioToolkitStatus {
+    pub slug: String,
+    pub name: String,
+    pub connected: bool,
+    pub status: String,
+    pub last_sync_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,4 +171,10 @@ pub struct MemoryVaultOverview {
     pub vault_path: String,
     pub database_path: String,
     pub relationship: Option<RelationshipSnapshot>,
+    #[serde(default)]
+    pub pinned_count: usize,
+    #[serde(default)]
+    pub topic_count: usize,
+    #[serde(default)]
+    pub latest_source_at: Option<String>,
 }
