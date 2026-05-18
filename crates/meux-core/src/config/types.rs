@@ -51,6 +51,9 @@ impl Default for SearchConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserConfig {
+    /// Stable local identity for memory namespaces. `name` is display-only.
+    #[serde(default)]
+    pub id: String,
     #[serde(default)]
     pub name: String,
     #[serde(default)]
