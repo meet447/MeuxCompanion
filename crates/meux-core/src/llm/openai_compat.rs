@@ -41,7 +41,7 @@ impl OpenAiCompatClient {
             let response = self
                 .client
                 .post(&url)
-                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Authorization", format!("Bearer {api_key}"))
                 .header("Content-Type", "application/json")
                 .json(&body)
                 .send()
@@ -51,7 +51,7 @@ impl OpenAiCompatClient {
             if !response.status().is_success() {
                 let status = response.status();
                 let text = response.text().await.unwrap_or_default();
-                Err(MeuxError::Llm(format!("HTTP {}: {}", status, text)))?;
+                Err(MeuxError::Llm(format!("HTTP {status}: {text}")))?;
                 unreachable!();
             }
 
@@ -91,8 +91,7 @@ impl OpenAiCompatClient {
                             }
                             Err(e) => {
                                 Err(MeuxError::Llm(format!(
-                                    "Failed to parse SSE chunk: {} — raw: {}",
-                                    e, data
+                                    "Failed to parse SSE chunk: {e} — raw: {data}"
                                 )))?;
                             }
                         }
@@ -132,7 +131,7 @@ impl OpenAiCompatClient {
             let response = self
                 .client
                 .post(&url)
-                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Authorization", format!("Bearer {api_key}"))
                 .header("Content-Type", "application/json")
                 .json(&body)
                 .send()
@@ -142,7 +141,7 @@ impl OpenAiCompatClient {
             if !response.status().is_success() {
                 let status = response.status();
                 let text = response.text().await.unwrap_or_default();
-                Err(MeuxError::Llm(format!("HTTP {}: {}", status, text)))?;
+                Err(MeuxError::Llm(format!("HTTP {status}: {text}")))?;
                 unreachable!();
             }
 
@@ -224,8 +223,7 @@ impl OpenAiCompatClient {
                             }
                             Err(e) => {
                                 Err(MeuxError::Llm(format!(
-                                    "Failed to parse SSE chunk: {} — raw: {}",
-                                    e, data
+                                    "Failed to parse SSE chunk: {e} — raw: {data}"
                                 )))?;
                             }
                         }
@@ -281,7 +279,7 @@ impl OpenAiCompatClient {
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
-            return Err(MeuxError::Llm(format!("HTTP {}: {}", status, text)));
+            return Err(MeuxError::Llm(format!("HTTP {status}: {text}")));
         }
 
         let completion: ChatCompletionResponse = response.json().await.map_err(MeuxError::Http)?;

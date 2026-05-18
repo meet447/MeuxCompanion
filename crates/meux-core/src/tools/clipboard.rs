@@ -35,7 +35,7 @@ impl Tool for ClipboardReadTool {
             .stderr(Stdio::piped())
             .output()
             .await
-            .map_err(|e| MeuxError::Tool(format!("Failed to read clipboard: {}", e)))?;
+            .map_err(|e| MeuxError::Tool(format!("Failed to read clipboard: {e}")))?;
 
         if output.status.success() {
             let content = String::from_utf8_lossy(&output.stdout).to_string();
@@ -66,7 +66,7 @@ impl Tool for ClipboardReadTool {
             let stderr = String::from_utf8_lossy(&output.stderr);
             Ok(ToolResult {
                 tool_call_id: String::new(),
-                content: format!("Failed to read clipboard: {}", stderr),
+                content: format!("Failed to read clipboard: {stderr}"),
                 success: false,
             })
         }
@@ -107,20 +107,20 @@ impl Tool for ClipboardWriteTool {
         let mut child = Command::new("pbcopy")
             .stdin(Stdio::piped())
             .spawn()
-            .map_err(|e| MeuxError::Tool(format!("Failed to write clipboard: {}", e)))?;
+            .map_err(|e| MeuxError::Tool(format!("Failed to write clipboard: {e}")))?;
 
         if let Some(mut stdin) = child.stdin.take() {
             use tokio::io::AsyncWriteExt;
             stdin
                 .write_all(content.as_bytes())
                 .await
-                .map_err(|e| MeuxError::Tool(format!("Failed to write to pbcopy stdin: {}", e)))?;
+                .map_err(|e| MeuxError::Tool(format!("Failed to write to pbcopy stdin: {e}")))?;
         }
 
         let status = child
             .wait()
             .await
-            .map_err(|e| MeuxError::Tool(format!("pbcopy failed: {}", e)))?;
+            .map_err(|e| MeuxError::Tool(format!("pbcopy failed: {e}")))?;
 
         if status.success() {
             Ok(ToolResult {

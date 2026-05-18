@@ -59,7 +59,7 @@ impl ExpressionManager {
         }
 
         // Load from file
-        let path = self.mappings_dir.join(format!("{}.json", model_id));
+        let path = self.mappings_dir.join(format!("{model_id}.json"));
         let mapping = if path.exists() {
             std::fs::read_to_string(&path)
                 .ok()
@@ -80,7 +80,7 @@ impl ExpressionManager {
     pub fn save_mapping(&self, model_id: &str, mapping: HashMap<String, String>) -> Result<()> {
         std::fs::create_dir_all(&self.mappings_dir)?;
 
-        let path = self.mappings_dir.join(format!("{}.json", model_id));
+        let path = self.mappings_dir.join(format!("{model_id}.json"));
         let json = serde_json::to_string_pretty(&mapping)?;
         std::fs::write(&path, json)?;
 

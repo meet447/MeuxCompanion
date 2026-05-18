@@ -829,7 +829,7 @@ impl MemoryVault {
             vec!["dream".to_string(), "reflection".to_string()],
             "dream",
             Some(&id),
-            Some(&format!("dream://{}", id)),
+            Some(&format!("dream://{id}")),
             serde_json::json!({ "dream_run_id": id }),
         )?;
         tx.execute(
