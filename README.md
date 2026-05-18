@@ -45,8 +45,8 @@ A **local-first** AI companion **desktop app** with Live2D and VRM avatars, laye
 
 ### Prerequisites
 
-- **Node.js** 18 or newer
-- **Rust** stable with **Cargo** (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
+- **Node.js** 22 recommended (see [`.nvmrc`](.nvmrc))
+- **Rust** 1.88.0 with **Cargo** (pinned in [`rust-toolchain.toml`](rust-toolchain.toml); see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
 - **Linux:** WebKitGTK and related dev packages (the same set [used in CI](.github/workflows/release.yml) is a good reference)
 
 ### Install and run (development)
@@ -54,9 +54,12 @@ A **local-first** AI companion **desktop app** with Live2D and VRM avatars, laye
 ```bash
 git clone https://github.com/meet447/MeuxCompanion.git
 cd MeuxCompanion
-npm install
+npm ci
 npm run tauri dev
 ```
+
+For Cursor Cloud agents and repeatable setup details, see
+[`docs/cloud-agent-environment.md`](docs/cloud-agent-environment.md).
 
 ### Production build
 
