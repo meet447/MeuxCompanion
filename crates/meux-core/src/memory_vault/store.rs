@@ -398,7 +398,42 @@ impl MemoryVault {
                 "owner": owner,
                 "repo": repo,
                 "mode": "read_only",
+                "via": "composio",
             }),
+        )
+    }
+
+    pub fn ingest_composio_gmail_readonly(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        title: &str,
+        body_markdown: &str,
+        metadata: serde_json::Value,
+    ) -> Result<Vec<VaultMemory>> {
+        let mut metadata = metadata;
+        if metadata.get("toolkit").is_none() {
+            if let Some(obj) = metadata.as_object_mut() {
+                obj.insert("toolkit".to_string(), serde_json::json!("gmail"));
+            }
+        }
+        if metadata.get("mode").is_none() {
+            if let Some(obj) = metadata.as_object_mut() {
+                obj.insert("mode".to_string(), serde_json::json!("read_only"));
+            }
+        }
+        if metadata.get("via").is_none() {
+            if let Some(obj) = metadata.as_object_mut() {
+                obj.insert("via".to_string(), serde_json::json!("composio"));
+            }
+        }
+        self.ingest_source_markdown(
+            character_id,
+            user_id,
+            "composio_gmail",
+            title,
+            body_markdown,
+            metadata,
         )
     }
 

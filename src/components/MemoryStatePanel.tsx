@@ -21,7 +21,10 @@ import {
   getComposioStatus,
   saveComposioConfig,
   syncComposioGithubReadme,
+  syncComposioGmail,
 } from "../api/tauri";
+import { ComposioToolkitIcon } from "./ComposioToolkitIcon";
+import { DEFAULT_ENABLED_COMPOSIO_TOOLKITS } from "../lib/composioToolkits";
 import type {
   ComposioToolkitStatus,
   DreamRun,
@@ -55,6 +58,7 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
   const [transcriptTitle, setTranscriptTitle] = useState("");
   const [transcriptBody, setTranscriptBody] = useState("");
   const [composioApiKey, setComposioApiKey] = useState("");
+  const [composioToolkits, setComposioToolkits] = useState<string[]>(DEFAULT_ENABLED_COMPOSIO_TOOLKITS);
   const [githubOwner, setGithubOwner] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
   const [loading, setLoading] = useState(false);
@@ -304,14 +308,26 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
   const saveComposio = useCallback(async () => {
     setBusyAction("composio");
     try {
-      await saveComposioConfig(composioApiKey.trim() || null, ["github", "gmail"]);
+      await saveComposioConfig(composioApiKey.trim() || null, composioToolkits);
       setStatusMessage("Composio configuration saved.");
       setComposioApiKey("");
       await refresh();
     } finally {
       setBusyAction(null);
     }
-  }, [composioApiKey, refresh]);
+  }, [composioApiKey, composioToolkits, refresh]);
+
+  const syncGmail = useCallback(async () => {
+    if (!characterId) return;
+    setBusyAction("composio");
+    try {
+      const count = await syncComposioGmail(characterId, 20);
+      setStatusMessage(`Synced Gmail with ${count} memory entr${count === 1 ? "y" : "ies"}.`);
+      await refresh();
+    } finally {
+      setBusyAction(null);
+    }
+  }, [characterId, refresh]);
 
   const syncGithub = useCallback(async () => {
     if (!characterId || !githubOwner.trim() || !githubRepo.trim()) return;
@@ -535,7 +551,10 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
             <section className={sectionCardClass}>
               <div className="mb-4">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Composio</div>
-                <h4 className="mt-2 text-lg font-bold text-slate-800">Connection status and read-only GitHub sync</h4>
+                <h4 className="mt-2 text-lg font-bold text-slate-800">Authenticated Composio sync</h4>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                  GitHub README and Gmail imports run through your connected Composio accounts instead of anonymous public APIs.
+                </p>
               </div>
               <div className="grid gap-3 md:grid-cols-[1fr_auto]">
                 <input value={composioApiKey} onChange={(e) => setComposioApiKey(e.target.value)} type="password" placeholder="Composio API key" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-300 focus:bg-white" />
@@ -544,15 +563,24 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {composioStatus.map((toolkit) => (
                   <div key={toolkit.slug} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <div className="text-sm font-bold text-slate-800">{toolkit.name}</div>
-                    <div className={`mt-1 text-xs ${toolkit.connected ? "text-emerald-600" : "text-amber-600"}`}>{toolkit.status}</div>
+                    <div className="flex items-center gap-2">
+                      <ComposioToolkitIcon slug={toolkit.slug} withBackground />
+                      <div>
+                        <div className="text-sm font-bold text-slate-800">{toolkit.name}</div>
+                        <div className={`mt-1 text-xs ${toolkit.connected ? "text-emerald-600" : "text-amber-600"}`}>{toolkit.status}</div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
+
               <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
                 <input value={githubOwner} onChange={(e) => setGithubOwner(e.target.value)} placeholder="GitHub owner" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-300 focus:bg-white" />
                 <input value={githubRepo} onChange={(e) => setGithubRepo(e.target.value)} placeholder="Repo" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-300 focus:bg-white" />
                 <button onClick={syncGithub} disabled={busyAction !== null} className="rounded-2xl bg-indigo-600 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-50">Sync README</button>
+              </div>
+              <div className="mt-3">
+                <button onClick={syncGmail} disabled={busyAction !== null} className="w-full rounded-2xl bg-red-600 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-50">Sync Gmail Inbox</button>
               </div>
             </section>
 

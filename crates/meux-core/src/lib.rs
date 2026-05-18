@@ -1,4 +1,5 @@
 pub mod character;
+pub mod composio_toolkits;
 pub mod config;
 pub mod context;
 pub mod error;

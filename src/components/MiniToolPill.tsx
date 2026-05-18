@@ -1,4 +1,5 @@
 import type { ToolCallStatus } from "./ToolCallBubble";
+import { resolveComposioToolMeta } from "../lib/composioToolMeta";
 
 const TOOL_LABELS: Record<string, string> = {
   read_file: "Reading",
@@ -15,7 +16,20 @@ const TOOL_LABELS: Record<string, string> = {
   clipboard_read: "Clipboard",
   clipboard_write: "Clipboard",
   web_search: "Searching",
+  composio_sync_github_readme: "GitHub sync",
+  composio_sync_gmail: "Gmail sync",
 };
+
+function resolveToolLabel(toolName: string): string {
+  if (TOOL_LABELS[toolName]) {
+    return TOOL_LABELS[toolName];
+  }
+  const composio = resolveComposioToolMeta(toolName);
+  if (composio) {
+    return composio.label;
+  }
+  return toolName.replace(/_/g, " ");
+}
 
 const STATUS_DOTS: Record<string, string> = {
   running: "bg-blue-400 animate-pulse",
@@ -35,7 +49,7 @@ export function MiniToolPills({ toolCalls, pendingConfirmation }: Props) {
   return (
     <div className="absolute bottom-14 left-2 right-2 z-15 flex flex-wrap gap-1 pointer-events-none">
       {toolCalls.map((tc) => {
-        const label = TOOL_LABELS[tc.toolName] || tc.toolName.replace(/_/g, " ");
+        const label = resolveToolLabel(tc.toolName);
         const dotClass = STATUS_DOTS[tc.status] || "bg-slate-400";
         const isConfirm = tc.status === "awaiting_confirmation";
 
