@@ -11,11 +11,15 @@ const POSITIVE_TOKENS: &[&str] = &[
     "thanks", "thank", "love", "great", "awesome", "helpful", "sweet", "nice",
 ];
 const NEGATIVE_TOKENS: &[&str] = &[
-    "hate", "annoying", "bad", "upset", "angry", "frustrated", "sad",
+    "hate",
+    "annoying",
+    "bad",
+    "upset",
+    "angry",
+    "frustrated",
+    "sad",
 ];
-const ATTACHMENT_TOKENS: &[&str] = &[
-    "remember", "miss", "stay", "together", "companion", "care",
-];
+const ATTACHMENT_TOKENS: &[&str] = &["remember", "miss", "stay", "together", "companion", "care"];
 
 pub struct StateStore {
     data_dir: PathBuf,
@@ -89,9 +93,15 @@ impl StateStore {
             .map(|m| m.as_str().to_lowercase())
             .collect();
 
-        let has_positive = user_tokens.iter().any(|t| POSITIVE_TOKENS.contains(&t.as_str()));
-        let has_negative = user_tokens.iter().any(|t| NEGATIVE_TOKENS.contains(&t.as_str()));
-        let has_attachment = user_tokens.iter().any(|t| ATTACHMENT_TOKENS.contains(&t.as_str()));
+        let has_positive = user_tokens
+            .iter()
+            .any(|t| POSITIVE_TOKENS.contains(&t.as_str()));
+        let has_negative = user_tokens
+            .iter()
+            .any(|t| NEGATIVE_TOKENS.contains(&t.as_str()));
+        let has_attachment = user_tokens
+            .iter()
+            .any(|t| ATTACHMENT_TOKENS.contains(&t.as_str()));
 
         if has_positive {
             state.trust += 0.04;
@@ -110,9 +120,8 @@ impl StateStore {
             state.trust += 0.02;
         }
 
-        let assistant_has_proud_or_glad = assistant_tokens
-            .iter()
-            .any(|t| t == "proud" || t == "glad");
+        let assistant_has_proud_or_glad =
+            assistant_tokens.iter().any(|t| t == "proud" || t == "glad");
         if assistant_has_proud_or_glad {
             state.affection += 0.01;
         }
@@ -221,7 +230,12 @@ mod tests {
         store.save("char1", "user1", &mut initial).unwrap();
 
         let state = store
-            .update_from_exchange("char1", "user1", "I'm frustrated and upset", "I understand.")
+            .update_from_exchange(
+                "char1",
+                "user1",
+                "I'm frustrated and upset",
+                "I understand.",
+            )
             .unwrap();
 
         assert!(state.trust < 0.5);
