@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::RwLock;
 
 use chrono::{DateTime, Utc};
@@ -140,84 +140,89 @@ impl MemoryVault {
         user_message: &str,
         assistant_message: &str,
     ) -> Result<Vec<VaultMemory>> {
-        let _guard = self
-            ._lock
-            .write()
-            .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
-        let conn = self.connection(user_id)?;
-        let tx = conn.unchecked_transaction()?;
+        let (saved, should_dream, relationship_mood) = {
+            let _guard = self
+                ._lock
+                .write()
+                .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
+            let conn = self.connection(user_id)?;
+            let tx = conn.unchecked_transaction()?;
 
-        let source = insert_source_item(
-            &tx,
-            character_id,
-            user_id,
-            "chat",
-            "Chat exchange",
-            &chat_exchange_markdown(user_message, assistant_message),
-            serde_json::json!({
-                "user_message": user_message,
-                "assistant_preview": truncate_chars(assistant_message, 240),
-            }),
-        )?;
-
-        let existing = list_memories_tx(&tx, character_id, user_id, None, usize::MAX)?;
-        let mut saved = Vec::new();
-        for candidate in extractor::extract_memories(user_message) {
-            if duplicate_summary(&existing, &candidate.memory_type, &candidate.summary) {
-                continue;
-            }
-            if let Some(memory) = insert_memory(
+            let source = insert_source_item(
                 &tx,
                 character_id,
                 user_id,
-                &candidate.memory_type,
-                &candidate.summary,
-                candidate.importance,
-                candidate.tags,
                 "chat",
-                Some(&source.id),
-                Some(&format!("source://{}", source.id)),
-                serde_json::json!({ "extractor": "heuristic_v1" }),
-            )? {
-                saved.push(memory);
-            }
-        }
+                "Chat exchange",
+                &chat_exchange_markdown(user_message, assistant_message),
+                serde_json::json!({
+                    "user_message": user_message,
+                    "assistant_preview": truncate_chars(assistant_message, 240),
+                }),
+            )?;
 
-        if extractor::check_positive_response(user_message) {
-            let summary = format!(
-                "User found the response helpful: \"{}\"",
-                truncate_chars(assistant_message, 120)
-            );
-            if !duplicate_summary(&existing, "reflections", &summary) {
+            let existing = list_memories_tx(&tx, character_id, user_id, None, usize::MAX)?;
+            let mut saved = Vec::new();
+            for candidate in extractor::extract_memories(user_message) {
+                if duplicate_summary(&existing, &candidate.memory_type, &candidate.summary) {
+                    continue;
+                }
                 if let Some(memory) = insert_memory(
                     &tx,
                     character_id,
                     user_id,
-                    "reflections",
-                    &summary,
-                    0.6,
-                    vec!["positive_feedback".to_string(), "reflection".to_string()],
+                    &candidate.memory_type,
+                    &candidate.summary,
+                    candidate.importance,
+                    candidate.tags,
                     "chat",
                     Some(&source.id),
                     Some(&format!("source://{}", source.id)),
-                    serde_json::json!({ "extractor": "gratitude_v1" }),
+                    serde_json::json!({ "extractor": "heuristic_v1" }),
                 )? {
                     saved.push(memory);
                 }
             }
-        }
 
-        let relationship = update_relationship_from_exchange_tx(
-            &tx,
-            character_id,
-            user_id,
-            user_message,
-            assistant_message,
-        )?;
-        tx.commit()?;
+            if extractor::check_positive_response(user_message) {
+                let summary = format!(
+                    "User found the response helpful: \"{}\"",
+                    truncate_chars(assistant_message, 120)
+                );
+                if !duplicate_summary(&existing, "reflections", &summary) {
+                    if let Some(memory) = insert_memory(
+                        &tx,
+                        character_id,
+                        user_id,
+                        "reflections",
+                        &summary,
+                        0.6,
+                        vec!["positive_feedback".to_string(), "reflection".to_string()],
+                        "chat",
+                        Some(&source.id),
+                        Some(&format!("source://{}", source.id)),
+                        serde_json::json!({ "extractor": "gratitude_v1" }),
+                    )? {
+                        saved.push(memory);
+                    }
+                }
+            }
+
+            let relationship = update_relationship_from_exchange_tx(
+                &tx,
+                character_id,
+                user_id,
+                user_message,
+                assistant_message,
+            )?;
+            let should_dream = saved.len() >= 2 || relationship.mood == "warm";
+            let relationship_mood = relationship.mood;
+            tx.commit()?;
+            (saved, should_dream, relationship_mood)
+        };
 
         let _ = self.rebuild_vault(character_id, user_id);
-        if saved.len() >= 2 || relationship.mood == "warm" {
+        if should_dream || relationship_mood == "warm" {
             let _ = self.run_dream(character_id, user_id);
         }
 
@@ -852,6 +857,7 @@ fn count_type(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn ingests_chat_and_builds_vault() {
