@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::RwLock;
 
@@ -7,16 +8,19 @@ use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
+use walkdir::WalkDir;
+use zip::write::SimpleFileOptions;
 
 use crate::error::{MeuxError, Result};
 use crate::memory::extractor;
 use crate::memory::store::Memory;
 
 use super::types::{
-    DreamRun, MemorySourceItem, MemoryVaultOverview, RelationshipSnapshot, VaultMemory,
+    DreamRun, MemorySourceItem, MemoryVaultOverview, RelationshipSnapshot, TopicSummary,
+    VaultMemory,
 };
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 pub struct MemoryVault {
     data_dir: PathBuf,
@@ -86,6 +90,8 @@ impl MemoryVault {
                 source_kind TEXT NOT NULL,
                 source_id TEXT,
                 provenance TEXT,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                topic TEXT,
                 metadata_json TEXT NOT NULL DEFAULT '{}',
                 UNIQUE(user_id, character_id, type, summary)
             );
@@ -94,6 +100,10 @@ impl MemoryVault {
                 ON memories(user_id, character_id, ts DESC);
             CREATE INDEX IF NOT EXISTS idx_memories_type
                 ON memories(user_id, character_id, type);
+            CREATE INDEX IF NOT EXISTS idx_memories_pinned
+                ON memories(user_id, character_id, pinned);
+            CREATE INDEX IF NOT EXISTS idx_memories_topic
+                ON memories(user_id, character_id, topic);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
                 memory_id UNINDEXED,
@@ -127,9 +137,12 @@ impl MemoryVault {
             CREATE INDEX IF NOT EXISTS idx_dream_runs_scope_ts
                 ON dream_runs(user_id, character_id, started_at DESC);
 
-            PRAGMA user_version = 1;
             "#,
         )?;
+        ensure_column(conn, "memories", "pinned", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(conn, "memories", "topic", "TEXT")?;
+        rebuild_fts(conn)?;
+        conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         Ok(())
     }
 
@@ -229,6 +242,247 @@ impl MemoryVault {
         Ok(saved)
     }
 
+    pub fn migrate_legacy_memories(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        memories: &[Memory],
+    ) -> Result<usize> {
+        let imported = {
+            let _guard = self
+                ._lock
+                .write()
+                .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
+            let conn = self.connection(user_id)?;
+            let tx = conn.unchecked_transaction()?;
+            let existing = list_memories_tx(&tx, character_id, user_id, None, usize::MAX)?;
+            let mut imported = 0;
+            for memory in memories {
+                if duplicate_summary(&existing, &memory.memory_type, &memory.summary) {
+                    continue;
+                }
+                let source = insert_source_item(
+                    &tx,
+                    character_id,
+                    user_id,
+                    "legacy_jsonl",
+                    &format!("Legacy {} memory", memory.memory_type),
+                    &memory.summary,
+                    serde_json::json!({
+                        "legacy_id": memory.id,
+                        "legacy_type": memory.memory_type,
+                        "legacy_ts": memory.ts.to_rfc3339(),
+                    }),
+                )?;
+                if insert_memory(
+                    &tx,
+                    character_id,
+                    user_id,
+                    &memory.memory_type,
+                    &memory.summary,
+                    memory.importance,
+                    memory.tags.clone(),
+                    "legacy_jsonl",
+                    Some(&source.id),
+                    Some(&format!("legacy://{}", memory.id)),
+                    memory.metadata.clone(),
+                )?
+                .is_some()
+                {
+                    imported += 1;
+                }
+            }
+            tx.commit()?;
+            imported
+        };
+        let _ = self.rebuild_vault(character_id, user_id);
+        Ok(imported)
+    }
+
+    pub fn ingest_manual_note(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        title: &str,
+        body_markdown: &str,
+    ) -> Result<Vec<VaultMemory>> {
+        self.ingest_source_markdown(
+            character_id,
+            user_id,
+            "manual_note",
+            title,
+            body_markdown,
+            serde_json::json!({ "ingest": "manual_note" }),
+        )
+    }
+
+    pub fn ingest_meeting_transcript(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        title: &str,
+        transcript: &str,
+    ) -> Result<Vec<VaultMemory>> {
+        let body = format!("# Meeting transcript: {title}\n\n{transcript}");
+        self.ingest_source_markdown(
+            character_id,
+            user_id,
+            "meeting_transcript",
+            title,
+            &body,
+            serde_json::json!({ "ingest": "meeting_transcript" }),
+        )
+    }
+
+    pub fn ingest_text_file(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        path: PathBuf,
+    ) -> Result<Vec<VaultMemory>> {
+        let body = std::fs::read_to_string(&path)?;
+        let title = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Imported file")
+            .to_string();
+        self.ingest_source_markdown(
+            character_id,
+            user_id,
+            "local_file",
+            &title,
+            &body,
+            serde_json::json!({
+                "path": path.to_string_lossy(),
+                "ingest": "local_file",
+            }),
+        )
+    }
+
+    pub fn ingest_text_folder(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        path: PathBuf,
+    ) -> Result<usize> {
+        let mut imported = 0;
+        for entry in WalkDir::new(path)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+        {
+            let path = entry.path().to_path_buf();
+            if is_text_ingest_file(&path) {
+                imported += self.ingest_text_file(character_id, user_id, path)?.len();
+            }
+        }
+        Ok(imported)
+    }
+
+    pub fn ingest_composio_github_readonly(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        owner: &str,
+        repo: &str,
+        readme_markdown: &str,
+    ) -> Result<Vec<VaultMemory>> {
+        self.ingest_source_markdown(
+            character_id,
+            user_id,
+            "composio_github",
+            &format!("{owner}/{repo} README"),
+            readme_markdown,
+            serde_json::json!({
+                "toolkit": "github",
+                "owner": owner,
+                "repo": repo,
+                "mode": "read_only",
+            }),
+        )
+    }
+
+    pub fn ingest_source_markdown(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        source_kind: &str,
+        title: &str,
+        body_markdown: &str,
+        metadata: serde_json::Value,
+    ) -> Result<Vec<VaultMemory>> {
+        let saved = {
+            let _guard = self
+                ._lock
+                .write()
+                .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
+            let conn = self.connection(user_id)?;
+            let tx = conn.unchecked_transaction()?;
+            let source = insert_source_item(
+                &tx,
+                character_id,
+                user_id,
+                source_kind,
+                title,
+                body_markdown,
+                metadata,
+            )?;
+            let existing = list_memories_tx(&tx, character_id, user_id, None, usize::MAX)?;
+            let mut saved = Vec::new();
+
+            let candidates = extractor::extract_memories(body_markdown);
+            for candidate in candidates {
+                if duplicate_summary(&existing, &candidate.memory_type, &candidate.summary) {
+                    continue;
+                }
+                if let Some(memory) = insert_memory(
+                    &tx,
+                    character_id,
+                    user_id,
+                    &candidate.memory_type,
+                    &candidate.summary,
+                    candidate.importance,
+                    candidate.tags,
+                    source_kind,
+                    Some(&source.id),
+                    Some(&format!("source://{}", source.id)),
+                    serde_json::json!({ "extractor": "source_heuristic_v1" }),
+                )? {
+                    saved.push(memory);
+                }
+            }
+
+            let fallback_summary = format!("Imported {source_kind}: {title}");
+            if saved.is_empty()
+                && !duplicate_summary(&existing, "episodic", &fallback_summary)
+                && !body_markdown.trim().is_empty()
+            {
+                if let Some(memory) = insert_memory(
+                    &tx,
+                    character_id,
+                    user_id,
+                    "episodic",
+                    &fallback_summary,
+                    0.5,
+                    vec![source_kind.to_string(), "imported_source".to_string()],
+                    source_kind,
+                    Some(&source.id),
+                    Some(&format!("source://{}", source.id)),
+                    serde_json::json!({
+                        "source_excerpt": truncate_chars(body_markdown, 500),
+                    }),
+                )? {
+                    saved.push(memory);
+                }
+            }
+            tx.commit()?;
+            saved
+        };
+
+        let _ = self.rebuild_vault(character_id, user_id);
+        Ok(saved)
+    }
+
     pub fn list_memories(
         &self,
         character_id: &str,
@@ -251,10 +505,182 @@ impl MemoryVault {
         query: &str,
         limit: usize,
     ) -> Result<Vec<VaultMemory>> {
-        let mut memories = self.list_memories(character_id, user_id, None, usize::MAX)?;
+        let _guard = self
+            ._lock
+            .read()
+            .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
+        let conn = self.connection(user_id)?;
+        let mut memories = search_memories_tx(&conn, character_id, user_id, query, limit * 4)?;
+        if memories.is_empty() {
+            memories = list_memories_tx(&conn, character_id, user_id, None, usize::MAX)?;
+        }
         rank_memories(query, &mut memories);
         memories.truncate(limit);
         Ok(memories)
+    }
+
+    pub fn delete_memory(&self, character_id: &str, user_id: &str, memory_id: &str) -> Result<()> {
+        {
+            let _guard = self
+                ._lock
+                .write()
+                .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
+            let conn = self.connection(user_id)?;
+            conn.execute(
+                "DELETE FROM memories WHERE user_id = ?1 AND character_id = ?2 AND id = ?3",
+                params![user_id, character_id, memory_id],
+            )?;
+            conn.execute(
+                "DELETE FROM memory_fts WHERE memory_id = ?1",
+                params![memory_id],
+            )?;
+        }
+        self.rebuild_vault(character_id, user_id)?;
+        Ok(())
+    }
+
+    pub fn set_memory_pinned(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        memory_id: &str,
+        pinned: bool,
+    ) -> Result<()> {
+        {
+            let _guard = self
+                ._lock
+                .write()
+                .map_err(|e| MeuxError::Memory(format!("Lock poisoned: {e}")))?;
+            let conn = self.connection(user_id)?;
+            conn.execute(
+                "UPDATE memories SET pinned = ?1 WHERE user_id = ?2 AND character_id = ?3 AND id = ?4",
+                params![if pinned { 1 } else { 0 }, user_id, character_id, memory_id],
+            )?;
+        }
+        self.rebuild_vault(character_id, user_id)?;
+        Ok(())
+    }
+
+    pub fn list_sources(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        limit: usize,
+    ) -> Result<Vec<MemorySourceItem>> {
+        let conn = self.connection(user_id)?;
+        let mut stmt = conn.prepare(
+            "SELECT id, ts, user_id, character_id, source_kind, title, body_markdown, content_hash, metadata_json
+             FROM source_items
+             WHERE user_id = ?1 AND character_id = ?2
+             ORDER BY ts DESC
+             LIMIT ?3",
+        )?;
+        let rows = stmt.query_map(
+            params![user_id, character_id, limit as i64],
+            source_from_row,
+        )?;
+        let mut sources = Vec::new();
+        for row in rows {
+            sources.push(row?);
+        }
+        Ok(sources)
+    }
+
+    pub fn topic_summaries(&self, character_id: &str, user_id: &str) -> Result<Vec<TopicSummary>> {
+        let memories = self.list_memories(character_id, user_id, None, usize::MAX)?;
+        let mut topics: std::collections::BTreeMap<String, Vec<VaultMemory>> =
+            std::collections::BTreeMap::new();
+        for memory in memories {
+            if let Some(topic) = memory.topic.clone() {
+                topics.entry(topic).or_default().push(memory);
+            }
+        }
+        Ok(topics
+            .into_iter()
+            .map(|(topic, mut memories)| {
+                memories.sort_by_key(|m| std::cmp::Reverse(m.ts));
+                let latest_at = memories.first().map(|m| m.ts.to_rfc3339());
+                let highlights = memories
+                    .iter()
+                    .take(3)
+                    .map(|m| m.summary.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                TopicSummary {
+                    topic,
+                    count: memories.len(),
+                    summary: highlights,
+                    latest_at,
+                }
+            })
+            .collect())
+    }
+
+    pub fn export_zip(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        output_path: PathBuf,
+    ) -> Result<PathBuf> {
+        let vault_dir = self.rebuild_vault(character_id, user_id)?;
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let file = std::fs::File::create(&output_path)?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        for entry in WalkDir::new(&vault_dir)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+        {
+            let path = entry.path();
+            let relative = path.strip_prefix(&vault_dir).map_err(|e| {
+                MeuxError::Memory(format!(
+                    "Failed to build zip path for {}: {e}",
+                    path.display()
+                ))
+            })?;
+            zip.start_file(relative.to_string_lossy().replace('\\', "/"), options)?;
+            let bytes = std::fs::read(path)?;
+            zip.write_all(&bytes)?;
+        }
+        zip.finish()?;
+        Ok(output_path)
+    }
+
+    pub fn import_zip(
+        &self,
+        character_id: &str,
+        user_id: &str,
+        input_path: PathBuf,
+    ) -> Result<usize> {
+        let file = std::fs::File::open(&input_path)?;
+        let mut archive = zip::ZipArchive::new(file)?;
+        let mut imported = 0;
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index)?;
+            if !file.is_file() || !is_text_archive_name(file.name()) {
+                continue;
+            }
+            let mut content = String::new();
+            file.read_to_string(&mut content)?;
+            imported += self
+                .ingest_source_markdown(
+                    character_id,
+                    user_id,
+                    "vault_zip_import",
+                    file.name(),
+                    &content,
+                    serde_json::json!({
+                        "zip_path": input_path.to_string_lossy(),
+                        "entry": file.name(),
+                    }),
+                )?
+                .len();
+        }
+        Ok(imported)
     }
 
     pub fn clear(&self, character_id: &str, user_id: &str) -> Result<()> {
@@ -307,18 +733,33 @@ impl MemoryVault {
         query: &str,
         limit: usize,
     ) -> Result<String> {
-        let relevant = self.search_memories(character_id, user_id, query, limit)?;
+        let mut relevant = self.search_memories(character_id, user_id, query, limit)?;
         if relevant.is_empty() {
             return Ok(String::new());
         }
+        relevant.sort_by(|a, b| {
+            b.pinned.cmp(&a.pinned).then_with(|| {
+                b.importance
+                    .partial_cmp(&a.importance)
+                    .unwrap_or(Ordering::Equal)
+            })
+        });
         let mut out = String::from("Relevant long-term memory vault entries:\n");
+        let mut used = out.len();
+        let budget = 1_800usize;
         for memory in relevant {
-            out.push_str(&format!(
+            let line = format!(
                 "- [{} | importance {:.0}%] {}\n",
                 memory.memory_type,
                 memory.importance * 100.0,
                 memory.summary
-            ));
+            );
+            if used + line.len() > budget {
+                out.push_str("- [memory budget reached]\n");
+                break;
+            }
+            used += line.len();
+            out.push_str(&line);
         }
         Ok(out)
     }
@@ -389,6 +830,16 @@ impl MemoryVault {
         let semantic_count = count_type(&conn, character_id, user_id, "semantic")?;
         let episodic_count = count_type(&conn, character_id, user_id, "episodic")?;
         let reflection_count = count_type(&conn, character_id, user_id, "reflections")?;
+        let pinned_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM memories WHERE user_id = ?1 AND character_id = ?2 AND pinned = 1",
+            params![user_id, character_id],
+            |row| row.get(0),
+        )?;
+        let topic_count: i64 = conn.query_row(
+            "SELECT COUNT(DISTINCT topic) FROM memories WHERE user_id = ?1 AND character_id = ?2 AND topic IS NOT NULL",
+            params![user_id, character_id],
+            |row| row.get(0),
+        )?;
         let latest_memory_at: Option<String> = conn
             .query_row(
                 "SELECT ts FROM memories WHERE user_id = ?1 AND character_id = ?2 ORDER BY ts DESC LIMIT 1",
@@ -399,6 +850,13 @@ impl MemoryVault {
         let latest_dream_at: Option<String> = conn
             .query_row(
                 "SELECT finished_at FROM dream_runs WHERE user_id = ?1 AND character_id = ?2 AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 1",
+                params![user_id, character_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let latest_source_at: Option<String> = conn
+            .query_row(
+                "SELECT ts FROM source_items WHERE user_id = ?1 AND character_id = ?2 ORDER BY ts DESC LIMIT 1",
                 params![user_id, character_id],
                 |row| row.get(0),
             )
@@ -416,6 +874,9 @@ impl MemoryVault {
             vault_path: self.vault_dir(user_id).to_string_lossy().to_string(),
             database_path: self.db_path(user_id).to_string_lossy().to_string(),
             relationship: Some(relationship_tx(&conn, character_id, user_id)?),
+            pinned_count: pinned_count as usize,
+            topic_count: topic_count as usize,
+            latest_source_at,
         })
     }
 
@@ -513,8 +974,8 @@ fn insert_memory(
     let tags_json = serde_json::to_string(&tags)?;
     let inserted = conn.execute(
         "INSERT OR IGNORE INTO memories
-         (id, ts, user_id, character_id, type, summary, importance, tags_json, source_kind, source_id, provenance, metadata_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+         (id, ts, user_id, character_id, type, summary, importance, tags_json, source_kind, source_id, provenance, pinned, topic, metadata_json)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?12, ?13)",
         params![
             id,
             ts.to_rfc3339(),
@@ -527,6 +988,7 @@ fn insert_memory(
             source_kind,
             source_id,
             provenance,
+            infer_topic(summary, &tags),
             serde_json::to_string(&metadata)?,
         ],
     )?;
@@ -540,6 +1002,7 @@ fn insert_memory(
         params![id, summary, tags.join(" ")],
     )?;
 
+    let topic = infer_topic(summary, &tags);
     Ok(Some(VaultMemory {
         id,
         ts,
@@ -552,6 +1015,8 @@ fn insert_memory(
         source_kind: source_kind.to_string(),
         source_id: source_id.map(str::to_string),
         provenance: provenance.map(str::to_string),
+        pinned: false,
+        topic,
         metadata,
     }))
 }
@@ -566,10 +1031,10 @@ fn list_memories_tx(
     let mut memories = Vec::new();
     if let Some(memory_type) = memory_type {
         let mut stmt = conn.prepare(
-            "SELECT id, ts, user_id, character_id, type, summary, importance, tags_json, source_kind, source_id, provenance, metadata_json
+            "SELECT id, ts, user_id, character_id, type, summary, importance, tags_json, source_kind, source_id, provenance, pinned, topic, metadata_json
              FROM memories
              WHERE user_id = ?1 AND character_id = ?2 AND type = ?3
-             ORDER BY ts DESC
+             ORDER BY pinned DESC, ts DESC
              LIMIT ?4",
         )?;
         let rows = stmt.query_map(
@@ -581,10 +1046,10 @@ fn list_memories_tx(
         }
     } else {
         let mut stmt = conn.prepare(
-            "SELECT id, ts, user_id, character_id, type, summary, importance, tags_json, source_kind, source_id, provenance, metadata_json
+            "SELECT id, ts, user_id, character_id, type, summary, importance, tags_json, source_kind, source_id, provenance, pinned, topic, metadata_json
              FROM memories
              WHERE user_id = ?1 AND character_id = ?2
-             ORDER BY ts DESC
+             ORDER BY pinned DESC, ts DESC
              LIMIT ?3",
         )?;
         let rows = stmt.query_map(
@@ -707,7 +1172,7 @@ fn relationship_tx(
 fn memory_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<VaultMemory> {
     let ts: String = row.get(1)?;
     let tags_json: String = row.get(7)?;
-    let metadata_json: String = row.get(11)?;
+    let metadata_json: String = row.get(13)?;
     Ok(VaultMemory {
         id: row.get(0)?,
         ts: parse_ts(&ts),
@@ -720,6 +1185,8 @@ fn memory_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<VaultMemory> {
         source_kind: row.get(8)?,
         source_id: row.get(9)?,
         provenance: row.get(10)?,
+        pinned: row.get::<_, i64>(11)? != 0,
+        topic: row.get(12)?,
         metadata: serde_json::from_str(&metadata_json).unwrap_or_else(|_| serde_json::json!({})),
     })
 }
@@ -854,6 +1321,107 @@ fn count_type(
     .map_err(Into::into)
 }
 
+fn ensure_column(conn: &Connection, table: &str, column: &str, definition: &str) -> Result<()> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    for row in rows {
+        if row? == column {
+            return Ok(());
+        }
+    }
+    conn.execute(
+        &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+        [],
+    )?;
+    Ok(())
+}
+
+fn rebuild_fts(conn: &Connection) -> Result<()> {
+    conn.execute("DELETE FROM memory_fts", [])?;
+    conn.execute(
+        "INSERT INTO memory_fts (memory_id, summary, tags)
+         SELECT id, summary, tags_json FROM memories",
+        [],
+    )?;
+    Ok(())
+}
+
+fn search_memories_tx(
+    conn: &Connection,
+    character_id: &str,
+    user_id: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<VaultMemory>> {
+    let fts_query = fts_query(query);
+    if fts_query.is_empty() {
+        return list_memories_tx(conn, character_id, user_id, None, limit);
+    }
+
+    let mut stmt = conn.prepare(
+        "SELECT m.id, m.ts, m.user_id, m.character_id, m.type, m.summary, m.importance,
+                m.tags_json, m.source_kind, m.source_id, m.provenance, m.pinned, m.topic, m.metadata_json
+         FROM memory_fts f
+         JOIN memories m ON m.id = f.memory_id
+         WHERE memory_fts MATCH ?1 AND m.user_id = ?2 AND m.character_id = ?3
+         ORDER BY m.pinned DESC, bm25(memory_fts), m.importance DESC, m.ts DESC
+         LIMIT ?4",
+    )?;
+    let rows = stmt.query_map(
+        params![fts_query, user_id, character_id, limit as i64],
+        memory_from_row,
+    )?;
+    let mut memories = Vec::new();
+    for row in rows {
+        memories.push(row?);
+    }
+    Ok(memories)
+}
+
+fn fts_query(query: &str) -> String {
+    extractor::extract_tokens(query)
+        .into_iter()
+        .take(12)
+        .map(|token| format!("\"{}\"", token.replace('"', "\"\"")))
+        .collect::<Vec<_>>()
+        .join(" OR ")
+}
+
+fn infer_topic(summary: &str, tags: &[String]) -> Option<String> {
+    if let Some(tag) = tags.iter().find(|tag| {
+        matches!(
+            tag.as_str(),
+            "project" | "user_goal" | "preferences" | "identity" | "education" | "desire"
+        )
+    }) {
+        return Some(tag.clone());
+    }
+
+    let tokens = extractor::extract_tokens(summary);
+    [
+        "rust", "github", "gmail", "meeting", "project", "memory", "database", "frontend",
+        "backend",
+    ]
+    .iter()
+    .find(|candidate| tokens.contains(**candidate))
+    .map(|candidate| candidate.to_string())
+}
+
+fn is_text_ingest_file(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "md" | "markdown" | "txt"))
+        .unwrap_or(false)
+}
+
+fn is_text_archive_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".md")
+        || lower.ends_with(".markdown")
+        || lower.ends_with(".txt")
+        || lower.ends_with(".jsonl")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -897,5 +1465,44 @@ mod tests {
             .unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].summary.to_lowercase().contains("rust"));
+    }
+
+    #[test]
+    fn supports_pin_delete_sources_and_zip_import_export() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = MemoryVault::new(tmp.path());
+        let saved = vault
+            .ingest_manual_note(
+                "rika",
+                "user1",
+                "Project note",
+                "I prefer GitHub issues for project tracking.",
+            )
+            .unwrap();
+        assert!(!saved.is_empty());
+        let memory_id = saved[0].id.clone();
+
+        vault
+            .set_memory_pinned("rika", "user1", &memory_id, true)
+            .unwrap();
+        let pinned = vault.list_memories("rika", "user1", None, 10).unwrap();
+        assert!(pinned[0].pinned);
+        assert!(!vault.topic_summaries("rika", "user1").unwrap().is_empty());
+        assert_eq!(vault.list_sources("rika", "user1", 10).unwrap().len(), 1);
+
+        let export_path = tmp.path().join("vault.zip");
+        vault
+            .export_zip("rika", "user1", export_path.clone())
+            .unwrap();
+        assert!(export_path.exists());
+        let imported = vault.import_zip("rika", "user1", export_path).unwrap();
+        assert!(imported > 0);
+
+        vault.delete_memory("rika", "user1", &memory_id).unwrap();
+        assert!(!vault
+            .list_memories("rika", "user1", None, 10)
+            .unwrap()
+            .iter()
+            .any(|memory| memory.id == memory_id));
     }
 }

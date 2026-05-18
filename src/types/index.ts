@@ -24,7 +24,34 @@ export interface MemoryRecord {
   source_kind?: string;
   source_id?: string | null;
   provenance?: string | null;
+  pinned?: boolean;
+  topic?: string | null;
   metadata?: Record<string, unknown>;
+}
+
+export interface MemorySourceRecord {
+  id: string;
+  ts: string;
+  character_id: string;
+  source_kind: string;
+  title: string;
+  content_hash: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TopicSummary {
+  topic: string;
+  count: number;
+  summary: string;
+  latest_at?: string | null;
+}
+
+export interface ComposioToolkitStatus {
+  slug: string;
+  name: string;
+  connected: boolean;
+  status: string;
+  last_sync_at?: string | null;
 }
 
 export interface RelationshipSnapshot {
@@ -50,6 +77,9 @@ export interface MemoryVaultOverview {
   vault_path: string;
   database_path: string;
   relationship?: RelationshipSnapshot | null;
+  pinned_count?: number;
+  topic_count?: number;
+  latest_source_at?: string | null;
 }
 
 export interface DreamRun {
