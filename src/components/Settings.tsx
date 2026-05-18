@@ -2,7 +2,17 @@ import { useState, useEffect } from "react";
 import type { JSX } from "react";
 import { ModelSettings } from "./ModelSettings";
 import { MemoryStatePanel } from "./MemoryStatePanel";
-import { getConfig, saveConfig, testLlm, getVoices, listTools, getComposioStatus, saveComposioConfig } from "../api/tauri";
+import {
+  getConfig,
+  saveConfig,
+  testLlm,
+  getVoices,
+  listTools,
+  getComposioStatus,
+  saveComposioConfig,
+  authorizeComposioToolkit,
+  refreshComposioToolkit,
+} from "../api/tauri";
 
 interface Voice {
   id: string;
@@ -287,7 +297,8 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
   const [exaApiKey, setExaApiKey] = useState("");
   const [composioApiKey, setComposioApiKey] = useState("");
   const [composioToolkits, setComposioToolkits] = useState<string[]>(["github", "gmail"]);
-  const [composioStatus, setComposioStatus] = useState<{ slug: string; name: string; connected: boolean; status: string }[]>([]);
+  const [composioStatus, setComposioStatus] = useState<{ slug: string; name: string; connected: boolean; status: string; redirect_url?: string | null; connected_account_id?: string | null }[]>([]);
+  const [composioRedirectUrl, setComposioRedirectUrl] = useState<string | null>(null);
 
   const deriveConfigured = (cfg: any) => {
     // Derive which providers are configured from stored config
@@ -429,6 +440,38 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error("Failed to save Composio config:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const refreshComposioStatuses = async () => {
+    const data: any = await getComposioStatus();
+    setComposioStatus(data || []);
+  };
+
+  const handleAuthorizeComposio = async (toolkit: string) => {
+    setSaving(true);
+    try {
+      const result: any = await authorizeComposioToolkit(toolkit);
+      setComposioRedirectUrl(result.redirect_url || null);
+      await refreshComposioStatuses();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to authorize Composio toolkit:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRefreshComposio = async (toolkit: string) => {
+    setSaving(true);
+    try {
+      await refreshComposioToolkit(toolkit);
+      await refreshComposioStatuses();
+    } catch (err) {
+      console.error("Failed to refresh Composio toolkit:", err);
     } finally {
       setSaving(false);
     }
@@ -895,15 +938,51 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
           <div className="mb-6 grid gap-3">
             {composioStatus.map((toolkit) => (
               <div key={toolkit.slug} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-slate-700">{toolkit.name}</span>
-                  <span className={`text-xs font-semibold ${toolkit.connected ? "text-emerald-600" : "text-amber-600"}`}>
-                    {toolkit.status}
-                  </span>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-sm font-bold text-slate-700">{toolkit.name}</span>
+                    {toolkit.connected_account_id && (
+                      <div className="mt-1 font-mono text-[10px] text-slate-400">{toolkit.connected_account_id}</div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-xs font-semibold ${toolkit.connected ? "text-emerald-600" : "text-amber-600"}`}>
+                      {toolkit.status}
+                    </span>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => void handleAuthorizeComposio(toolkit.slug)}
+                        disabled={saving}
+                        className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-600 border border-blue-100 disabled:opacity-50"
+                      >
+                        {toolkit.connected ? "Reconnect" : "Connect"}
+                      </button>
+                      <button
+                        onClick={() => void handleRefreshComposio(toolkit.slug)}
+                        disabled={saving}
+                        className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 border border-slate-200 disabled:opacity-50"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+
+          {composioRedirectUrl && (
+            <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700">Connect link ready</div>
+              <p className="mt-2 text-sm text-blue-700">Open this link, finish OAuth in the browser, then return here and press Refresh.</p>
+              <button
+                onClick={() => window.open(composioRedirectUrl, "_blank", "noopener,noreferrer")}
+                className="mt-3 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white"
+              >
+                Open Connect Link
+              </button>
+            </div>
+          )}
 
           <button onClick={handleSaveComposio} disabled={saving} className={buttonClass}>
             {saving ? "Saving..." : saved ? "Saved!" : "Save Integrations"}

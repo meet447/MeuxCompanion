@@ -177,6 +177,14 @@ export async function saveComposioConfig(apiKey: string | null, enabledToolkits:
   return invoke("composio_save_config", { apiKey, enabledToolkits });
 }
 
+export async function authorizeComposioToolkit(toolkit: string) {
+  return invoke("composio_authorize_toolkit", { toolkit });
+}
+
+export async function refreshComposioToolkit(toolkit: string) {
+  return invoke("composio_refresh_toolkit", { toolkit });
+}
+
 export async function syncComposioGithubReadme(characterId: string, owner: string, repo: string) {
   return invoke<number>("composio_sync_github_readme", { characterId, owner, repo });
 }

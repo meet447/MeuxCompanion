@@ -153,6 +153,8 @@ pub fn run() {
             commands::memory::memory_import_zip_dialog,
             commands::memory::composio_status,
             commands::memory::composio_save_config,
+            commands::memory::composio_authorize_toolkit,
+            commands::memory::composio_refresh_toolkit,
             commands::memory::composio_sync_github_readme,
             commands::expressions::expressions_supported,
             commands::expressions::expressions_model_list,
