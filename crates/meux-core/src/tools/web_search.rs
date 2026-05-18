@@ -60,7 +60,7 @@ impl Tool for WebSearchTool {
         let config = self
             .config
             .read()
-            .map_err(|e| MeuxError::Tool(format!("Config lock error: {}", e)))?
+            .map_err(|e| MeuxError::Tool(format!("Config lock error: {e}")))?
             .clone();
 
         match config.provider.as_str() {
@@ -107,24 +107,24 @@ async fn search_duckduckgo(query: &str) -> Result<ToolResult> {
         .header("User-Agent", "MeuxCompanion/1.0")
         .send()
         .await
-        .map_err(|e| MeuxError::Tool(format!("Search request failed: {}", e)))?;
+        .map_err(|e| MeuxError::Tool(format!("Search request failed: {e}")))?;
 
     let html = response
         .text()
         .await
-        .map_err(|e| MeuxError::Tool(format!("Failed to read response: {}", e)))?;
+        .map_err(|e| MeuxError::Tool(format!("Failed to read response: {e}")))?;
 
     let results = parse_ddg_results(&html);
 
     if results.is_empty() {
         return Ok(ToolResult {
             tool_call_id: String::new(),
-            content: format!("No results found for: {}", query),
+            content: format!("No results found for: {query}"),
             success: true,
         });
     }
 
-    let mut output = format!("Search results for: {} (via DuckDuckGo)\n\n", query);
+    let mut output = format!("Search results for: {query} (via DuckDuckGo)\n\n");
     for (i, result) in results.iter().enumerate().take(8) {
         output.push_str(&format!(
             "{}. {}\n   {}\n   {}\n\n",
@@ -158,14 +158,14 @@ async fn search_serpapi(query: &str, api_key: &str) -> Result<ToolResult> {
         ])
         .send()
         .await
-        .map_err(|e| MeuxError::Tool(format!("SerpAPI request failed: {}", e)))?;
+        .map_err(|e| MeuxError::Tool(format!("SerpAPI request failed: {e}")))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
         return Ok(ToolResult {
             tool_call_id: String::new(),
-            content: format!("SerpAPI error (HTTP {}): {}", status, text),
+            content: format!("SerpAPI error (HTTP {status}): {text}"),
             success: false,
         });
     }
@@ -173,16 +173,16 @@ async fn search_serpapi(query: &str, api_key: &str) -> Result<ToolResult> {
     let json: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| MeuxError::Tool(format!("Failed to parse SerpAPI response: {}", e)))?;
+        .map_err(|e| MeuxError::Tool(format!("Failed to parse SerpAPI response: {e}")))?;
 
-    let mut output = format!("Search results for: {} (via SerpAPI/Google)\n\n", query);
+    let mut output = format!("Search results for: {query} (via SerpAPI/Google)\n\n");
 
     // Answer box if available
     if let Some(answer) = json.get("answer_box") {
         if let Some(snippet) = answer.get("snippet").and_then(|s| s.as_str()) {
-            output.push_str(&format!("Featured: {}\n\n", snippet));
+            output.push_str(&format!("Featured: {snippet}\n\n"));
         } else if let Some(answer_text) = answer.get("answer").and_then(|s| s.as_str()) {
-            output.push_str(&format!("Featured: {}\n\n", answer_text));
+            output.push_str(&format!("Featured: {answer_text}\n\n"));
         }
     }
 
@@ -237,14 +237,14 @@ async fn search_exa(query: &str, api_key: &str) -> Result<ToolResult> {
         .json(&body)
         .send()
         .await
-        .map_err(|e| MeuxError::Tool(format!("Exa request failed: {}", e)))?;
+        .map_err(|e| MeuxError::Tool(format!("Exa request failed: {e}")))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
         return Ok(ToolResult {
             tool_call_id: String::new(),
-            content: format!("Exa error (HTTP {}): {}", status, text),
+            content: format!("Exa error (HTTP {status}): {text}"),
             success: false,
         });
     }
@@ -252,9 +252,9 @@ async fn search_exa(query: &str, api_key: &str) -> Result<ToolResult> {
     let json: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| MeuxError::Tool(format!("Failed to parse Exa response: {}", e)))?;
+        .map_err(|e| MeuxError::Tool(format!("Failed to parse Exa response: {e}")))?;
 
-    let mut output = format!("Search results for: {} (via Exa)\n\n", query);
+    let mut output = format!("Search results for: {query} (via Exa)\n\n");
 
     if let Some(results) = json.get("results").and_then(|r| r.as_array()) {
         for (i, result) in results.iter().enumerate().take(8) {

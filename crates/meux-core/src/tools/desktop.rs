@@ -49,10 +49,7 @@ impl Tool for OpenApplicationTool {
             .ok_or_else(|| MeuxError::Tool("Missing 'name' argument".to_string()))?;
 
         if !is_valid_app_name(name) {
-            return Err(MeuxError::Tool(format!(
-                "Invalid application name: {}",
-                name
-            )));
+            return Err(MeuxError::Tool(format!("Invalid application name: {name}")));
         }
 
         let output = tokio::process::Command::new("open")
@@ -65,14 +62,14 @@ impl Tool for OpenApplicationTool {
         if output.status.success() {
             Ok(ToolResult {
                 tool_call_id: String::new(),
-                content: format!("Opened application: {}", name),
+                content: format!("Opened application: {name}"),
                 success: true,
             })
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
             Ok(ToolResult {
                 tool_call_id: String::new(),
-                content: format!("Failed to open {}: {}", name, stderr),
+                content: format!("Failed to open {name}: {stderr}"),
                 success: false,
             })
         }
@@ -126,14 +123,14 @@ impl Tool for OpenUrlTool {
         if output.status.success() {
             Ok(ToolResult {
                 tool_call_id: String::new(),
-                content: format!("Opened URL: {}", url),
+                content: format!("Opened URL: {url}"),
                 success: true,
             })
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
             Ok(ToolResult {
                 tool_call_id: String::new(),
-                content: format!("Failed to open URL {}: {}", url, stderr),
+                content: format!("Failed to open URL {url}: {stderr}"),
                 success: false,
             })
         }
@@ -226,7 +223,7 @@ impl OrganizeDesktopTool {
         if !moved.is_empty() {
             result.push_str(&format!("Organized {} files:\n", moved.len()));
             for m in &moved {
-                result.push_str(&format!("  {}\n", m));
+                result.push_str(&format!("  {m}\n"));
             }
         } else {
             result.push_str("No files to organize on the Desktop.\n");
@@ -234,7 +231,7 @@ impl OrganizeDesktopTool {
         if !errors.is_empty() {
             result.push_str(&format!("\n{} errors:\n", errors.len()));
             for e in &errors {
-                result.push_str(&format!("  {}\n", e));
+                result.push_str(&format!("  {e}\n"));
             }
         }
 
@@ -317,7 +314,7 @@ impl Tool for SystemInfoTool {
         }
         if let Ok(output) = tokio::process::Command::new("hostname").output().await {
             let host = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            info.push_str(&format!("Hostname: {}\n\n", host));
+            info.push_str(&format!("Hostname: {host}\n\n"));
         }
 
         // CPU info
@@ -327,7 +324,7 @@ impl Tool for SystemInfoTool {
             .await
         {
             let cpu = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            info.push_str(&format!("=== CPU ===\n{}\n\n", cpu));
+            info.push_str(&format!("=== CPU ===\n{cpu}\n\n"));
         }
 
         // Memory usage
@@ -357,8 +354,7 @@ impl Tool for SystemInfoTool {
             let used_gb = (active_pages + wired_pages) as f64 * page_size as f64 / 1_073_741_824.0;
             let free_gb = (free_pages + inactive_pages) as f64 * page_size as f64 / 1_073_741_824.0;
             info.push_str(&format!(
-                "=== Memory ===\nUsed: {:.1} GB\nAvailable: {:.1} GB\n\n",
-                used_gb, free_gb
+                "=== Memory ===\nUsed: {used_gb:.1} GB\nAvailable: {free_gb:.1} GB\n\n"
             ));
         }
 
@@ -391,7 +387,7 @@ impl Tool for SystemInfoTool {
         // Uptime
         if let Ok(output) = tokio::process::Command::new("uptime").output().await {
             let up = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            info.push_str(&format!("=== Uptime ===\n{}\n\n", up));
+            info.push_str(&format!("=== Uptime ===\n{up}\n\n"));
         }
 
         // Top processes by CPU

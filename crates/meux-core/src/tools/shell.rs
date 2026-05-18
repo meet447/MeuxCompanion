@@ -103,12 +103,9 @@ impl Tool for RunCommandTool {
         let exit_code = output.status_code.unwrap_or(-1);
 
         let content = if stderr.is_empty() {
-            format!("Exit code: {}\n\n{}", exit_code, stdout)
+            format!("Exit code: {exit_code}\n\n{stdout}")
         } else {
-            format!(
-                "Exit code: {}\n\nStdout:\n{}\n\nStderr:\n{}",
-                exit_code, stdout, stderr
-            )
+            format!("Exit code: {exit_code}\n\nStdout:\n{stdout}\n\nStderr:\n{stderr}")
         };
 
         // Truncate if output is very large
