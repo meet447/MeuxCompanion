@@ -1,6 +1,11 @@
 use crate::AppState;
+use chrono::Utc;
+use meux_core::config::types::ComposioConnectionConfig;
+use serde_json::Value;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
+
+const COMPOSIO_BASE_URL: &str = "https://backend.composio.dev";
 
 fn get_user_id(state: &AppState) -> String {
     let config = state.config.load().unwrap_or_default();
@@ -11,6 +16,129 @@ fn get_user_id(state: &AppState) -> String {
     } else {
         meux_core::character::slugify(&config.user.name)
     }
+}
+
+fn composio_api_key(state: &AppState) -> Result<String, String> {
+    let config = state.config.load().map_err(|e| e.to_string())?;
+    config
+        .composio
+        .api_key
+        .filter(|key| !key.trim().is_empty() && !key.contains("..."))
+        .ok_or_else(|| "Composio API key is not configured".to_string())
+}
+
+fn composio_client(api_key: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        "x-api-key",
+        reqwest::header::HeaderValue::from_str(api_key)
+            .unwrap_or_else(|_| reqwest::header::HeaderValue::from_static("")),
+    );
+    headers.insert(
+        reqwest::header::CONTENT_TYPE,
+        reqwest::header::HeaderValue::from_static("application/json"),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+async fn composio_request_json(request: reqwest::RequestBuilder) -> Result<Value, String> {
+    let response = request.send().await.map_err(|e| e.to_string())?;
+    let status = response.status();
+    let text = response.text().await.map_err(|e| e.to_string())?;
+    if !status.is_success() {
+        return Err(format!("Composio request failed ({status}): {text}"));
+    }
+    serde_json::from_str(&text).map_err(|e| format!("Invalid Composio response: {e}"))
+}
+
+fn composio_items(value: &Value) -> Vec<Value> {
+    value
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .or_else(|| value.get("data").and_then(Value::as_array).cloned())
+        .unwrap_or_default()
+}
+
+fn value_string(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| value.get(*key).and_then(Value::as_str).map(str::to_string))
+}
+
+fn connection_status_from_value(value: &Value) -> String {
+    value_string(value, &["status"])
+        .or_else(|| {
+            value
+                .get("connection")
+                .and_then(|c| value_string(c, &["status"]))
+        })
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+async fn composio_find_or_create_auth_config(
+    client: &reqwest::Client,
+    toolkit: &str,
+) -> Result<String, String> {
+    let list_url = format!("{COMPOSIO_BASE_URL}/api/v3/auth_configs");
+    let listed = composio_request_json(
+        client
+            .get(&list_url)
+            .query(&[("toolkit_slug", toolkit), ("limit", "20")]),
+    )
+    .await?;
+    if let Some(id) = composio_items(&listed)
+        .iter()
+        .find_map(|item| value_string(item, &["id", "nanoid"]))
+    {
+        return Ok(id);
+    }
+
+    let created = composio_request_json(client.post(&list_url).json(&serde_json::json!({
+        "toolkit": { "slug": toolkit },
+        "auth_config": {
+            "type": "use_composio_managed_auth",
+            "name": format!("MeuxCompanion {toolkit} Auth")
+        }
+    })))
+    .await?;
+    value_string(&created, &["id", "nanoid"])
+        .or_else(|| {
+            created
+                .get("auth_config")
+                .and_then(|v| value_string(v, &["id", "nanoid"]))
+        })
+        .ok_or_else(|| "Composio did not return an auth config id".to_string())
+}
+
+async fn composio_connected_account(
+    client: &reqwest::Client,
+    connected_account_id: &str,
+) -> Result<Value, String> {
+    composio_request_json(client.get(format!(
+        "{COMPOSIO_BASE_URL}/api/v3/connected_accounts/{connected_account_id}"
+    )))
+    .await
+}
+
+async fn composio_list_connected_accounts(
+    client: &reqwest::Client,
+    user_id: &str,
+    auth_config_id: Option<&str>,
+) -> Result<Vec<Value>, String> {
+    let mut query: Vec<(&str, &str)> = vec![("user_ids", user_id), ("limit", "100")];
+    if let Some(auth_config_id) = auth_config_id {
+        query.push(("auth_config_ids", auth_config_id));
+    }
+    let value = composio_request_json(
+        client
+            .get(format!("{COMPOSIO_BASE_URL}/api/v3/connected_accounts"))
+            .query(&query),
+    )
+    .await?;
+    Ok(composio_items(&value))
 }
 
 #[tauri::command]
@@ -327,8 +455,8 @@ pub fn memory_import_zip_dialog(
 }
 
 #[tauri::command]
-pub fn composio_status(state: State<Arc<AppState>>) -> Result<serde_json::Value, String> {
-    let config = state.config.load().map_err(|e| e.to_string())?;
+pub async fn composio_status(state: State<'_, Arc<AppState>>) -> Result<serde_json::Value, String> {
+    let mut config = state.config.load().map_err(|e| e.to_string())?;
     let has_key = config
         .composio
         .api_key
@@ -339,22 +467,63 @@ pub fn composio_status(state: State<Arc<AppState>>) -> Result<serde_json::Value,
     } else {
         config.composio.enabled_toolkits.clone()
     };
-    let statuses = enabled
-        .into_iter()
-        .map(
-            |slug| meux_core::memory_vault::types::ComposioToolkitStatus {
-                name: slug.to_ascii_uppercase(),
-                slug,
-                connected: has_key,
-                status: if has_key {
-                    "api_key_configured".to_string()
-                } else {
-                    "missing_api_key".to_string()
-                },
-                last_sync_at: None,
+
+    let mut dirty = false;
+    let client = config
+        .composio
+        .api_key
+        .as_deref()
+        .filter(|_| has_key)
+        .map(composio_client);
+    let mut statuses = Vec::new();
+    for slug in enabled {
+        let mut connection = config
+            .composio
+            .connections
+            .get(&slug)
+            .cloned()
+            .unwrap_or_default();
+
+        if let (Some(client), Some(account_id)) = (&client, connection.connected_account_id.clone())
+        {
+            match composio_connected_account(client, &account_id).await {
+                Ok(value) => {
+                    connection.status = connection_status_from_value(&value);
+                    connection.last_checked_at = Some(Utc::now().to_rfc3339());
+                    dirty = true;
+                }
+                Err(err) => {
+                    connection.status = format!("refresh_failed: {err}");
+                    connection.last_checked_at = Some(Utc::now().to_rfc3339());
+                    dirty = true;
+                }
+            }
+        }
+
+        let connected = connection.status.eq_ignore_ascii_case("active")
+            || connection.status.eq_ignore_ascii_case("connected");
+        statuses.push(serde_json::json!({
+            "slug": slug,
+            "name": slug.to_ascii_uppercase(),
+            "connected": connected,
+            "status": if !has_key {
+                "missing_api_key".to_string()
+            } else if connection.status.is_empty() {
+                "not_connected".to_string()
+            } else {
+                connection.status.clone()
             },
-        )
-        .collect::<Vec<_>>();
+            "auth_config_id": connection.auth_config_id,
+            "connected_account_id": connection.connected_account_id,
+            "redirect_url": connection.redirect_url,
+            "last_sync_at": connection.last_checked_at,
+        }));
+        config.composio.connections.insert(slug, connection);
+    }
+
+    if dirty {
+        let _ = state.config.save(&config);
+    }
     serde_json::to_value(statuses).map_err(|e| e.to_string())
 }
 
@@ -368,6 +537,116 @@ pub fn composio_save_config(
     config.composio.api_key = api_key;
     config.composio.enabled_toolkits = enabled_toolkits;
     state.config.save(&config).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn composio_authorize_toolkit(
+    state: State<'_, Arc<AppState>>,
+    toolkit: String,
+) -> Result<serde_json::Value, String> {
+    let user_id = get_user_id(&state);
+    let api_key = composio_api_key(&state)?;
+    let client = composio_client(&api_key);
+    let auth_config_id = composio_find_or_create_auth_config(&client, &toolkit).await?;
+    let response = composio_request_json(
+        client
+            .post(format!(
+                "{COMPOSIO_BASE_URL}/api/v3/connected_accounts/link"
+            ))
+            .json(&serde_json::json!({
+                "auth_config_id": auth_config_id,
+                "user_id": user_id,
+            })),
+    )
+    .await?;
+    let connected_account_id = value_string(&response, &["connected_account_id", "id"])
+        .ok_or_else(|| "Composio did not return a connected account id".to_string())?;
+    let redirect_url = value_string(&response, &["redirect_url", "redirectUrl"])
+        .ok_or_else(|| "Composio did not return a redirect URL".to_string())?;
+
+    let mut config = state.config.load().map_err(|e| e.to_string())?;
+    let enabled = if config.composio.enabled_toolkits.is_empty() {
+        vec!["github".to_string(), "gmail".to_string()]
+    } else {
+        config.composio.enabled_toolkits.clone()
+    };
+    if !enabled.contains(&toolkit) {
+        config.composio.enabled_toolkits.push(toolkit.clone());
+    }
+    config.composio.connections.insert(
+        toolkit.clone(),
+        ComposioConnectionConfig {
+            auth_config_id: Some(auth_config_id.clone()),
+            connected_account_id: Some(connected_account_id.clone()),
+            status: "initiated".to_string(),
+            redirect_url: Some(redirect_url.clone()),
+            last_checked_at: Some(Utc::now().to_rfc3339()),
+        },
+    );
+    state.config.save(&config).map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "toolkit": toolkit,
+        "auth_config_id": auth_config_id,
+        "connected_account_id": connected_account_id,
+        "redirect_url": redirect_url,
+        "status": "initiated",
+    }))
+}
+
+#[tauri::command]
+pub async fn composio_refresh_toolkit(
+    state: State<'_, Arc<AppState>>,
+    toolkit: String,
+) -> Result<serde_json::Value, String> {
+    let user_id = get_user_id(&state);
+    let api_key = composio_api_key(&state)?;
+    let client = composio_client(&api_key);
+    let mut config = state.config.load().map_err(|e| e.to_string())?;
+    let mut connection = config
+        .composio
+        .connections
+        .get(&toolkit)
+        .cloned()
+        .unwrap_or_default();
+
+    if connection.auth_config_id.is_none() {
+        connection.auth_config_id =
+            Some(composio_find_or_create_auth_config(&client, &toolkit).await?);
+    }
+
+    if let Some(account_id) = connection.connected_account_id.clone() {
+        let value = composio_connected_account(&client, &account_id).await?;
+        connection.status = connection_status_from_value(&value);
+    } else {
+        let accounts = composio_list_connected_accounts(
+            &client,
+            &user_id,
+            connection.auth_config_id.as_deref(),
+        )
+        .await?;
+        if let Some(account) = accounts.first() {
+            connection.connected_account_id = value_string(account, &["id", "nanoid"]);
+            connection.status = connection_status_from_value(account);
+        } else {
+            connection.status = "not_connected".to_string();
+        }
+    }
+    connection.last_checked_at = Some(Utc::now().to_rfc3339());
+    config
+        .composio
+        .connections
+        .insert(toolkit.clone(), connection.clone());
+    state.config.save(&config).map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "toolkit": toolkit,
+        "auth_config_id": connection.auth_config_id,
+        "connected_account_id": connection.connected_account_id,
+        "status": connection.status,
+        "redirect_url": connection.redirect_url,
+        "last_checked_at": connection.last_checked_at,
+    }))
 }
 
 #[tauri::command]

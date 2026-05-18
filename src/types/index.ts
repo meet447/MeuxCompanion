@@ -51,7 +51,18 @@ export interface ComposioToolkitStatus {
   name: string;
   connected: boolean;
   status: string;
+  auth_config_id?: string | null;
+  connected_account_id?: string | null;
+  redirect_url?: string | null;
   last_sync_at?: string | null;
+}
+
+export interface ComposioAuthorizeResult {
+  toolkit: string;
+  auth_config_id: string;
+  connected_account_id: string;
+  redirect_url: string;
+  status: string;
 }
 
 export interface RelationshipSnapshot {
