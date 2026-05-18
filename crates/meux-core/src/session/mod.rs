@@ -26,7 +26,7 @@ impl SessionStore {
             .join("users")
             .join(user_id)
             .join("sessions")
-            .join(format!("{}.jsonl", character_id))
+            .join(format!("{character_id}.jsonl"))
     }
 
     pub fn load_history(
@@ -99,7 +99,7 @@ impl SessionStore {
             .open(&path)?;
 
         let json = serde_json::to_string(&msg)?;
-        writeln!(file, "{}", json)?;
+        writeln!(file, "{json}")?;
 
         Ok(())
     }
@@ -159,7 +159,7 @@ mod tests {
 
         for i in 0..10 {
             store
-                .append_message("char1", "user1", "user", &format!("msg {}", i), None)
+                .append_message("char1", "user1", "user", &format!("msg {i}"), None)
                 .unwrap();
         }
 

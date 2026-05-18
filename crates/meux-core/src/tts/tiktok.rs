@@ -38,7 +38,7 @@ pub async fn generate(text: &str, voice: &str) -> Result<Vec<u8>> {
         match try_generate(text, voice, endpoint, endpoint_index).await {
             Ok(data) => return Ok(data),
             Err(e) => {
-                eprintln!("[TTS] Endpoint {} failed: {}", endpoint_index, e);
+                eprintln!("[TTS] Endpoint {endpoint_index} failed: {e}");
                 continue;
             }
         }
@@ -110,7 +110,7 @@ async fn try_generate(
 }
 
 async fn generate_audio(text: &str, voice: &str, endpoint: &str) -> Result<Vec<u8>> {
-    eprintln!("[TTS] POST to {}", endpoint);
+    eprintln!("[TTS] POST to {endpoint}");
     let resp = client()
         .post(endpoint)
         .header("Content-Type", "application/json")

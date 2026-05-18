@@ -116,7 +116,7 @@ impl MemoryStore {
         let path = dir.join(Self::filename_for(memory_type));
         let mut file = std::fs::OpenOptions::new().append(true).open(&path)?;
         let line = serde_json::to_string(&memory)?;
-        writeln!(file, "{}", line)?;
+        writeln!(file, "{line}")?;
 
         Ok(memory)
     }
