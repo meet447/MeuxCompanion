@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import type { JSX } from "react";
 import { ModelSettings } from "./ModelSettings";
 import { MemoryStatePanel } from "./MemoryStatePanel";
-import { getConfig, saveConfig, testLlm, getVoices, listTools } from "../api/tauri";
+import { getConfig, saveConfig, testLlm, getVoices, listTools, getComposioStatus, saveComposioConfig } from "../api/tauri";
 
 interface Voice {
   id: string;
@@ -21,7 +21,7 @@ interface TTSPreset {
   needs_key: boolean;
 }
 
-type SettingsPage = null | "profile" | "llm" | "tts" | "search" | "tools" | "expressions" | "memory";
+type SettingsPage = null | "profile" | "llm" | "tts" | "search" | "integrations" | "privacy" | "tools" | "expressions" | "memory";
 
 // Hardcoded presets — the web app fetches these from /api/config/presets,
 // but the Rust backend exposes them as constants. Kept in sync manually.
@@ -60,12 +60,20 @@ const ToolsIcon = () => (
 const ArchiveIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 8h14M5 12h10M5 16h8M4 4h16v16H4z" /></svg>
 );
+const ShieldIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 3l7 4v5c0 4.5-2.8 7.7-7 9-4.2-1.3-7-4.5-7-9V7l7-4z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4" /></svg>
+);
+const PlugIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 7l10 10M8 16l-2 2m10-10l2-2M8 8l-2 2 8 8 2-2M9 3v4m6 10v4" /></svg>
+);
 
 const MENU_ITEMS: { id: SettingsPage & string; label: string; description: string; icon: () => JSX.Element }[] = [
   { id: "profile", label: "Your Profile", description: "Name and about yourself", icon: ProfileIcon },
-  { id: "llm", label: "LLM Provider", description: "AI model and API connection", icon: BrainIcon },
-  { id: "tts", label: "Voice & TTS", description: "Text-to-speech provider and voice", icon: SpeakerIcon },
-  { id: "search", label: "Web Search", description: "Search provider and API keys", icon: SearchIcon },
+  { id: "llm", label: "LLM Provider", description: "Optional remote or local model endpoint", icon: BrainIcon },
+  { id: "tts", label: "Voice & TTS", description: "Optional voice provider and key", icon: SpeakerIcon },
+  { id: "search", label: "Web Search", description: "Optional search provider keys", icon: SearchIcon },
+  { id: "integrations", label: "Integrations", description: "Composio and external source keys", icon: PlugIcon },
+  { id: "privacy", label: "Local-First Privacy", description: "What stays local and what leaves", icon: ShieldIcon },
   { id: "tools", label: "Agent Tools", description: "Enable or disable tools the agent can use", icon: ToolsIcon },
   { id: "expressions", label: "Expression Mapping", description: "Map emotions to model expressions", icon: MaskIcon },
   { id: "memory", label: "Memory", description: "Inspect local memories", icon: ArchiveIcon },
@@ -208,6 +216,41 @@ const labelClass = "block text-sm font-semibold text-slate-700 tracking-wide mb-
 const buttonClass = "w-full py-3.5 rounded-2xl bg-blue-500 text-white text-[15px] font-semibold hover:bg-blue-600 shadow-md shadow-blue-500/20 disabled:opacity-50 hover:-translate-y-0.5 transition-all active:translate-y-0";
 const secondaryBtnClass = "w-full py-3.5 rounded-2xl bg-white border border-slate-200 text-slate-600 text-[15px] font-medium hover:bg-slate-50 hover:border-slate-300 shadow-sm disabled:opacity-50 transition-all mb-3";
 
+function LocalFirstNotice({ variant = "blue" }: { variant?: "blue" | "emerald" | "amber" }) {
+  const colors = {
+    blue: "border-blue-100 bg-blue-50 text-blue-700",
+    emerald: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    amber: "border-amber-100 bg-amber-50 text-amber-700",
+  };
+  return (
+    <div className={`mb-6 rounded-[1.5rem] border px-5 py-4 text-sm leading-relaxed ${colors[variant]}`}>
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em]">Local-first boundary</div>
+      Memory, chat history, character files, vault exports, and relationship state stay on this device. Only prompts, tool requests, audio text, or search queries needed for enabled external services leave the machine.
+    </div>
+  );
+}
+
+function PrivacyCard({ title, items, tone }: { title: string; items: string[]; tone: "emerald" | "blue" | "amber" }) {
+  const toneClass = {
+    emerald: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    blue: "border-blue-100 bg-blue-50 text-blue-700",
+    amber: "border-amber-100 bg-amber-50 text-amber-700",
+  }[tone];
+  return (
+    <section className={`rounded-[1.75rem] border px-5 py-5 ${toneClass}`}>
+      <h3 className="text-lg font-bold">{title}</h3>
+      <ul className="mt-3 space-y-2 text-sm leading-relaxed">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2">
+            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function Settings({ onClose, characterId, characterName, modelId, onPreviewExpression, onConversationCleared }: {
   onClose: () => void;
   characterId?: string;
@@ -242,6 +285,9 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
   const [searchProvider, setSearchProvider] = useState("duckduckgo");
   const [serpApiKey, setSerpApiKey] = useState("");
   const [exaApiKey, setExaApiKey] = useState("");
+  const [composioApiKey, setComposioApiKey] = useState("");
+  const [composioToolkits, setComposioToolkits] = useState<string[]>(["github", "gmail"]);
+  const [composioStatus, setComposioStatus] = useState<{ slug: string; name: string; connected: boolean; status: string }[]>([]);
 
   const deriveConfigured = (cfg: any) => {
     // Derive which providers are configured from stored config
@@ -295,6 +341,9 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
         setSearchProvider(cfg.search?.provider || "duckduckgo");
         setSerpApiKey("");
         setExaApiKey("");
+        setComposioApiKey("");
+        setComposioToolkits(cfg.composio?.enabled_toolkits?.length ? cfg.composio.enabled_toolkits : ["github", "gmail"]);
+        void getComposioStatus().then((data: any) => setComposioStatus(data || [])).catch(() => setComposioStatus([]));
       })
       .catch((err) => console.error("Failed to load config:", err));
   }, []);
@@ -368,6 +417,23 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleSaveComposio = async () => {
+    setSaving(true);
+    try {
+      await saveComposioConfig(composioApiKey.trim() || null, composioToolkits);
+      const freshConfig: any = await getConfig();
+      setConfig(freshConfig);
+      void getComposioStatus().then((data: any) => setComposioStatus(data || []));
+      setComposioApiKey("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save Composio config:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (!config) return <div className="p-8 text-slate-400">Loading settings...</div>;
 
   // ========== SUB-PAGE HEADER ==========
@@ -388,10 +454,38 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
     return (
       <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Settings</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Settings</h2>
+            <p className="mt-1 text-sm text-slate-400">Local by default. Add only the external services you want.</p>
+          </div>
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm shadow-blue-900/5 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center text-slate-500 hover:text-red-500 transition-all">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3L13 13M13 3L3 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
+        </div>
+
+        <div className="mb-6 rounded-[2rem] border border-emerald-100 bg-gradient-to-r from-emerald-50 to-blue-50 px-5 py-5 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700">Local-first setup</div>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Your vault, character profiles, sessions, and relationship state are local. External keys only enable selected capabilities: LLM responses, TTS audio, web search, and Composio integrations.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white/80 px-4 py-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">LLM</div>
+              <div className="mt-1 text-sm font-bold text-slate-700">{config.llm?.provider || "not set"}</div>
+            </div>
+            <div className="rounded-2xl bg-white/80 px-4 py-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">TTS</div>
+              <div className="mt-1 text-sm font-bold text-slate-700">{config.tts?.provider || "not set"}</div>
+            </div>
+            <div className="rounded-2xl bg-white/80 px-4 py-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Search</div>
+              <div className="mt-1 text-sm font-bold text-slate-700">{config.search?.provider || "duckduckgo"}</div>
+            </div>
+            <div className="rounded-2xl bg-white/80 px-4 py-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Composio</div>
+              <div className="mt-1 text-sm font-bold text-slate-700">{config.composio?.api_key ? "configured" : "not set"}</div>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -489,6 +583,7 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
     return (
       <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         <SubHeader title="LLM Provider" />
+        <LocalFirstNotice variant={LLM_PRESETS[llmProvider]?.needs_key === false ? "emerald" : "blue"} />
 
         <label className={labelClass}>Provider</label>
         <div className="grid grid-cols-2 gap-2 mb-6">
@@ -506,6 +601,7 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
             >
               <span className="flex items-center justify-center gap-1.5">
                 {preset.name}
+                {preset.needs_key === false && <span className="text-[10px] text-emerald-600 font-bold">Local</span>}
                 {configuredLlm[id]?.configured && llmProvider !== id && (
                   <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                 )}
@@ -530,6 +626,11 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
                   className={inputClass}
                 />
               </>
+            )}
+            {LLM_PRESETS[llmProvider]?.needs_key === false && (
+              <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                This provider runs through a local OpenAI-compatible endpoint. No API key is stored or sent.
+              </div>
             )}
 
             <label className={labelClass}>Model</label>
@@ -590,6 +691,7 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
     return (
       <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         <SubHeader title="Voice & TTS" />
+        <LocalFirstNotice variant={TTS_PRESETS[ttsProvider]?.needs_key ? "blue" : "emerald"} />
 
         <label className={labelClass}>Provider</label>
         <div className="flex flex-wrap gap-2 mb-6">
@@ -607,6 +709,7 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
             >
               <span className="flex items-center gap-1.5">
                 {preset.name}
+                {!preset.needs_key && <span className="text-[10px] text-emerald-600 font-bold">No key</span>}
                 {configuredTts[id]?.configured && ttsProvider !== id && (
                   <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                 )}
@@ -627,6 +730,11 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
                 className={inputClass}
               />
             </>
+          )}
+          {!TTS_PRESETS[ttsProvider]?.needs_key && (
+            <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              This voice option does not require a key. Audio generation may still use the selected provider implementation when you ask the companion to speak.
+            </div>
           )}
 
           <label className={labelClass}>Voice</label>
@@ -668,6 +776,7 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
     return (
       <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         <SubHeader title="Web Search" />
+        <LocalFirstNotice variant={searchProvider === "duckduckgo" ? "emerald" : "blue"} />
 
         <label className={labelClass}>Search Provider</label>
         <div className="space-y-2 mb-6">
@@ -733,6 +842,86 @@ export function Settings({ onClose, characterId, characterName, modelId, onPrevi
         >
           {saving ? "Saving..." : saved ? "Saved!" : "Save Configuration"}
         </button>
+      </div>
+    );
+  }
+
+  // ========== TOOLS PAGE ==========
+  if (page === "integrations") {
+    const toggleToolkit = (slug: string) => {
+      setComposioToolkits((prev) =>
+        prev.includes(slug) ? prev.filter((item) => item !== slug) : [...prev, slug],
+      );
+    };
+
+    return (
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <SubHeader title="Integrations" />
+        <LocalFirstNotice variant="amber" />
+
+        <div className="mb-6 rounded-[1.75rem] border border-slate-200 bg-white px-5 py-5 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Composio</div>
+          <h3 className="mt-2 text-lg font-bold text-slate-800">OAuth and connected sources</h3>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            Composio is optional. When configured, it can connect services like GitHub and Gmail and feed read-only source data into the local memory vault.
+          </p>
+
+          <label className={`${labelClass} mt-5`}>Composio API Key</label>
+          <input
+            type="password"
+            value={composioApiKey}
+            onChange={(e) => setComposioApiKey(e.target.value)}
+            placeholder="Paste Composio API key (blank to keep current)"
+            className={inputClass}
+          />
+
+          <label className={labelClass}>Enabled Toolkits</label>
+          <div className="mb-6 grid grid-cols-2 gap-2">
+            {["github", "gmail"].map((slug) => (
+              <button
+                key={slug}
+                onClick={() => toggleToolkit(slug)}
+                className={`rounded-2xl border px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] ${
+                  composioToolkits.includes(slug)
+                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-500"
+                }`}
+              >
+                {slug}
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-6 grid gap-3">
+            {composioStatus.map((toolkit) => (
+              <div key={toolkit.slug} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-700">{toolkit.name}</span>
+                  <span className={`text-xs font-semibold ${toolkit.connected ? "text-emerald-600" : "text-amber-600"}`}>
+                    {toolkit.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={handleSaveComposio} disabled={saving} className={buttonClass}>
+            {saving ? "Saving..." : saved ? "Saved!" : "Save Integrations"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (page === "privacy") {
+    return (
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <SubHeader title="Local-First Privacy" />
+        <div className="space-y-4">
+          <PrivacyCard title="Always local" items={["SQLite memory vault", "Markdown vault projection", "Character files", "Session history", "Relationship state", "Imported notes/transcripts"]} tone="emerald" />
+          <PrivacyCard title="Leaves only when enabled" items={["LLM prompts and retrieved memory snippets", "TTS text sent for speech generation", "Search queries sent to selected search provider", "Composio toolkit requests for connected sources"]} tone="blue" />
+          <PrivacyCard title="Never store in plaintext intentionally" items={["API keys are masked in settings reads", "Blank key fields preserve existing values", "Generated exports are local files you control"]} tone="amber" />
+        </div>
       </div>
     );
   }
