@@ -10,6 +10,8 @@ pub enum MeuxError {
     Yaml(#[from] serde_yaml::Error),
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
+    #[error("SQLite error: {0}")]
+    Sqlite(#[from] rusqlite::Error),
     #[error("Character not found: {0}")]
     CharacterNotFound(String),
     #[error("Invalid config: {0}")]

@@ -8,6 +8,7 @@ use meux_core::config::ConfigManager;
 use meux_core::expressions::ExpressionManager;
 use meux_core::llm::OpenAiCompatClient;
 use meux_core::memory::store::MemoryStore;
+use meux_core::memory_vault::MemoryVault;
 use meux_core::session::SessionStore;
 use meux_core::tools::ToolRegistry;
 use std::path::{Path, PathBuf};
@@ -21,6 +22,7 @@ pub struct AppState {
     pub characters: CharacterLoader,
     pub sessions: SessionStore,
     pub memories: MemoryStore,
+    pub memory_vault: MemoryVault,
     pub expressions: ExpressionManager,
     pub llm: OpenAiCompatClient,
     pub whisper_ctx: Option<Arc<WhisperContext>>,
@@ -100,6 +102,7 @@ pub fn run() {
                 characters: CharacterLoader::new(&data_dir),
                 sessions: SessionStore::new(&data_dir),
                 memories: MemoryStore::new(data_dir.clone()),
+                memory_vault: MemoryVault::new(data_dir.clone()),
                 expressions: ExpressionManager::new(&data_dir),
                 llm: OpenAiCompatClient::new(),
                 whisper_ctx,
@@ -133,6 +136,9 @@ pub fn run() {
             commands::memory::memory_get,
             commands::memory::memory_search,
             commands::memory::memory_clear,
+            commands::memory::memory_overview,
+            commands::memory::memory_rebuild_vault,
+            commands::memory::memory_run_dream,
             commands::expressions::expressions_supported,
             commands::expressions::expressions_model_list,
             commands::expressions::expressions_get,

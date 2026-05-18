@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getMemory, searchMemory, clearMemory, clearChat } from "../api/tauri";
-import type { MemoryRecord } from "../types";
+import {
+  getMemory,
+  searchMemory,
+  clearMemory,
+  clearChat,
+  getMemoryOverview,
+  rebuildMemoryVault,
+  runMemoryDream,
+} from "../api/tauri";
+import type { DreamRun, MemoryRecord, MemoryVaultOverview } from "../types";
 
 interface Props {
   characterId?: string;
@@ -11,26 +19,37 @@ interface Props {
 const sectionCardClass =
   "rounded-[1.75rem] border border-slate-200/70 bg-white px-5 py-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]";
 
+type MemoryTab = "overview" | "search" | "timeline" | "vault";
+
 export function MemoryStatePanel({ characterId, characterName, onConversationCleared }: Props) {
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
+  const [overview, setOverview] = useState<MemoryVaultOverview | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MemoryRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [busyAction, setBusyAction] = useState<null | "memories" | "conversation">(null);
+  const [activeTab, setActiveTab] = useState<MemoryTab>("overview");
+  const [lastDream, setLastDream] = useState<DreamRun | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [busyAction, setBusyAction] = useState<null | "memories" | "conversation" | "dream" | "rebuild">(null);
 
   const refresh = useCallback(async () => {
     if (!characterId) return;
     setLoading(true);
     try {
-      const memoryData = await getMemory(characterId);
+      const [memoryData, overviewData] = await Promise.all([
+        getMemory(characterId),
+        getMemoryOverview(characterId).catch(() => null),
+      ]);
       const mems = (memoryData as MemoryRecord[]) || [];
       setMemories(mems);
+      setOverview((overviewData as MemoryVaultOverview | null) || null);
       setResults([]);
     } catch (err) {
       console.error("Memory panel refresh error:", err);
       setMemories([]);
       setResults([]);
+      setOverview(null);
     } finally {
       setLoading(false);
     }
@@ -91,6 +110,52 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
       .join(" \u00B7 ");
   }, [memories]);
 
+  const reflections = useMemo(
+    () => memories.filter((memory) => memory.type === "reflections").slice(0, 8),
+    [memories]
+  );
+
+  const recentTimeline = useMemo(
+    () =>
+      [...memories]
+        .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+        .slice(0, 16),
+    [memories]
+  );
+
+  const runDream = useCallback(async () => {
+    if (!characterId) return;
+    setBusyAction("dream");
+    setStatusMessage("");
+    try {
+      const dream = (await runMemoryDream(characterId)) as DreamRun;
+      setLastDream(dream);
+      setStatusMessage("Dream/reflection completed and written to the vault.");
+      await refresh();
+    } catch (err) {
+      console.error("Dream run error:", err);
+      setStatusMessage("Dream/reflection failed. Check logs for details.");
+    } finally {
+      setBusyAction(null);
+    }
+  }, [characterId, refresh]);
+
+  const rebuildVault = useCallback(async () => {
+    if (!characterId) return;
+    setBusyAction("rebuild");
+    setStatusMessage("");
+    try {
+      const path = await rebuildMemoryVault(characterId);
+      setStatusMessage(`Vault rebuilt at ${path}`);
+      await refresh();
+    } catch (err) {
+      console.error("Vault rebuild error:", err);
+      setStatusMessage("Vault rebuild failed. Check logs for details.");
+    } finally {
+      setBusyAction(null);
+    }
+  }, [characterId, refresh]);
+
   if (!characterId) {
     return (
       <div className="p-6 text-sm text-slate-400">
@@ -104,10 +169,10 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
       <div className="mb-6 rounded-[2rem] border border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(219,234,254,0.6),_rgba(255,255,255,1)_50%)] px-5 py-5 shadow-[0_14px_40px_rgba(15,23,42,0.05)]">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-500">Memory Core</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-500">Memory Vault</div>
             <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-800">{characterName}</h3>
             <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
-              Inspect what the companion remembers from your conversations. Memories are stored locally on your machine.
+              Inspect the local memory database, Markdown vault, relationship state, and background reflections.
             </p>
           </div>
           <button
@@ -123,10 +188,94 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
             {groupedMemoryLabel}
           </div>
         )}
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Metric label="Memories" value={overview?.total_memories ?? memories.length} />
+          <Metric label="Sources" value={overview?.total_sources ?? 0} />
+          <Metric label="Dreams" value={overview?.total_dreams ?? 0} />
+          <Metric label="Mood" value={overview?.relationship?.mood || "neutral"} />
+        </div>
       </div>
 
+      <div className="mb-5 flex flex-wrap gap-2">
+        {(["overview", "search", "timeline", "vault"] as MemoryTab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] transition-all ${
+              activeTab === tab
+                ? "bg-slate-900 text-white shadow-md"
+                : "border border-slate-200 bg-white text-slate-500 hover:-translate-y-0.5 hover:shadow-sm"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {statusMessage && (
+        <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          {statusMessage}
+        </div>
+      )}
+
       <div className="space-y-5">
-        <section className={sectionCardClass}>
+        {activeTab === "overview" && (
+          <>
+            <section className={sectionCardClass}>
+              <div className="mb-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Relationship State</div>
+                <h4 className="mt-2 text-lg font-bold text-slate-800">Prompt-aware companion context</h4>
+              </div>
+              {overview?.relationship ? (
+                <div className="grid gap-3 md:grid-cols-4">
+                  <Metric label="Trust" value={`${Math.round(overview.relationship.trust * 100)}%`} />
+                  <Metric label="Affection" value={`${Math.round(overview.relationship.affection * 100)}%`} />
+                  <Metric label="Energy" value={`${Math.round(overview.relationship.energy * 100)}%`} />
+                  <Metric label="Mood" value={overview.relationship.mood} />
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 md:col-span-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Summary</div>
+                    <p className="mt-2 text-sm text-slate-600">{overview.relationship.relationship_summary}</p>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState text="No relationship state yet. Chat with the companion to start building it." />
+              )}
+            </section>
+
+            <section className={sectionCardClass}>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Background Dream</div>
+                  <h4 className="mt-2 text-lg font-bold text-slate-800">Reflect and consolidate</h4>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                    Dream runs turn recent memories into reflections and update the Markdown vault.
+                  </p>
+                </div>
+                <button
+                  onClick={runDream}
+                  disabled={busyAction !== null}
+                  className="rounded-2xl bg-indigo-600 px-4 py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-white transition-all hover:-translate-y-0.5 hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {busyAction === "dream" ? "Dreaming" : "Run Dream"}
+                </button>
+              </div>
+              <p className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm leading-relaxed text-indigo-700">
+                {lastDream?.summary || "No manual dream run in this panel yet."}
+              </p>
+            </section>
+
+            <section className={sectionCardClass}>
+              <div className="mb-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Reflections</div>
+                <h4 className="mt-2 text-lg font-bold text-slate-800">Recent long-horizon notes</h4>
+              </div>
+              <MemoryList memories={reflections} emptyText="No reflections yet. Run a dream after a few meaningful conversations." />
+            </section>
+          </>
+        )}
+
+        {activeTab === "search" && (
+          <section className={sectionCardClass}>
           <div className="mb-4 flex items-center justify-between">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Memory Search</div>
@@ -157,42 +306,13 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
           {results.length > 0 && (
             <div className="mt-4 space-y-3">
               {results.map((memory) => (
-                <div key={memory.id} className="rounded-[1.4rem] border border-blue-100 bg-blue-50/60 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-600">{memory.type}</span>
-                    <span className="text-[11px] font-medium text-blue-400">importance {Math.round(memory.importance * 100)}%</span>
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-700">{memory.summary}</p>
-                </div>
+                <MemoryCard key={memory.id} memory={memory} accent />
               ))}
             </div>
           )}
 
-          <div className="mt-5 space-y-3">
-            {memories.length === 0 ? (
-              <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-400">
-                No long-term memories stored yet. Start chatting and the companion will begin writing memories locally.
-              </div>
-            ) : (
-              memories.slice(0, 8).reverse().map((memory) => (
-                <div key={memory.id} className="rounded-[1.45rem] border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{memory.type}</span>
-                    <span className="text-[11px] text-slate-400">{new Date(memory.ts).toLocaleString()}</span>
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-700">{memory.summary}</p>
-                  {memory.tags?.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {memory.tags.slice(0, 6).map((tag) => (
-                        <span key={`${memory.id}-${tag}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
+          <div className="mt-5">
+            <MemoryList memories={memories.slice(0, 12)} emptyText="No long-term memories stored yet. Start chatting and the companion will begin writing memories locally." />
           </div>
 
           <button
@@ -203,6 +323,42 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
             {busyAction === "memories" ? "Clearing Memories..." : "Clear Memories"}
           </button>
         </section>
+        )}
+
+        {activeTab === "timeline" && (
+          <section className={sectionCardClass}>
+            <div className="mb-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Timeline</div>
+              <h4 className="mt-2 text-lg font-bold text-slate-800">Recent memory writes</h4>
+            </div>
+            <MemoryList memories={recentTimeline} emptyText="No memory timeline yet." />
+          </section>
+        )}
+
+        {activeTab === "vault" && (
+          <>
+            <section className={sectionCardClass}>
+              <div className="mb-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Markdown Vault</div>
+                <h4 className="mt-2 text-lg font-bold text-slate-800">Local readable projection</h4>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                  The SQLite database is canonical. The Markdown vault is rebuilt from it for browsing, backups, and Obsidian-style workflows.
+                </p>
+              </div>
+              <div className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+                <PathRow label="Vault folder" value={overview?.vault_path || "Not built yet"} />
+                <PathRow label="Database" value={overview?.database_path || "Not initialized yet"} />
+                <PathRow label="Latest memory" value={overview?.latest_memory_at || "none"} />
+                <PathRow label="Latest dream" value={overview?.latest_dream_at || "none"} />
+              </div>
+              <button
+                onClick={rebuildVault}
+                disabled={busyAction !== null}
+                className="mt-5 w-full rounded-2xl bg-slate-900 px-4 py-3 text-[13px] font-semibold uppercase tracking-[0.18em] text-white transition-all hover:-translate-y-0.5 hover:bg-black disabled:opacity-50"
+              >
+                {busyAction === "rebuild" ? "Rebuilding Vault..." : "Rebuild Vault"}
+              </button>
+            </section>
 
         <section className={`${sectionCardClass} bg-[linear-gradient(135deg,rgba(248,250,252,1),rgba(255,247,237,0.82))]`}>
           <div className="mb-4">
@@ -220,7 +376,81 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
             {busyAction === "conversation" ? "Clearing Conversation..." : "Clear Conversation"}
           </button>
         </section>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border border-white/80 bg-white/85 px-4 py-3 shadow-sm">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</div>
+      <div className="mt-1 truncate text-lg font-bold text-slate-800">{value}</div>
+    </div>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-400">
+      {text}
+    </div>
+  );
+}
+
+function MemoryList({ memories, emptyText }: { memories: MemoryRecord[]; emptyText: string }) {
+  if (memories.length === 0) {
+    return <EmptyState text={emptyText} />;
+  }
+  return (
+    <div className="space-y-3">
+      {memories.map((memory) => (
+        <MemoryCard key={memory.id} memory={memory} />
+      ))}
+    </div>
+  );
+}
+
+function MemoryCard({ memory, accent = false }: { memory: MemoryRecord; accent?: boolean }) {
+  return (
+    <div className={`rounded-[1.45rem] border px-4 py-3 shadow-sm ${
+      accent ? "border-blue-100 bg-blue-50/60" : "border-slate-200/80 bg-white"
+    }`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${
+          accent ? "text-blue-600" : "text-slate-500"
+        }`}>
+          {memory.type}
+        </span>
+        <span className="text-[11px] text-slate-400">{new Date(memory.ts).toLocaleString()}</span>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-slate-700">{memory.summary}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          importance {Math.round(memory.importance * 100)}%
+        </span>
+        {memory.source_kind && (
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {memory.source_kind}
+          </span>
+        )}
+        {memory.tags?.slice(0, 6).map((tag) => (
+          <span key={`${memory.id}-${tag}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {tag}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PathRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</div>
+      <div className="mt-1 break-all font-mono text-xs text-slate-600">{value}</div>
     </div>
   );
 }

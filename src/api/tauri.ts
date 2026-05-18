@@ -109,6 +109,18 @@ export async function clearMemory(characterId: string) {
   return invoke("memory_clear", { characterId });
 }
 
+export async function getMemoryOverview(characterId: string) {
+  return invoke("memory_overview", { characterId });
+}
+
+export async function rebuildMemoryVault(characterId: string) {
+  return invoke<string>("memory_rebuild_vault", { characterId });
+}
+
+export async function runMemoryDream(characterId: string) {
+  return invoke("memory_run_dream", { characterId });
+}
+
 // Tools
 export async function listTools() {
   return invoke<{ name: string; description: string; permission: string; enabled: boolean }[]>("tools_list");

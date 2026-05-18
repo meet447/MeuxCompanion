@@ -135,6 +135,21 @@ describe('tauri api utilities', () => {
       await tauriApi.clearMemory('char-1');
       expect(invoke).toHaveBeenCalledWith('memory_clear', { characterId: 'char-1' });
     });
+
+    it('getMemoryOverview calls memory_overview', async () => {
+      await tauriApi.getMemoryOverview('char-1');
+      expect(invoke).toHaveBeenCalledWith('memory_overview', { characterId: 'char-1' });
+    });
+
+    it('rebuildMemoryVault calls memory_rebuild_vault', async () => {
+      await tauriApi.rebuildMemoryVault('char-1');
+      expect(invoke).toHaveBeenCalledWith('memory_rebuild_vault', { characterId: 'char-1' });
+    });
+
+    it('runMemoryDream calls memory_run_dream', async () => {
+      await tauriApi.runMemoryDream('char-1');
+      expect(invoke).toHaveBeenCalledWith('memory_run_dream', { characterId: 'char-1' });
+    });
   });
 
   describe('Tool functions', () => {

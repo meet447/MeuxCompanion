@@ -130,6 +130,8 @@ impl ConfigManager {
         if let Some(existing) = existing {
             if merged.user.name.is_empty() {
                 merged.user = existing.user;
+            } else if merged.user.id.is_empty() {
+                merged.user.id = existing.user.id;
             }
             // If incoming LLM api_key is empty, None, or looks masked → preserve existing
             let incoming_llm_key = merged.llm.api_key.clone();
