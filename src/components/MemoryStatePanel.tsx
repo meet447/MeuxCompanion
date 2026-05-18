@@ -58,7 +58,7 @@ export function MemoryStatePanel({ characterId, characterName, onConversationCle
   const [transcriptTitle, setTranscriptTitle] = useState("");
   const [transcriptBody, setTranscriptBody] = useState("");
   const [composioApiKey, setComposioApiKey] = useState("");
-  const [composioToolkits, setComposioToolkits] = useState<string[]>(DEFAULT_ENABLED_COMPOSIO_TOOLKITS);
+  const [composioToolkits] = useState<string[]>(DEFAULT_ENABLED_COMPOSIO_TOOLKITS);
   const [githubOwner, setGithubOwner] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
   const [loading, setLoading] = useState(false);

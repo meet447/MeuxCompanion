@@ -78,7 +78,3 @@ pub fn toolkit_display_name(slug: &str) -> String {
                 .join(" ")
         })
 }
-
-pub fn is_supported_toolkit(slug: &str) -> bool {
-    SUPPORTED_TOOLKITS.iter().any(|toolkit| toolkit.slug == slug)
-}

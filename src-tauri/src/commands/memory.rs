@@ -232,9 +232,7 @@ fn composio_connected_account_for_toolkit(
         .and_then(|connection| connection.connected_account_id.clone())
         .filter(|id| !id.trim().is_empty())
         .ok_or_else(|| {
-            format!(
-                "{toolkit} is not connected. Connect it in Settings → Integrations first."
-            )
+            format!("{toolkit} is not connected. Connect it in Settings → Integrations first.")
         })
 }
 
@@ -269,7 +267,10 @@ fn extract_proxy_text(value: &Value) -> Result<String, String> {
     Err("Composio proxy response did not include readable text".to_string())
 }
 
-fn extract_github_readme_markdown(tool_response: &Value, proxy_response: Option<&Value>) -> Result<String, String> {
+fn extract_github_readme_markdown(
+    tool_response: &Value,
+    proxy_response: Option<&Value>,
+) -> Result<String, String> {
     let payload = composio_tool_payload(tool_response);
     if let Some(text) = payload.as_str() {
         return Ok(text.to_string());
@@ -310,13 +311,21 @@ fn gmail_messages_to_markdown(data: &Value) -> String {
     for (index, message) in messages.iter().take(25).enumerate() {
         let subject = message
             .get("subject")
-            .or_else(|| message.get("payload").and_then(|payload| payload.get("subject")))
+            .or_else(|| {
+                message
+                    .get("payload")
+                    .and_then(|payload| payload.get("subject"))
+            })
             .and_then(Value::as_str)
             .unwrap_or("(no subject)");
         let sender = message
             .get("sender")
             .or_else(|| message.get("from"))
-            .or_else(|| message.get("payload").and_then(|payload| payload.get("from")))
+            .or_else(|| {
+                message
+                    .get("payload")
+                    .and_then(|payload| payload.get("from"))
+            })
             .and_then(Value::as_str)
             .unwrap_or("unknown sender");
         let snippet = message
