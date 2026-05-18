@@ -109,6 +109,86 @@ export async function clearMemory(characterId: string) {
   return invoke("memory_clear", { characterId });
 }
 
+export async function getMemoryOverview(characterId: string) {
+  return invoke("memory_overview", { characterId });
+}
+
+export async function rebuildMemoryVault(characterId: string) {
+  return invoke<string>("memory_rebuild_vault", { characterId });
+}
+
+export async function runMemoryDream(characterId: string) {
+  return invoke("memory_run_dream", { characterId });
+}
+
+export async function getMemoryDreamStatus(characterId: string) {
+  return invoke("memory_dream_status", { characterId });
+}
+
+export async function migrateLegacyMemory(characterId: string) {
+  return invoke<number>("memory_migrate_legacy", { characterId });
+}
+
+export async function deleteMemory(characterId: string, memoryId: string) {
+  return invoke("memory_delete", { characterId, memoryId });
+}
+
+export async function setMemoryPinned(characterId: string, memoryId: string, pinned: boolean) {
+  return invoke("memory_set_pinned", { characterId, memoryId, pinned });
+}
+
+export async function getMemorySources(characterId: string) {
+  return invoke("memory_sources", { characterId });
+}
+
+export async function getMemoryTopics(characterId: string) {
+  return invoke("memory_topics", { characterId });
+}
+
+export async function ingestMemoryNote(characterId: string, title: string, body: string) {
+  return invoke<number>("memory_ingest_note", { characterId, title, body });
+}
+
+export async function ingestMemoryTranscript(characterId: string, title: string, transcript: string) {
+  return invoke<number>("memory_ingest_transcript", { characterId, title, transcript });
+}
+
+export async function ingestMemoryFileDialog(characterId: string) {
+  return invoke<number | null>("memory_ingest_file_dialog", { characterId });
+}
+
+export async function ingestMemoryFolderDialog(characterId: string) {
+  return invoke<number | null>("memory_ingest_folder_dialog", { characterId });
+}
+
+export async function exportMemoryZipDialog(characterId: string) {
+  return invoke<string | null>("memory_export_zip_dialog", { characterId });
+}
+
+export async function importMemoryZipDialog(characterId: string) {
+  return invoke<number | null>("memory_import_zip_dialog", { characterId });
+}
+
+export async function getComposioStatus() {
+  return invoke("composio_status");
+}
+
+export async function saveComposioConfig(apiKey: string | null, enabledToolkits: string[]) {
+  return invoke("composio_save_config", { apiKey, enabledToolkits });
+}
+
+export async function authorizeComposioToolkit(toolkit: string) {
+  return invoke("composio_authorize_toolkit", { toolkit });
+}
+
+export async function refreshComposioToolkit(toolkit: string) {
+  return invoke("composio_refresh_toolkit", { toolkit });
+}
+
+export async function syncComposioGithubReadme(characterId: string, owner: string, repo: string) {
+  return invoke<number>("composio_sync_github_readme", { characterId, owner, repo });
+}
+
 // Tools
 export async function listTools() {
   return invoke<{ name: string; description: string; permission: string; enabled: boolean }[]>("tools_list");

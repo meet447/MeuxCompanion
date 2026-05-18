@@ -82,7 +82,7 @@ const SPEECH_STYLES = [
   { id: "Intimate", title: "Intimate", blurb: "Close, emotionally tuned-in, and personal." },
 ];
 
-const STEPS = ["About You", "LLM Provider", "Voice & TTS", "Build Companion"];
+const STEPS = ["Local-First", "About You", "LLM Provider", "Voice & TTS", "Build Companion"];
 
 const VIBE_DESCRIPTIONS: Record<string, string> = {
   Cheerful: "They bring bright energy, celebrate small wins, and want the user to feel more alive after talking to them.",
@@ -314,12 +314,14 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const canProceed = (): boolean => {
     switch (step) {
       case 0:
-        return form.user.name.trim() !== "" && form.user.about.trim() !== "";
+        return true;
       case 1:
-        return form.llm.provider !== "" && form.llm.model !== "" && testResult?.success === true;
+        return form.user.name.trim() !== "" && form.user.about.trim() !== "";
       case 2:
-        return form.tts.voice !== "";
+        return form.llm.provider !== "" && form.llm.model !== "" && testResult?.success === true;
       case 3:
+        return form.tts.voice !== "";
+      case 4:
         return (
           form.companion.name.trim() !== "" &&
           form.companion.personality.trim() !== "" &&
@@ -370,7 +372,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
         onboarding_complete: true,
       });
 
-      setStep(4);
+      setStep(5);
       setTimeout(onComplete, 2200);
     } catch {
       setError("Something went wrong while creating your companion. Please try again.");
@@ -387,7 +389,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
       <div className="min-h-full flex flex-col items-center justify-center p-6 py-12">
         <div className="w-full max-w-2xl z-10 relative">
-          {step < 4 && (
+          {step < 5 && (
             <div className="flex items-center justify-center gap-2 mb-10">
               {STEPS.map((label, i) => (
                 <div key={label} className="flex items-center gap-2">
@@ -412,6 +414,30 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
           <div className="backdrop-blur-3xl bg-white/90 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] shadow-blue-900/5 border border-white p-10 ring-1 ring-slate-100/50">
             {step === 0 && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h2 className={headingClass}>Local-first by default</h2>
+                <p className={descriptionClass}>
+                  MeuxCompanion keeps the companion brain on your machine first: memories, relationship state, character files, sessions, and vault exports are local data you control.
+                </p>
+
+                <div className="grid gap-4 mb-8">
+                  <div className="rounded-[1.8rem] border border-emerald-100 bg-emerald-50 px-5 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700 mb-2">Stays on this device</div>
+                    <p className="text-sm leading-relaxed text-emerald-700">SQLite memory vault, Markdown vault files, relationship state, character profile, imported notes, and chat history.</p>
+                  </div>
+                  <div className="rounded-[1.8rem] border border-blue-100 bg-blue-50 px-5 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-700 mb-2">Leaves only when you enable it</div>
+                    <p className="text-sm leading-relaxed text-blue-700">LLM prompts, TTS text, web search queries, and connected-source requests for integrations like Composio.</p>
+                  </div>
+                  <div className="rounded-[1.8rem] border border-amber-100 bg-amber-50 px-5 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-700 mb-2">You choose services</div>
+                    <p className="text-sm leading-relaxed text-amber-700">Use local Ollama/LM Studio where possible, or add API keys for remote LLM/TTS/search providers. Blank key fields preserve existing keys later.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <h2 className={headingClass}>Set up your private companion</h2>
                 <p className={descriptionClass}>
@@ -443,10 +469,10 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             )}
 
-            {step === 1 && (
+            {step === 2 && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <h2 className={headingClass}>Connect the brain</h2>
-                <p className={descriptionClass}>Choose the model that will drive your companion's voice and long-term behavior.</p>
+                <p className={descriptionClass}>Choose the model that will drive your companion. Local endpoints keep inference on-device; remote providers receive the prompt context needed to reply.</p>
 
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   {Object.entries(llmPresets).map(([id, preset]) => (
@@ -460,6 +486,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                       }`}
                     >
                       {preset.name}
+                      {!preset.needs_key && <span className="ml-2 text-[10px] text-emerald-600">Local/no key</span>}
                     </button>
                   ))}
                 </div>
@@ -534,10 +561,10 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             )}
 
-            {step === 2 && (
+            {step === 3 && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <h2 className={headingClass}>Choose the voice</h2>
-                <p className={descriptionClass}>This is the voice your companion will use while memory and state continue to grow behind the scenes.</p>
+                <p className={descriptionClass}>This is the voice your companion will use. Text for speech is sent only to the TTS provider you choose.</p>
 
                 <label className={labelClass}>TTS Provider</label>
                 <div className="flex flex-wrap gap-3 mb-6">
@@ -605,7 +632,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             )}
 
-            {step === 3 && (
+            {step === 4 && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <h2 className={headingClass}>Build your companion</h2>
                 <p className={descriptionClass}>
@@ -733,7 +760,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             )}
 
-            {step === 4 && (
+            {step === 5 && (
               <div className="text-center py-12 animate-in fade-in zoom-in-95 duration-500">
                 <div className="w-20 h-20 bg-gradient-to-tr from-green-400 to-emerald-400 text-white shadow-lg shadow-green-500/30 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
                   {"\u2713"}
@@ -751,7 +778,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             )}
 
-            {step < 4 && (
+            {step < 5 && (
               <div className="flex justify-between mt-10 space-x-4">
                 <button
                   onClick={() => setStep(step - 1)}
@@ -762,7 +789,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                 >
                   Back
                 </button>
-                {step < 3 ? (
+                {step < 4 ? (
                   <button
                     onClick={() => setStep(step + 1)}
                     disabled={!canProceed()}

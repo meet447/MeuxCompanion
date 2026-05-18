@@ -4,6 +4,7 @@ use crate::expressions::{ExpressionManager, GLOBAL_EXPRESSIONS};
 use crate::llm::types::ChatMessage;
 use crate::memory::retriever;
 use crate::memory::store::MemoryStore;
+use crate::memory_vault::MemoryVault;
 use crate::session::SessionStore;
 
 pub const DEFAULT_HISTORY_LIMIT: usize = 20;
@@ -13,6 +14,7 @@ pub struct ChatPromptResult {
     pub messages: Vec<ChatMessage>,
     pub system_prompt: String,
     pub memory_prompt: String,
+    pub relationship_prompt: String,
 }
 
 /// Inputs for [`build_chat_prompt`] (keeps the public API readable for Clippy).
@@ -20,6 +22,7 @@ pub struct ChatPromptParams<'a> {
     pub character_loader: &'a CharacterLoader,
     pub session_store: &'a SessionStore,
     pub memory_store: &'a MemoryStore,
+    pub memory_vault: Option<&'a MemoryVault>,
     pub _expression_manager: &'a ExpressionManager,
     pub character_id: &'a str,
     pub user_id: &'a str,
@@ -41,11 +44,31 @@ pub fn build_chat_prompt(p: ChatPromptParams<'_>) -> Result<ChatPromptResult> {
 
     // 3. Ensure memory store exists, list all memories, retrieve relevant ones
     let _ = p.memory_store.ensure_store(p.character_id, p.user_id);
-    let all_memories = p.memory_store.list(p.character_id, p.user_id, None, 100)?;
-    let relevant = retriever::retrieve_relevant(p.user_message, &all_memories, memory_limit);
-
-    // 4. Format memory prompt
-    let memory_prompt = retriever::format_memory_prompt(&relevant);
+    let relationship_prompt = p
+        .memory_vault
+        .and_then(|vault| {
+            vault
+                .format_relationship_prompt(p.character_id, p.user_id)
+                .ok()
+        })
+        .unwrap_or_default();
+    let memory_prompt = if let Some(vault) = p.memory_vault {
+        let vault_prompt = vault
+            .format_memory_prompt(p.character_id, p.user_id, p.user_message, memory_limit)
+            .unwrap_or_default();
+        if vault_prompt.is_empty() {
+            let all_memories = p.memory_store.list(p.character_id, p.user_id, None, 100)?;
+            let relevant =
+                retriever::retrieve_relevant(p.user_message, &all_memories, memory_limit);
+            retriever::format_memory_prompt(&relevant)
+        } else {
+            vault_prompt
+        }
+    } else {
+        let all_memories = p.memory_store.list(p.character_id, p.user_id, None, 100)?;
+        let relevant = retriever::retrieve_relevant(p.user_message, &all_memories, memory_limit);
+        retriever::format_memory_prompt(&relevant)
+    };
 
     // 5. Load session history
     let history = p
@@ -59,6 +82,11 @@ pub fn build_chat_prompt(p: ChatPromptParams<'_>) -> Result<ChatPromptResult> {
     let tools_context = "\n\n## TOOL CAPABILITIES\n\nYou have access to tools that let you interact with the user's computer. You can read files, write files, search the web, run commands, organize the desktop, and more. Use tools when the user asks you to do something on their machine, or when you need information to answer their question.\n\nIMPORTANT RULES:\n- ALWAYS use the provided tool functions to perform actions. NEVER write out function calls as text.\n- When you need to perform an action, call the appropriate tool directly — do not describe what you would call.\n- You can call multiple tools in a single response if needed.\n- When using tools, maintain your personality and expressions. Briefly explain what you're about to do before calling a tool.\n- For multi-step tasks, call one tool at a time and use the result to decide the next step.\n- After completing a task, briefly suggest 1-2 related follow-up actions the user might want. For example: after organizing the desktop, suggest cleaning Downloads too. After reading a file, suggest summarizing or editing it. Keep suggestions short and natural — one sentence max.";
     let full_system = format!("{}{}", system_prompt, tools_context);
     messages.push(ChatMessage::text("system", &full_system));
+
+    // System message (relationship state) — the vault owns this once enabled.
+    if !relationship_prompt.is_empty() {
+        messages.push(ChatMessage::text("system", &relationship_prompt));
+    }
 
     // System message (memory_prompt) — only if non-empty
     if !memory_prompt.is_empty() {
@@ -77,6 +105,7 @@ pub fn build_chat_prompt(p: ChatPromptParams<'_>) -> Result<ChatPromptResult> {
         messages,
         system_prompt,
         memory_prompt,
+        relationship_prompt,
     })
 }
 
@@ -111,6 +140,7 @@ mod tests {
             character_loader: &char_loader,
             session_store: &session_store,
             memory_store: &memory_store,
+            memory_vault: None,
             _expression_manager: &expr_mgr,
             character_id: "test",
             user_id: "default-user",
