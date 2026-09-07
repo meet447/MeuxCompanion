@@ -1,5 +1,6 @@
 pub mod elevenlabs;
 pub mod openai;
+pub mod tiktok;
 
 use serde::Serialize;
 
@@ -14,15 +15,16 @@ pub struct VoiceInfo {
 }
 
 pub fn is_system_speech_provider(provider: &str) -> bool {
-    matches!(provider, "system" | "tiktok" | "")
+    matches!(provider, "system")
 }
 
 /// Generate TTS audio from text using the configured provider (single attempt).
 async fn generate_tts_once(text: &str, config: &TtsConfig) -> Result<Vec<u8>> {
     match config.provider.as_str() {
-        "system" | "tiktok" | "" => Err(MeuxeError::Tts(
+        "system" => Err(MeuxeError::Tts(
             "system speech is rendered by the app".into(),
         )),
+        "tiktok" | "" => tiktok::generate(text, &config.voice).await,
         "elevenlabs" => {
             let api_key = config
                 .api_key
@@ -52,7 +54,8 @@ pub async fn generate_tts_auto(text: &str, config: &TtsConfig) -> Result<Vec<u8>
 /// List available voices for a given provider.
 pub fn list_voices(provider: &str) -> Vec<VoiceInfo> {
     match provider {
-        "system" | "tiktok" | "" => vec![],
+        "system" => vec![],
+        "tiktok" | "" => tiktok::list_voices(),
         "elevenlabs" => elevenlabs::list_voices(),
         "openai_tts" => openai::list_voices(),
         _ => vec![],

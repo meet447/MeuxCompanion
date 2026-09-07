@@ -57,13 +57,15 @@ export function TtsSection({
         <Notice tone={currentPreset?.needs_key ? "info" : "success"}>
           {currentPreset?.needs_key
             ? "Memory and chat stay on this device. Cloud voices send spoken text to the service you choose."
-            : "Memory, chat, and this system voice stay on this device. Cloud voices are optional."}
+            : value.provider === "system"
+              ? "Memory, chat, and this system voice stay on this device. Cloud voices are optional."
+              : "Memory and chat stay on this device. Meuxe TTS uses the network; studio voices are optional."}
         </Notice>
       )}
 
       {showBuiltInNotice && (
         <Notice tone="success" className="mb-4">
-          System voice uses the speech already on this computer. ElevenLabs and OpenAI are optional if you want studio voices.
+          Meuxe TTS is built in and free - ready to use with no API key. System voice stays on this computer. ElevenLabs and OpenAI are optional if you want studio voices.
         </Notice>
       )}
 
@@ -72,7 +74,7 @@ export function TtsSection({
         <div
           className={
             compactGrid
-              ? "mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3"
+              ? "mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2"
               : "grid gap-2.5 sm:grid-cols-2"
           }
         >
@@ -118,7 +120,9 @@ export function TtsSection({
 
       {!currentPreset?.needs_key && !showBuiltInNotice && (
         <Notice tone="success">
-          System voice is the default. It stays on this computer and does not need an API key.
+          {value.provider === "system"
+            ? "System voice stays on this computer and does not need an API key."
+            : "Meuxe TTS is the default - built in and free, with no account or API key needed."}
         </Notice>
       )}
 

@@ -83,7 +83,7 @@ jobs:
 
             Chat requires an ACP agent (Claude Code, Codex, or OpenCode) installed separately.
 
-            TTS defaults to the system voice provider.
+            TTS defaults to Meuxe TTS. System speech, ElevenLabs, and OpenAI are optional.
 
             Whisper speech-to-text downloads its model (~75MB) on first microphone use.
           releaseDraft: true

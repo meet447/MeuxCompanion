@@ -19,7 +19,7 @@ vi.mock("./onboarding/CompanionAvatarPreview", () => ({
 }));
 
 vi.mock("../lib/ttsClient", () => ({
-  getVoices: vi.fn(async () => [{ id: "", name: "System default" }]),
+  getVoices: vi.fn(async () => [{ id: "en_us_001", name: "Jessie" }]),
   previewVoice: vi.fn(async () => []),
 }));
 
@@ -76,17 +76,18 @@ describe("Onboarding", () => {
     vi.mocked(getAgentSetupStatus).mockResolvedValue(agentStatus(false));
   });
 
-  it("defaults to system voice and has no TikTok provider", async () => {
+  it("defaults to Meuxe TTS and still offers system voice", async () => {
     render(<Onboarding onComplete={vi.fn()} />);
     await walkToVoice();
 
     expect(screen.getByText("How they sound")).toBeInTheDocument();
+    expect(screen.getByText("Meuxe TTS")).toBeInTheDocument();
     expect(screen.getByText("System voice")).toBeInTheDocument();
     expect(screen.getByText("ElevenLabs")).toBeInTheDocument();
     expect(screen.getByText("OpenAI")).toBeInTheDocument();
     expect(screen.queryByText(/tiktok/i)).not.toBeInTheDocument();
     expect(
-      screen.getByText(/System voice uses the speech already on this computer/i),
+      screen.getByText(/Meuxe TTS is built in and free/i),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /continue/i })).toBeEnabled();
   });
