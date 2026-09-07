@@ -242,7 +242,7 @@ export function AddCharacterModal({
         radius="sheet"
         tone="surface"
         elevation="pop"
-        className="relative z-[101] flex max-h-[92vh] w-full max-w-5xl animate-fade-in flex-col overflow-hidden"
+        className="relative z-[101] flex h-[min(860px,92vh)] w-full max-w-5xl animate-fade-in flex-col overflow-hidden"
       >
         <div className="flex shrink-0 items-start justify-between gap-4 px-7 pb-4 pt-6">
           <div>
@@ -257,8 +257,8 @@ export function AddCharacterModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          <div className="grid h-full min-h-0 gap-6 px-7 lg:grid-cols-[1fr_minmax(260px,360px)] lg:gap-8">
-            <div className="min-h-0 space-y-6 overflow-y-auto pb-2 scrollbar-thin">
+          <div className="grid h-full min-h-0 grid-rows-1 gap-6 px-7 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] lg:gap-8">
+            <div className="min-h-0 space-y-6 overflow-y-auto overscroll-contain pb-2 pr-1 scrollbar-thin">
               <div className="lg:hidden">
                 <CompanionAvatarPreview
                   model={previewModel}
@@ -390,13 +390,13 @@ export function AddCharacterModal({
               {error ? <Notice tone="danger">{error}</Notice> : null}
             </div>
 
-            <div className="hidden min-h-0 lg:block lg:h-[min(640px,calc(92vh-12rem))]">
+            <div className="hidden min-h-0 lg:block">
               <CompanionAvatarPreview
                 model={previewModel}
                 companionName={name}
                 vibeLabel={selectedVibePack?.title}
                 thumbnailUrl={previewThumbnailUrl}
-                className="h-full rounded-panel"
+                className="h-full min-h-0 rounded-panel"
               />
             </div>
           </div>
