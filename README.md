@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshot-chat.png" alt="Meuxe main window: companion on stage with an active conversation" width="880" />
+  <img src="assets/screenshot-app.png" alt="Meuxe main window: companion on stage with the conversation panel open" width="880" />
 </p>
 
 ## What is Meuxe
@@ -43,20 +43,10 @@ Meuxe is a character on your screen who remembers past conversations, speaks wit
 ## Screenshots
 
 <p align="center">
-  <img src="assets/screenshot-chat.png" alt="Meuxe main window: companion on stage with an active conversation" width="880" />
-</p>
-
-<p align="center">
   <img src="assets/screenshot-onboarding.png" alt="Meuxe onboarding: the first step of the guided setup" width="880" />
 </p>
 
 <p align="center"><em>First launch: a short guided setup for you, your companion, their voice, and the agent behind them.</em></p>
-
-<p align="center">
-  <img src="assets/screenshot-mini.png" alt="Meuxe mini mode: companion floating on the desktop" width="880" />
-</p>
-
-<p align="center"><em>Mini mode keeps your companion on the desktop when the full window is away.</em></p>
 
 ## Get started
 
