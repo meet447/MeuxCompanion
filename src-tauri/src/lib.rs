@@ -1,4 +1,5 @@
 mod acp;
+mod bundled_assets;
 mod commands;
 mod tray;
 mod window;
@@ -18,6 +19,7 @@ use whisper_rs::{WhisperContext, WhisperContextParameters};
 
 pub struct AppState {
     pub data_dir: PathBuf,
+    pub resource_dir: Option<PathBuf>,
     pub config: ConfigManager,
     pub characters: CharacterLoader,
     pub sessions: SessionStore,
@@ -44,12 +46,19 @@ fn get_data_dir(state: tauri::State<Arc<AppState>>) -> String {
 }
 
 // Command to resolve a relative asset path to a convertFileSrc-compatible URL
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+struct ResolvedAssetPath {
+    path: String,
+    root: String,
+}
+
 #[tauri::command]
 fn resolve_asset_path(
     app: tauri::AppHandle,
     state: tauri::State<Arc<AppState>>,
     path: String,
-) -> Result<String, String> {
+) -> Result<ResolvedAssetPath, String> {
     let clean = path.trim_start_matches('/');
     if clean.is_empty() {
         return Err("Asset path is empty".into());
@@ -64,14 +73,26 @@ fn resolve_asset_path(
         return Err(format!("Asset path must not contain '..': {clean}"));
     }
 
-    let mut roots: Vec<PathBuf> = vec![state.data_dir.clone()];
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        roots.push(resource_dir);
+    if let Some(resolved) = resolve_under_root(&state.data_dir, clean) {
+        return Ok(ResolvedAssetPath {
+            path: resolved.to_string_lossy().to_string(),
+            root: "app_data".to_string(),
+        });
     }
 
-    for root in &roots {
-        if let Some(resolved) = resolve_under_root(root, clean) {
-            return Ok(resolved.to_string_lossy().to_string());
+    if let Some(resource_dir) = &state.resource_dir {
+        if let Some(resolved) = resolve_under_root(resource_dir, clean) {
+            return Ok(ResolvedAssetPath {
+                path: resolved.to_string_lossy().to_string(),
+                root: "resources".to_string(),
+            });
+        }
+    } else if let Ok(resource_dir) = app.path().resource_dir() {
+        if let Some(resolved) = resolve_under_root(&resource_dir, clean) {
+            return Ok(ResolvedAssetPath {
+                path: resolved.to_string_lossy().to_string(),
+                root: "resources".to_string(),
+            });
         }
     }
 
@@ -80,7 +101,10 @@ fn resolve_asset_path(
         for candidate in dev_candidates {
             if candidate.is_file() {
                 let resolved = std::path::absolute(&candidate).unwrap_or(candidate);
-                return Ok(resolved.to_string_lossy().to_string());
+                return Ok(ResolvedAssetPath {
+                    path: resolved.to_string_lossy().to_string(),
+                    root: "dev".to_string(),
+                });
             }
         }
     }
@@ -175,13 +199,26 @@ pub fn run() {
 
             let whisper_ctx = load_whisper_model(&data_dir);
 
+            let resource_dir = app.path().resource_dir().ok();
+            if let Some(resource_dir) = resource_dir.as_ref() {
+                if let Err(err) = bundled_assets::seed_bundled_models(resource_dir, &data_dir) {
+                    eprintln!("[bundled_assets] failed to seed bundled models: {err}");
+                }
+            }
+
+            let bundled_expression_root = resource_dir.as_ref().map(|dir| dir.join("models"));
+
             let state = AppState {
                 data_dir: data_dir.clone(),
+                resource_dir,
                 config: ConfigManager::new(&data_dir),
                 characters: CharacterLoader::new(&data_dir),
                 sessions: SessionStore::new(&data_dir),
                 memory: CompanionMemory::new(&data_dir),
-                expressions: ExpressionManager::new(&data_dir),
+                expressions: ExpressionManager::new_with_bundled_root(
+                    &data_dir,
+                    bundled_expression_root,
+                ),
                 whisper_ctx,
                 chat_cancel: std::sync::Mutex::new(None),
                 chat_permission_responders: std::sync::Mutex::new(HashMap::new()),

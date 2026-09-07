@@ -60,14 +60,21 @@ fn fallback_candidates(name: &str) -> &'static [&'static str] {
 /// Manages expression mappings between global expression names and model-specific names.
 pub struct ExpressionManager {
     mappings_dir: PathBuf,
+    bundled_root: Option<PathBuf>,
     cache: RwLock<HashMap<String, HashMap<String, String>>>,
 }
 
 impl ExpressionManager {
     /// Create a new ExpressionManager rooted at `data_dir`.
     pub fn new(data_dir: &Path) -> Self {
+        Self::new_with_bundled_root(data_dir, None)
+    }
+
+    /// Create a new ExpressionManager with an optional bundled models root.
+    pub fn new_with_bundled_root(data_dir: &Path, bundled_root: Option<PathBuf>) -> Self {
         Self {
             mappings_dir: data_dir.join("models").join("expression_mappings"),
+            bundled_root,
             cache: RwLock::new(HashMap::new()),
         }
     }
@@ -93,9 +100,13 @@ impl ExpressionManager {
                 .ok()
                 .and_then(|contents| serde_json::from_str(&contents).ok())
                 .filter(|m: &HashMap<String, String>| !m.is_empty())
-                .unwrap_or_else(|| load_bundled_expression_mapping(model_id).unwrap_or_default())
+                .unwrap_or_else(|| {
+                    self.load_bundled_expression_mapping(model_id)
+                        .unwrap_or_default()
+                })
         } else {
-            load_bundled_expression_mapping(model_id).unwrap_or_default()
+            self.load_bundled_expression_mapping(model_id)
+                .unwrap_or_default()
         };
 
         // Cache and return
@@ -152,19 +163,27 @@ impl ExpressionManager {
             .find(|a| a.to_lowercase() == canonical)
             .cloned()
     }
-}
 
-fn load_bundled_expression_mapping(model_id: &str) -> Option<HashMap<String, String>> {
-    let file_name = format!("{model_id}.json");
-    for root in [PathBuf::from("models"), PathBuf::from("../models")] {
-        let path = root.join("expression_mappings").join(&file_name);
-        if !path.is_file() {
-            continue;
+    fn load_bundled_expression_mapping(&self, model_id: &str) -> Option<HashMap<String, String>> {
+        let file_name = format!("{model_id}.json");
+        let mut roots = Vec::new();
+        if let Some(bundled_root) = &self.bundled_root {
+            roots.push(bundled_root.join("expression_mappings"));
         }
-        let contents = std::fs::read_to_string(&path).ok()?;
-        return serde_json::from_str(&contents).ok();
+        for fallback in [PathBuf::from("models"), PathBuf::from("../models")] {
+            roots.push(fallback.join("expression_mappings"));
+        }
+
+        for root in roots {
+            let path = root.join(&file_name);
+            if !path.is_file() {
+                continue;
+            }
+            let contents = std::fs::read_to_string(&path).ok()?;
+            return serde_json::from_str(&contents).ok();
+        }
+        None
     }
-    None
 }
 
 #[cfg(test)]
