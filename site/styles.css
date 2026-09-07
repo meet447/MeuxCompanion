@@ -549,9 +549,10 @@ main {
 
   .feel-grid {
     grid-template-columns: 1fr;
-    gap: 36px;
-    max-width: 420px;
+    gap: 28px;
+    max-width: 480px;
     margin: 0 auto;
+    text-align: left;
   }
 
   .agent-row {
