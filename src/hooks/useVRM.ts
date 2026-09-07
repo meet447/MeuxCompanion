@@ -167,15 +167,41 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
   }, []);
 
+  const readCanvasSize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { w: 0, h: 0 };
+
+    let node: HTMLElement | null = canvas.parentElement;
+    while (node) {
+      const rect = node.getBoundingClientRect();
+      if (rect.width > 1 && rect.height > 1) {
+        return { w: Math.floor(rect.width), h: Math.floor(rect.height) };
+      }
+      node = node.parentElement;
+    }
+
+    return {
+      w: canvas.clientWidth || 0,
+      h: canvas.clientHeight || 0,
+    };
+  }, [canvasRef]);
+
   const layoutRendererSize = useCallback(() => {
     if (!cameraRef.current || !rendererRef.current || !canvasRef.current) return;
-    const w = canvasRef.current.parentElement?.clientWidth || canvasRef.current.clientWidth;
-    const h = canvasRef.current.parentElement?.clientHeight || canvasRef.current.clientHeight;
+    const { w, h } = readCanvasSize();
     if (w <= 0 || h <= 0) return;
-    cameraRef.current.aspect = w / h;
-    cameraRef.current.updateProjectionMatrix();
-    rendererRef.current.setSize(w, h);
-  }, [canvasRef]);
+    const camera = cameraRef.current;
+    const renderer = rendererRef.current;
+    if (camera.aspect !== w / h) {
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    const size = new THREE.Vector2();
+    renderer.getSize(size);
+    if (size.x !== w || size.y !== h) {
+      renderer.setSize(w, h);
+    }
+  }, [canvasRef, readCanvasSize]);
 
   const syncStageLayout = useCallback(() => {
     layoutRendererSize();
@@ -196,8 +222,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   }, [applyOrbitRotation]);
 
   useEffect(() => {
-    const parent = canvasRef.current?.parentElement;
-    if (!parent) return;
+    const canvas = canvasRef.current;
+    const parent = canvas?.parentElement;
+    if (!canvas || !parent) return;
 
     const observer = new ResizeObserver(() => {
       requestAnimationFrame(() => {
@@ -205,7 +232,14 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       });
     });
     observer.observe(parent);
-    return () => observer.disconnect();
+    observer.observe(canvas);
+    // Catch late layout after modal/grid height settles.
+    requestAnimationFrame(() => applyViewportRef.current());
+    const timeout = window.setTimeout(() => applyViewportRef.current(), 50);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timeout);
+    };
   }, [canvasRef]);
 
   // Retarget Mixamo FBX animation to VRM skeleton
@@ -422,6 +456,8 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       }
 
       vrm.update(delta);
+      // Keep picking up late modal/grid layout after h-full settles.
+      applyViewportRef.current();
       renderer.render(scene, camera);
       animFrameRef.current = requestAnimationFrame(tick);
     };
@@ -493,7 +529,8 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           antialias: false,
           powerPreference: "low-power",
         });
-        renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight);
+        const { w, h } = readCanvasSize();
+        renderer.setSize(Math.max(w, 1), Math.max(h, 1));
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.outputColorSpace = SRGBColorSpace;
         renderer.toneMapping = ACESFilmicToneMapping;
@@ -531,8 +568,13 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
       // Create camera once
       if (!cameraRef.current) {
-        const canvas = canvasRef.current;
-        const camera = new THREE.PerspectiveCamera(30, canvas.clientWidth / canvas.clientHeight, 0.1, 20);
+        const { w, h } = readCanvasSize();
+        const camera = new THREE.PerspectiveCamera(
+          30,
+          w > 0 && h > 0 ? w / h : 1,
+          0.1,
+          20,
+        );
         camera.position.set(0, 1.3, 4.5);
         camera.lookAt(0, 1.0, 0);
         cameraRef.current = camera;
@@ -569,10 +611,18 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         const mixer = new THREE.AnimationMixer(vrm.scene);
         mixerRef.current = mixer;
 
-        // Load animations (VRMA or Mixamo FBX)
+        clockRef.current = new THREE.Clock();
+        availableExpressionsRef.current = Object.keys(vrm.expressionManager?.expressionMap || {});
+        availableMotionGroupsRef.current = [];
+
+        // Paint the mesh immediately; load clips in the background so preview/main
+        // aren't blocked on large VRMA batches (utsuwa ships many files).
+        applyViewportRef.current();
+        startAnimationLoop();
+
         if (animations && animations.length > 0) {
           const fbxLoader = new FBXLoader();
-          await Promise.allSettled(
+          void Promise.allSettled(
             animations.map(async (anim) => {
               try {
                 const assetUrl = await resolveAssetUrl(anim.path);
@@ -587,31 +637,42 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
                   clip = retargetAnimation(fbx, vrm, anim.name);
                 }
 
+                if (generation !== loadGenerationRef.current || vrmRef.current !== vrm) {
+                  return;
+                }
+
                 if (clip) {
                   clipsRef.current.set(anim.name, clip);
+                  availableMotionGroupsRef.current = [...clipsRef.current.keys()];
                   console.log(`[VRM] Loaded animation: "${anim.name}" (${clip.duration.toFixed(1)}s)`);
                 }
               } catch (err) {
                 console.warn(`[VRM] Failed to load animation "${anim.name}":`, err);
               }
-            })
-          );
-
-          const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
-          let matchFound = false;
-          for (const name of idleNames) {
-            for (const k of clipsRef.current.keys()) {
-              if (k.toLowerCase().includes(name)) {
-                playAnimation(k);
-                matchFound = true;
-                break;
-              }
+            }),
+          ).then(() => {
+            if (generation !== loadGenerationRef.current || vrmRef.current !== vrm) {
+              return;
             }
-            if (matchFound) break;
-          }
-          if (!currentActionRef.current && clipsRef.current.size > 0) {
-            playAnimation(clipsRef.current.keys().next().value!);
-          }
+
+            const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
+            let matchFound = false;
+            for (const name of idleNames) {
+              for (const k of clipsRef.current.keys()) {
+                if (k.toLowerCase().includes(name)) {
+                  playAnimation(k);
+                  matchFound = true;
+                  break;
+                }
+              }
+              if (matchFound) break;
+            }
+            if (!currentActionRef.current && clipsRef.current.size > 0) {
+              playAnimation(clipsRef.current.keys().next().value!);
+            }
+            availableMotionGroupsRef.current = [...clipsRef.current.keys()];
+            console.log("[VRM] Animations:", availableMotionGroupsRef.current);
+          });
         }
 
         if (generation !== loadGenerationRef.current) {
@@ -621,23 +682,22 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           return;
         }
 
-        clockRef.current = new THREE.Clock();
-
-        availableExpressionsRef.current = Object.keys(vrm.expressionManager?.expressionMap || {});
-        availableMotionGroupsRef.current = [...clipsRef.current.keys()];
-
         console.log("[VRM] Model loaded:", modelPath);
         console.log("[VRM] Expressions:", availableExpressionsRef.current);
-        console.log("[VRM] Animations:", availableMotionGroupsRef.current);
-
-        applyViewportRef.current();
-        startAnimationLoop();
       } catch (err) {
         lastErrorRef.current = err instanceof Error ? err.message : String(err);
         console.error("[VRM] Failed to load model:", err);
       }
     },
-    [canvasRef, startAnimationLoop, retargetAnimation, playAnimation, resetOrbitRotation, loadVrmaClip]
+    [
+      canvasRef,
+      startAnimationLoop,
+      retargetAnimation,
+      playAnimation,
+      resetOrbitRotation,
+      loadVrmaClip,
+      readCanvasSize,
+    ],
   );
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {

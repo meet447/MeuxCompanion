@@ -34,6 +34,7 @@ export function CompanionAvatarPreview({
       return;
     }
     let cancelled = false;
+    setUrl(null);
     resolveAssetUrl(model.path)
       .then((resolved) => {
         if (!cancelled) setUrl(resolved);
@@ -64,7 +65,7 @@ export function CompanionAvatarPreview({
         </div>
       )}
       {!model && (
-        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
           <Mascot mood="sleepy" tone="light" className="h-12 w-12" />
           <p className="text-xs text-ink-3">Your companion will appear here</p>
         </div>
@@ -72,16 +73,16 @@ export function CompanionAvatarPreview({
       {model && (
         <Suspense
           fallback={
-            <div className="flex h-full items-center justify-center text-sm text-ink-3">
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-3">
               Loading avatar…
             </div>
           }
         >
-          <div className="h-full w-full">
+          <div className="absolute inset-0">
             {model.type === "vrm" ? (
               <VRMCanvas
                 modelPath={url}
-                animations={model.animations}
+                animations={undefined}
                 expression="neutral"
                 speaking={false}
                 userTyping={false}
