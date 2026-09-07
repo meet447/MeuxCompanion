@@ -79,11 +79,11 @@ pub struct LlmConfig {
 }
 
 fn default_tts_provider() -> String {
-    "system".to_string()
+    "tiktok".to_string()
 }
 
 fn default_tts_voice() -> String {
-    String::new()
+    "en_us_001".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

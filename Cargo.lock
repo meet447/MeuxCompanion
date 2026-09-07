@@ -2365,6 +2365,7 @@ dependencies = [
 name = "meuxe-core"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "regex",
  "reqwest 0.12.28",

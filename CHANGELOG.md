@@ -16,7 +16,7 @@ First public **macOS and Linux** prerelease.
 - `THIRD_PARTY_NOTICES.md` and Haru’s Live2D Free Material License file.
 
 ### Changed
-- Default voice is the **system voice** on this computer. Unofficial third-party TikTok TTS proxies are removed. ElevenLabs and OpenAI remain optional.
+- Default voice is **Meuxe TTS** (free, no API key). System speech on this computer, ElevenLabs, and OpenAI remain optional.
 - Onboarding cannot finish until an assistant is actually ready. Tool permissions stay in Settings.
 - Release workflow builds macOS (arm64 + x64) and Linux only; drafts are marked prerelease.
 - `config.json` is written owner-only (`0600`) on macOS and Linux.
@@ -25,7 +25,7 @@ First public **macOS and Linux** prerelease.
 ### Fixed
 - Production asset resolution uses the resource directory, so avatars work outside `tauri dev`.
 - System tray setup no longer aborts startup when an indicator host is missing.
-- Privacy copy lists the assistant, optional cloud voices, and the one-time Whisper download.
+- Privacy copy lists the assistant, Meuxe TTS, optional studio voices, and the one-time Whisper download.
 
 ### Known limits
 - macOS builds are unsigned; Gatekeeper needs a right-click Open (or removing quarantine) until signing is added.

@@ -50,6 +50,7 @@ import type { AppConfig, Voice } from "../types";
 type SettingsPage = "profile" | "llm" | "tts" | "privacy" | "expressions" | "memory" | "avatar";
 
 const SETTINGS_TTS_PRESETS: Record<string, { name: string; needs_key: boolean; hint?: string }> = {
+  tiktok: TTS_PRESETS_UI.tiktok,
   system: TTS_PRESETS_UI.system,
   elevenlabs: TTS_PRESETS_UI.elevenlabs,
   openai_tts: TTS_PRESETS_UI.openai_tts,
@@ -62,7 +63,7 @@ const PAGE_META: Record<SettingsPage, { title: string; description: string }> = 
   },
   tts: {
     title: "Voice",
-    description: "Choose how your companion sounds. The system voice stays on this computer; cloud voices are optional.",
+    description: "Choose how your companion sounds. Meuxe TTS is free and ready; system and studio voices are optional.",
   },
   avatar: {
     title: "Avatar on screen",
@@ -242,7 +243,11 @@ export function Settings({
         setUserAbout(cfg.user?.about || "");
         setTtsProvider(resolvedTtsProvider(cfg.tts?.provider));
         setTtsApiKey("");
-        setTtsVoice(resolvedTtsProvider(cfg.tts?.provider) === "system" ? (cfg.tts?.voice || "") : (cfg.tts?.voice || DEFAULT_TTS_VOICE));
+        setTtsVoice(
+          resolvedTtsProvider(cfg.tts?.provider) === "system"
+            ? (cfg.tts?.voice || "")
+            : (cfg.tts?.voice || DEFAULT_TTS_VOICE),
+        );
         setAgentPreset(cfg.agent?.preset || "opencode");
         setAgentProgram(cfg.agent?.program || "");
         setAgentArgs((cfg.agent?.args || []).join(" "));
@@ -483,7 +488,7 @@ export function Settings({
               "Memories and chat history",
               "Character personality and mood",
               "Your profile",
-              "System voice",
+              "System voice, if you choose it",
               "Microphone transcription after the speech model is downloaded",
             ]}
             tone="sage"
@@ -491,6 +496,7 @@ export function Settings({
           <PrivacyCard
             title="Uses the network when you choose"
             items={[
+              "Meuxe TTS (the default voice)",
               "Your chat assistant, and anything that assistant does online",
               "ElevenLabs or OpenAI voices, only if you turn them on",
               "One-time speech model download from Hugging Face when you first use the mic",
