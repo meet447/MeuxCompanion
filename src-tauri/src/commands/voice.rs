@@ -1,3 +1,6 @@
+#[path = "../whisper.rs"]
+mod whisper;
+
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use meuxe_core::config::types::AppConfig;
@@ -5,7 +8,7 @@ use reqwest::multipart::{Form, Part};
 use reqwest::Client;
 use std::collections::HashSet;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, State};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
 
 #[derive(Clone)]
@@ -137,10 +140,7 @@ fn num_cpus() -> i32 {
 /// Transcribe using local whisper.cpp (tiny model) - no internet needed.
 /// Accepts base64-encoded f32 PCM audio at 16kHz mono.
 #[tauri::command]
-pub async fn voice_transcribe_local(
-    state: State<'_, Arc<AppState>>,
-    pcm_base64: String,
-) -> Result<String, String> {
+pub async fn voice_transcribe_local(pcm_base64: String) -> Result<String, String> {
     let pcm_bytes = STANDARD
         .decode(pcm_base64.trim())
         .map_err(|e| format!("Invalid PCM payload: {e}"))?;
@@ -158,10 +158,7 @@ pub async fn voice_transcribe_local(
         return Err("Empty PCM audio data".into());
     }
 
-    // Clone the context out of state so we can move it into spawn_blocking
-    let ctx = state.whisper_ctx.clone().ok_or_else(|| {
-        "Whisper model not loaded. Place ggml-tiny.bin in models/whisper/".to_string()
-    })?;
+    let ctx = whisper::get_ctx()?;
 
     let text = tokio::task::spawn_blocking(move || whisper_transcribe_inner(&ctx, &pcm_samples))
         .await
@@ -186,7 +183,9 @@ pub async fn voice_transcribe(
 
     let backends = transcription_backends(&config);
     if backends.is_empty() {
-        return Err("Configure an LLM provider before using voice input.".to_string());
+        return Err(
+            "On-device transcription needs the Whisper model. Download it in Settings, or set up a speech-to-text API in Settings if you want cloud transcription.".to_string(),
+        );
     }
 
     let audio_bytes_vec = STANDARD
@@ -250,4 +249,17 @@ pub async fn voice_transcribe(
     } else {
         format!("Voice transcription failed: {last_error}")
     })
+}
+
+#[tauri::command]
+pub fn voice_whisper_status(state: State<'_, Arc<AppState>>) -> whisper::WhisperStatus {
+    whisper::whisper_status(&state.data_dir)
+}
+
+#[tauri::command]
+pub async fn voice_whisper_download(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    whisper::download_whisper_model(&app, &state.data_dir).await
 }

@@ -2,7 +2,7 @@ pub mod types;
 
 pub use types::*;
 
-use crate::fs_util::write_atomic;
+use crate::fs_util::write_atomic_private;
 use crate::Result;
 use std::path::{Path, PathBuf};
 
@@ -38,7 +38,7 @@ impl ConfigManager {
 
     fn save_fresh(&self, config: &AppConfig) -> Result<()> {
         let json = serde_json::to_string_pretty(config)?;
-        write_atomic(&self.config_path, &json)
+        write_atomic_private(&self.config_path, &json)
     }
 
     pub fn load(&self) -> Result<AppConfig> {
@@ -114,7 +114,7 @@ impl ConfigManager {
         }
 
         let json = serde_json::to_string_pretty(&merged)?;
-        write_atomic(&self.config_path, &json)
+        write_atomic_private(&self.config_path, &json)
     }
 
     pub fn mask_config(config: &AppConfig) -> AppConfig {
@@ -301,5 +301,33 @@ mod tests {
         assert_eq!(loaded.user.name, "Bob Smith");
         assert_eq!(loaded.user.id, original_id);
         assert_eq!(loaded.user.id, "alice_nova");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_json_is_private_after_save() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = TempDir::new().unwrap();
+        let mgr = ConfigManager::new(tmp.path());
+
+        let mut config = AppConfig::default();
+        config.user.name = "Private".to_string();
+        mgr.save(&config).unwrap();
+
+        let mode = std::fs::metadata(tmp.path().join("config.json"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
+
+        config.user.name = "Private Again".to_string();
+        mgr.save(&config).unwrap();
+
+        let mode = std::fs::metadata(tmp.path().join("config.json"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
     }
 }
