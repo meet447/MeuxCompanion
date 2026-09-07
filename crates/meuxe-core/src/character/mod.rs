@@ -612,11 +612,25 @@ fn build_prompt_sections_body(name: &str, sections: &PromptSections) -> String {
 
 /// List available Live2D and VRM models on disk.
 pub fn list_models(data_dir: &Path) -> Result<Vec<ModelInfo>> {
+    list_models_with_roots(data_dir, &[])
+}
+
+/// List available models from app data plus optional extra model roots (e.g. bundled resources).
+pub fn list_models_with_roots(
+    data_dir: &Path,
+    extra_model_roots: &[PathBuf],
+) -> Result<Vec<ModelInfo>> {
     let mut models = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
     for models_dir in model_scan_roots(data_dir) {
         scan_models_dir(&models_dir, &mut models, &mut seen);
+    }
+
+    for models_dir in extra_model_roots {
+        if models_dir.exists() {
+            scan_models_dir(models_dir, &mut models, &mut seen);
+        }
     }
 
     models.sort_by(|a, b| a.id.cmp(&b.id));

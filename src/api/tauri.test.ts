@@ -22,13 +22,13 @@ describe('tauri api utilities', () => {
   });
 
   describe('resolveAssetUrl', () => {
-    it('uses convertFileSrc for files inside app data', async () => {
+    it('uses convertFileSrc for app_data assets', async () => {
       vi.mocked(invoke).mockImplementation(async (command: string) => {
         if (command === 'resolve_asset_path') {
-          return '/data/com.meuxe.app/models/vrm/demo/model.vrm';
-        }
-        if (command === 'get_data_dir') {
-          return '/data/com.meuxe.app';
+          return {
+            path: '/data/com.meuxe.app/models/vrm/demo/model.vrm',
+            root: 'app_data',
+          };
         }
         return null;
       });
@@ -37,13 +37,28 @@ describe('tauri api utilities', () => {
       expect(url).toContain('asset://localhost');
     });
 
-    it('falls back to /static/ for files outside app data', async () => {
+    it('uses convertFileSrc for bundled resource assets', async () => {
       vi.mocked(invoke).mockImplementation(async (command: string) => {
         if (command === 'resolve_asset_path') {
-          return '/workspace/models/vrm/demo/model.vrm';
+          return {
+            path: '/Applications/Meuxe.app/Contents/Resources/models/vrm/demo/model.vrm',
+            root: 'resources',
+          };
         }
-        if (command === 'get_data_dir') {
-          return '/data/com.meuxe.app';
+        return null;
+      });
+
+      const url = await tauriApi.resolveAssetUrl('models/vrm/demo/model.vrm');
+      expect(url).toContain('asset://localhost');
+    });
+
+    it('falls back to /static/ for dev assets', async () => {
+      vi.mocked(invoke).mockImplementation(async (command: string) => {
+        if (command === 'resolve_asset_path') {
+          return {
+            path: '/workspace/models/vrm/demo/model.vrm',
+            root: 'dev',
+          };
         }
         return null;
       });
