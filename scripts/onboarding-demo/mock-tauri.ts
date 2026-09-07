@@ -21,10 +21,17 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
           animations: [{ name: "idle", path: "models/vrm/utsuwa/animations/idle.vrma" }],
         },
       ] as T;
+    case "resolve_asset_path":
+      return {
+        path: String(args?.path ?? ""),
+        root: "dev",
+      } as T;
     case "tts_voices":
       return [
-        { id: "jp_001", name: "Japanese Female 1" },
-        { id: "jp_002", name: "Japanese Female 2" },
+        { id: "en_us_001", name: "English US - Female 1" },
+        { id: "en_us_002", name: "English US - Female 2" },
+        { id: "en_us_006", name: "English US - Male 1" },
+        { id: "jp_001", name: "Japanese - Female 1" },
       ] as T;
     case "tts_preview":
       return [] as T;
@@ -55,4 +62,9 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
       console.warn(`[onboarding-demo] unhandled invoke: ${cmd}`, args);
       return null as T;
   }
+}
+
+export function convertFileSrc(filePath: string): string {
+  const clean = filePath.replace(/^\/+/, "");
+  return `/static/${clean}`;
 }
