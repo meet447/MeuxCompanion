@@ -57,6 +57,8 @@ export function AddCharacterModal({
   const [relationshipStyle, setRelationshipStyle] = useState("Gentle");
   const [speechStyle, setSpeechStyle] = useState("Calm");
   const [modelId, setModelId] = useState("haru");
+  /** Don't mount Live2D/VRM until the user picks a look — avoids burning the WebGL context on the default Haru. */
+  const [livePreviewArmed, setLivePreviewArmed] = useState(false);
   const [personality, setPersonality] = useState("");
   const [personalityTouched, setPersonalityTouched] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -96,7 +98,13 @@ export function AddCharacterModal({
       });
 
     setImportMessage("");
+    setLivePreviewArmed(false);
   }, [open]);
+
+  const selectLook = (id: string) => {
+    setModelId(id);
+    setLivePreviewArmed(true);
+  };
 
   const draftInput = useMemo(
     () => ({
@@ -121,14 +129,14 @@ export function AddCharacterModal({
   );
 
   const previewModel = useMemo(() => {
-    if (!selectedModel) return null;
+    if (!livePreviewArmed || !selectedModel) return null;
     return {
       id: selectedModel.id,
       type: selectedModel.type,
       path: selectedModel.path,
       animations: selectedModel.animations,
     };
-  }, [selectedModel]);
+  }, [livePreviewArmed, selectedModel]);
 
   const previewThumbnailUrl = useMemo(() => {
     if (!modelId) return null;
@@ -159,7 +167,7 @@ export function AddCharacterModal({
       const refreshed = (await listModels()) as ModelInfo[];
       setModels(refreshed);
       if (imported.id) {
-        setModelId(imported.id);
+        selectLook(imported.id);
         setImportMessage(`Imported model "${imported.id}" and selected it.`);
       } else {
         setImportMessage("Model imported successfully.");
@@ -178,6 +186,7 @@ export function AddCharacterModal({
     setRelationshipStyle("Gentle");
     setSpeechStyle("Calm");
     setModelId("haru");
+    setLivePreviewArmed(false);
     setPersonalityTouched(false);
     setAdvancedOpen(false);
     setError("");
@@ -276,11 +285,11 @@ export function AddCharacterModal({
                 <ModelMarketplace
                   installedModels={models}
                   selectedId={modelId}
-                  onSelect={setModelId}
+                  onSelect={selectLook}
                   onInstalled={async (model) => {
                     const refreshed = (await listModels()) as ModelInfo[];
                     setModels(refreshed);
-                    setModelId(model.id);
+                    selectLook(model.id);
                     setImportMessage(`Installed "${model.id}" and selected it.`);
                   }}
                   onImportLive2D={() => handleImportModel("live2d")}
