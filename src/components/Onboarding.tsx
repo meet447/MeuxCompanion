@@ -15,7 +15,10 @@ import { DEFAULT_TTS_PROVIDER, DEFAULT_TTS_VOICE, TTS_PRESETS_UI } from "../lib/
 import { AgentSection } from "./settings/AgentSection";
 import { TtsSection } from "./settings/TtsSection";
 import { CompanionAvatarPreview } from "./onboarding/CompanionAvatarPreview";
-import { ModelMarketplace } from "./marketplace/ModelMarketplace";
+import {
+  OnboardingDefaultLookPicker,
+  type OnboardingDefaultLookId,
+} from "./onboarding/OnboardingDefaultLookPicker";
 import { OnboardingShell } from "./onboarding/OnboardingShell";
 import {
   BackIcon,
@@ -60,6 +63,12 @@ const FEATURE_TILES = [
   { icon: LockIcon, title: "Your device", sub: "Memories stay local" },
 ] as const;
 
+const DEFAULT_LOOK_IDS = new Set<OnboardingDefaultLookId>(["haru", "utsuwa"]);
+
+function isDefaultLookId(id: string): id is OnboardingDefaultLookId {
+  return DEFAULT_LOOK_IDS.has(id as OnboardingDefaultLookId);
+}
+
 export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
   const [voices, setVoices] = useState<Voice[]>([]);
@@ -84,21 +93,15 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
       vibe: "Wise",
       relationship_style: "Gentle",
       speech_style: "Calm",
-      model_id: "haru",
+      model_id: "",
     },
   });
 
   useEffect(() => {
     listModels()
       .then((data) => {
-        const list = data as ModelInfo[];
+        const list = (data as ModelInfo[]).filter((model) => isDefaultLookId(model.id));
         setModels(list);
-        if (list.length > 0 && !list.some((m) => m.id === form.companion.model_id)) {
-          setForm((prev) => ({
-            ...prev,
-            companion: { ...prev.companion, model_id: list[0].id },
-          }));
-        }
       })
       .catch(console.error);
   }, []);
@@ -118,7 +121,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   }, [form.tts.provider]);
 
   useEffect(() => {
-    if (step !== 4 || form.agent.preset === "custom") {
+    if (step !== 5 || form.agent.preset === "custom") {
       setAgentSetup(null);
       setAgentSetupLoading(false);
       setAgentSetupError(null);
@@ -221,10 +224,12 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
       case 1:
         return form.user.name.trim() !== "";
       case 2:
-        return form.companion.name.trim() !== "" && form.companion.vibe !== "";
+        return isDefaultLookId(form.companion.model_id);
       case 3:
-        return form.tts.voice !== "";
+        return form.companion.name.trim() !== "" && form.companion.vibe !== "";
       case 4:
+        return form.tts.voice !== "";
+      case 5:
         if (form.agent.preset === "custom") {
           return form.agent.program.trim() !== "";
         }
@@ -238,17 +243,20 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   };
 
   const agentSetupWarning =
-    step === 4 &&
+    step === 5 &&
     form.agent.preset !== "custom" &&
     !agentSetupLoading &&
     (agentSetupError || agentSetup === null);
 
   const stepHint = (): string | null => {
-    if (step === 4 && form.agent.preset !== "custom" && !canProceed() && !agentSetupLoading) {
+    if (step === 2 && !canProceed()) {
+      return "Choose Haru or Utsuwa to continue.";
+    }
+    if (step === 5 && form.agent.preset !== "custom" && !canProceed() && !agentSetupLoading) {
       return "Install Node.js above to finish setup.";
     }
     if (
-      step === 4 &&
+      step === 5 &&
       form.agent.preset !== "custom" &&
       !agentSetupLoading &&
       agentSetup &&
@@ -310,7 +318,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
         onboarding_complete: true,
       });
 
-      setStep(5);
+      setStep(6);
       setTimeout(onComplete, 2200);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -326,7 +334,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
     />
   );
 
-  if (step === 5) {
+  if (step === 6) {
     const companionName = form.companion.name.trim() || "Your companion";
     return (
       <OnboardingShell step={step}>
@@ -402,6 +410,14 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
       )}
 
       {step === 2 && (
+        <OnboardingDefaultLookPicker
+          models={models}
+          selectedId={form.companion.model_id}
+          onSelect={(id) => updateForm("companion", "model_id", id)}
+        />
+      )}
+
+      {step === 3 && (
         <>
           <Field label="Their name">
             <Input
@@ -409,10 +425,11 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               value={form.companion.name}
               onChange={(e) => updateForm("companion", "name", e.target.value)}
               placeholder="Who are you creating?"
+              autoFocus
             />
           </Field>
 
-          <Field label="Personality" className="mt-4">
+          <Field label="Personality" className="mt-4 mb-0">
             <div className="grid grid-cols-2 gap-2.5">
               {COMPANION_VIBE_PACKS.map((pack) => (
                 <ChoiceCard
@@ -427,24 +444,10 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               ))}
             </div>
           </Field>
-
-          <Field label="Look" className="mt-4 mb-0">
-            <ModelMarketplace
-              compact
-              installedModels={models}
-              selectedId={form.companion.model_id}
-              onSelect={(id) => updateForm("companion", "model_id", id)}
-              onInstalled={async (model) => {
-                const refreshed = await listModels();
-                setModels(refreshed);
-                updateForm("companion", "model_id", model.id);
-              }}
-            />
-          </Field>
         </>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <TtsSection
           value={form.tts}
           onChange={(next) => setForm((prev) => ({ ...prev, tts: next }))}
@@ -458,7 +461,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
         />
       )}
 
-      {step === 4 && (
+      {step === 5 && (
         <AgentSection
           value={form.agent}
           onChange={(next) => setForm((prev) => ({ ...prev, agent: next }))}
@@ -490,7 +493,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
         ) : (
           <span />
         )}
-        {step < 4 ? (
+        {step < 5 ? (
           <Button
             type="button"
             variant="primary"

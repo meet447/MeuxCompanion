@@ -3,12 +3,13 @@ import { MeuxeMark, Mascot } from "../ui";
 import type { MascotMood } from "../ui";
 import { cn } from "../ui/cn";
 
-const STEP_LABELS = ["Start", "You", "Companion", "Voice", "Connect"];
+const STEP_LABELS = ["Start", "You", "Look", "Personality", "Voice", "Connect"];
 
 const STEP_HEADINGS = [
   "A companion on your desktop",
   "First, your name",
   "Meet them",
+  "Their personality",
   "How they sound",
   "Who answers for them?",
   "See you on the desktop",
@@ -17,7 +18,8 @@ const STEP_HEADINGS = [
 const STEP_SUBTITLES = [
   "Talk to someone who remembers you. They live on your computer, not in a chat tab.",
   "So they know who they're talking to. Only saved on this device.",
-  "Name, look, and personality, all in one place.",
+  "Pick a default look. You can explore more models later when you add another companion.",
+  "Give them a name and a vibe that fits.",
   "Pick a voice and tap listen.",
   "Meuxe is the face and memory. Choose the assistant on your computer that powers chat.",
   "",
@@ -27,6 +29,7 @@ const MASCOT_BY_STEP: MascotMood[] = [
   "neutral",
   "happy",
   "surprised",
+  "happy",
   "neutral",
   "thinking",
   "happy",
@@ -41,9 +44,11 @@ export function OnboardingShell({
   preview?: ReactNode;
   children: ReactNode;
 }) {
-  const isDone = step >= 5;
-  const showPreview = preview && step >= 2 && step <= 3;
-  const mascotMood = MASCOT_BY_STEP[Math.min(step, 5)];
+  const isDone = step >= 6;
+  // Single preview after look is chosen (personality + voice).
+  const showPreview = Boolean(preview) && step >= 3 && step <= 4;
+  const mascotMood = MASCOT_BY_STEP[Math.min(step, 6)];
+  const totalSteps = STEP_LABELS.length;
 
   return (
     <div className="fixed inset-0 z-[200] overflow-y-auto bg-surface scrollbar-thin">
@@ -53,7 +58,10 @@ export function OnboardingShell({
           <span className="text-sm font-semibold text-ink">Meuxe</span>
         </div>
         {!isDone && (
-          <div className="flex items-center gap-1.5" aria-label={`Step ${step + 1} of 5`}>
+          <div
+            className="flex items-center gap-1.5"
+            aria-label={`Step ${step + 1} of ${totalSteps}`}
+          >
             {STEP_LABELS.map((_, i) => (
               <div
                 key={i}
@@ -70,17 +78,20 @@ export function OnboardingShell({
 
       <div
         key={step}
-        className="mx-auto w-full max-w-[560px] animate-rise-in px-6 pb-24 pt-10 sm:pt-16"
+        className={cn(
+          "mx-auto w-full animate-rise-in px-6 pb-24 pt-10 sm:pt-16",
+          step === 2 ? "max-w-[640px]" : "max-w-[560px]",
+        )}
       >
         <div className="text-center">
           <Mascot mood={mascotMood} className="mx-auto h-14 w-14" />
           {!isDone && (
             <p className="mt-3 text-[12px] text-ink-3">
-              Step {step + 1} of 5 · {STEP_LABELS[step]}
+              Step {step + 1} of {totalSteps} · {STEP_LABELS[step]}
             </p>
           )}
           <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-ink">
-            {STEP_HEADINGS[Math.min(step, 5)]}
+            {STEP_HEADINGS[Math.min(step, 6)]}
           </h1>
           {STEP_SUBTITLES[step] && (
             <p className="mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-ink-2">

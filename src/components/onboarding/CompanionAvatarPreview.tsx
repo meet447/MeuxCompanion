@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { resolveAssetUrl } from "../../api/tauri";
 import { Mascot } from "../ui";
+import { cn } from "../ui/cn";
 
 const Live2DCanvas = lazy(() =>
   import("../Live2DCanvas").then((m) => ({ default: m.Live2DCanvas })),
@@ -18,10 +19,12 @@ export function CompanionAvatarPreview({
   model,
   companionName,
   vibeLabel,
+  className,
 }: {
   model: PreviewModel | null;
   companionName?: string;
   vibeLabel?: string;
+  className?: string;
 }) {
   const [url, setUrl] = useState<string | null>(null);
 
@@ -44,7 +47,12 @@ export function CompanionAvatarPreview({
   }, [model?.path]);
 
   return (
-    <div className="relative h-[180px] w-full overflow-hidden rounded-card bg-well">
+    <div
+      className={cn(
+        "relative h-[180px] w-full overflow-hidden rounded-card bg-well",
+        className,
+      )}
+    >
       {companionName?.trim() && (
         <div className="absolute left-3 top-3 z-10 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-ink shadow-soft">
           {companionName.trim()}
