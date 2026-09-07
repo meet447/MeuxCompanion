@@ -2,6 +2,7 @@ mod acp;
 mod bundled_assets;
 mod commands;
 mod tray;
+mod whisper;
 mod window;
 
 use meuxe_core::character::CharacterLoader;
@@ -15,7 +16,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::acp::AcpConnectionManager;
 use tauri::Manager;
-use whisper_rs::{WhisperContext, WhisperContextParameters};
 
 pub struct AppState {
     pub data_dir: PathBuf,
@@ -25,7 +25,6 @@ pub struct AppState {
     pub sessions: SessionStore,
     pub memory: CompanionMemory,
     pub expressions: ExpressionManager,
-    pub whisper_ctx: Option<Arc<WhisperContext>>,
     pub chat_cancel: std::sync::Mutex<Option<tokio_util::sync::CancellationToken>>,
     pub chat_permission_responders:
         std::sync::Mutex<HashMap<String, tokio::sync::oneshot::Sender<bool>>>,
@@ -140,33 +139,6 @@ fn resolve_under_root(root: &Path, relative: &str) -> Option<PathBuf> {
     }
 }
 
-fn load_whisper_model(data_dir: &Path) -> Option<Arc<WhisperContext>> {
-    // Search for model in multiple locations
-    let candidates = [
-        data_dir.join("models/whisper/ggml-tiny.bin"),
-        PathBuf::from("models/whisper/ggml-tiny.bin"),
-        PathBuf::from("../models/whisper/ggml-tiny.bin"),
-    ];
-
-    for path in &candidates {
-        if path.exists() {
-            let path_str = path.to_string_lossy().to_string();
-            match WhisperContext::new_with_params(&path_str, WhisperContextParameters::default()) {
-                Ok(ctx) => {
-                    println!("Whisper model loaded from: {path_str}");
-                    return Some(Arc::new(ctx));
-                }
-                Err(e) => {
-                    eprintln!("Failed to load whisper model from {path_str}: {e}");
-                }
-            }
-        }
-    }
-
-    eprintln!("Whisper model not found. Local transcription disabled.");
-    None
-}
-
 fn allow_webview_autoplay(app: &mut tauri::App) {
     #[cfg(target_os = "linux")]
     {
@@ -184,6 +156,8 @@ fn allow_webview_autoplay(app: &mut tauri::App) {
 }
 
 pub fn run() {
+    std::env::set_var("PATH", commands::agent_setup::augmented_path_env());
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -197,7 +171,7 @@ pub fn run() {
                 eprintln!("[acp] failed to create companion-home: {err}");
             }
 
-            let whisper_ctx = load_whisper_model(&data_dir);
+            whisper::load_whisper_model(&data_dir);
 
             let resource_dir = app.path().resource_dir().ok();
             if let Some(resource_dir) = resource_dir.as_ref() {
@@ -219,7 +193,6 @@ pub fn run() {
                     &data_dir,
                     bundled_expression_root,
                 ),
-                whisper_ctx,
                 chat_cancel: std::sync::Mutex::new(None),
                 chat_permission_responders: std::sync::Mutex::new(HashMap::new()),
                 acp: Mutex::new(AcpConnectionManager::default()),
@@ -228,7 +201,9 @@ pub fn run() {
             app.manage(Arc::new(state));
 
             // Setup system tray
-            tray::setup_tray(app.handle()).expect("Failed to setup tray");
+            if let Err(err) = tray::setup_tray(app.handle()) {
+                eprintln!("[tray] disabled: {err}");
+            }
 
             allow_webview_autoplay(app);
 
@@ -268,6 +243,8 @@ pub fn run() {
             commands::tts::tts_preview,
             commands::voice::voice_transcribe,
             commands::voice::voice_transcribe_local,
+            commands::voice::voice_whisper_status,
+            commands::voice::voice_whisper_download,
             window::window_toggle_mini,
             window::window_expand,
             get_data_dir,

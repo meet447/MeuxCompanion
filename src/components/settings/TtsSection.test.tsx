@@ -4,9 +4,9 @@ import { TTS_PRESETS_UI } from "../../lib/ttsPresets";
 import { TtsSection, type TtsSectionValue } from "./TtsSection";
 
 const baseValue: TtsSectionValue = {
-  provider: "tiktok",
+  provider: "system",
   api_key: "",
-  voice: "en_us_001",
+  voice: "",
 };
 
 describe("TtsSection", () => {
@@ -15,12 +15,12 @@ describe("TtsSection", () => {
       <TtsSection
         value={baseValue}
         onChange={vi.fn()}
-        voices={[{ id: "en_us_001", name: "Default" }]}
+        voices={[{ id: "", name: "System default" }]}
         presets={TTS_PRESETS_UI}
       />,
     );
-    expect(screen.getByText("Meuxe TTS")).toBeInTheDocument();
-    expect(screen.getByText("Default")).toBeInTheDocument();
+    expect(screen.getByText("System voice")).toBeInTheDocument();
+    expect(screen.getByText("System default")).toBeInTheDocument();
   });
 
   it("calls onChange when provider changes", () => {
@@ -29,7 +29,7 @@ describe("TtsSection", () => {
       <TtsSection
         value={baseValue}
         onChange={onChange}
-        voices={[{ id: "en_us_001", name: "Default" }]}
+        voices={[{ id: "", name: "System default" }]}
         presets={TTS_PRESETS_UI}
       />,
     );
@@ -47,13 +47,13 @@ describe("TtsSection", () => {
       <TtsSection
         value={baseValue}
         onChange={vi.fn()}
-        voices={[{ id: "en_us_001", name: "Default" }]}
+        voices={[{ id: "", name: "System default" }]}
         presets={TTS_PRESETS_UI}
         compactGrid
       />,
     );
-    expect(screen.getByText("Meuxe TTS")).toBeInTheDocument();
-    expect(screen.queryByText(/Built into Meuxe/i)).not.toBeInTheDocument();
+    expect(screen.getByText("System voice")).toBeInTheDocument();
+    expect(screen.queryByText(/Uses the voices on this computer/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Studio voices/i)).not.toBeInTheDocument();
   });
 });

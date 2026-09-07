@@ -1,7 +1,8 @@
 import { useRef, useCallback, useState, useEffect } from "react";
 import { OrderedAudioQueue } from "../audio/orderedAudioQueue";
-import type { SentenceTask } from "../audio/orderedAudioQueue";
+import type { AudioEngine, SentenceTask } from "../audio/orderedAudioQueue";
 import { useAudioAnalyser } from "./useAudioAnalyser";
+import { cancelSystemSpeech, speak as speakSystem } from "../lib/systemSpeech";
 
 export type { SentenceTask } from "../audio/orderedAudioQueue";
 
@@ -34,7 +35,7 @@ function captionHoldMs(text: string): number {
 }
 
 interface CurrentPlayback {
-  audio: HTMLAudioElement;
+  audio?: HTMLAudioElement;
   finish: () => void;
 }
 
@@ -135,9 +136,10 @@ export function useAudioQueue() {
   }, []);
 
   const stopCurrentAudio = useCallback(() => {
+    cancelSystemSpeech();
     const current = currentPlaybackRef.current;
     if (!current) return;
-    current.audio.pause();
+    current.audio?.pause();
     current.finish();
   }, []);
 
@@ -175,7 +177,15 @@ export function useAudioQueue() {
         setSpeaking(true);
         setSpeakingSentence(action.task.text);
         onExpressionChangeRef.current?.(action.task.expression);
-        await playAudioChunk(action.audio);
+        if (action.kind === "speak") {
+          try {
+            await speakSystem(action.task.text);
+          } catch (error) {
+            console.warn("[AudioQueue] System speech failed:", error);
+          }
+        } else {
+          await playAudioChunk(action.audio);
+        }
         if (queueRef.current.activeRequestId() !== action.requestId) break;
         // The caption belongs to the sentence being spoken; the next sentence
         // sets its own. The expression is kept until the next user turn.
@@ -216,8 +226,13 @@ export function useAudioQueue() {
     return processAcceptedMutation(queueRef.current.addSentence(requestId, task));
   }, [processAcceptedMutation]);
 
-  const addAudio = useCallback((requestId: string, index: number, audio: string) => {
-    return processAcceptedMutation(queueRef.current.addAudio(requestId, index, audio));
+  const addAudio = useCallback((
+    requestId: string,
+    index: number,
+    audio: string,
+    engine: AudioEngine = "remote",
+  ) => {
+    return processAcceptedMutation(queueRef.current.addAudio(requestId, index, audio, engine));
   }, [processAcceptedMutation]);
 
   const failAudio = useCallback((requestId: string, index: number) => {

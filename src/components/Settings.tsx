@@ -7,12 +7,19 @@ import {
   saveConfig,
   resetAllAppData,
   resetOnboarding,
-  getVoices,
 } from "../api/tauri";
-import { DEFAULT_TTS_PROVIDER, DEFAULT_TTS_VOICE, TTS_PRESETS_UI } from "../lib/ttsPresets";
+import { getVoices } from "../lib/ttsClient";
+import {
+  DEFAULT_TTS_PROVIDER,
+  DEFAULT_TTS_VOICE,
+  TTS_PRESETS_UI,
+  resolvedTtsProvider,
+} from "../lib/ttsPresets";
 import { AgentSection } from "./settings/AgentSection";
 import { AvatarViewportSettings } from "./settings/AvatarViewportSettings";
 import { TtsSection } from "./settings/TtsSection";
+import { WhisperDownloadCard } from "./voice/WhisperDownloadCard";
+import { useVoice } from "../hooks/useVoice";
 import type { AcpAgentPresetId } from "../lib/agentPresets";
 import {
   AsciiAccent,
@@ -42,9 +49,10 @@ import type { AppConfig, Voice } from "../types";
 
 type SettingsPage = "profile" | "llm" | "tts" | "privacy" | "expressions" | "memory" | "avatar";
 
-const SETTINGS_TTS_PRESETS: Record<string, { name: string; needs_key: boolean }> = {
-  tiktok: TTS_PRESETS_UI.tiktok,
+const SETTINGS_TTS_PRESETS: Record<string, { name: string; needs_key: boolean; hint?: string }> = {
+  system: TTS_PRESETS_UI.system,
   elevenlabs: TTS_PRESETS_UI.elevenlabs,
+  openai_tts: TTS_PRESETS_UI.openai_tts,
 };
 
 const PAGE_META: Record<SettingsPage, { title: string; description: string }> = {
@@ -54,7 +62,7 @@ const PAGE_META: Record<SettingsPage, { title: string; description: string }> = 
   },
   tts: {
     title: "Voice",
-    description: "Choose how your companion sounds. Use the built-in voice or connect a voice service.",
+    description: "Choose how your companion sounds. The system voice stays on this computer; cloud voices are optional.",
   },
   avatar: {
     title: "Avatar on screen",
@@ -174,6 +182,13 @@ export function Settings({
   onAvatarBackgroundChange?: (bg: string) => void;
 }) {
   const [page, setPage] = useState<SettingsPage>("llm");
+  const {
+    needsWhisperDownload,
+    downloadProgress,
+    downloading,
+    downloadWhisper,
+    error: whisperError,
+  } = useVoice();
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [saving, setSaving] = useState(false);
@@ -225,9 +240,9 @@ export function Settings({
 
         setUserName(cfg.user?.name || "");
         setUserAbout(cfg.user?.about || "");
-        setTtsProvider(cfg.tts?.provider || DEFAULT_TTS_PROVIDER);
+        setTtsProvider(resolvedTtsProvider(cfg.tts?.provider));
         setTtsApiKey("");
-        setTtsVoice(cfg.tts?.voice || DEFAULT_TTS_VOICE);
+        setTtsVoice(resolvedTtsProvider(cfg.tts?.provider) === "system" ? (cfg.tts?.voice || "") : (cfg.tts?.voice || DEFAULT_TTS_VOICE));
         setAgentPreset(cfg.agent?.preset || "opencode");
         setAgentProgram(cfg.agent?.program || "");
         setAgentArgs((cfg.agent?.args || []).join(" "));
@@ -441,6 +456,17 @@ export function Settings({
             showLocalFirstNotice
           />
 
+          {(needsWhisperDownload || downloading) && (
+            <WhisperDownloadCard
+              progress={downloadProgress}
+              error={whisperError}
+              downloading={downloading}
+              onDownload={() => {
+                void downloadWhisper();
+              }}
+            />
+          )}
+
           <Button variant="primary" loading={saving} onClick={handleSave}>
             Save configuration
           </Button>
@@ -453,17 +479,30 @@ export function Settings({
         <div className="space-y-4">
           <PrivacyCard
             title="Stays on your device"
-            items={["Memories and chat history", "Character personality", "Your profile"]}
+            items={[
+              "Memories and chat history",
+              "Character personality and mood",
+              "Your profile",
+              "System voice",
+              "Microphone transcription after the speech model is downloaded",
+            ]}
             tone="sage"
           />
           <PrivacyCard
             title="Uses the network when you choose"
-            items={["Speaking (voice service)", "Your chat assistant", "Anything that assistant does online"]}
+            items={[
+              "Your chat assistant, and anything that assistant does online",
+              "ElevenLabs or OpenAI voices, only if you turn them on",
+              "One-time speech model download from Hugging Face when you first use the mic",
+            ]}
             tone="accent"
           />
           <PrivacyCard
-            title="Keys & exports"
-            items={["API keys stay in local config", "Exports are files you control"]}
+            title="Keys & files"
+            items={[
+              "API keys stay in a local config file (owner-only on macOS and Linux)",
+              "Exports are files you control",
+            ]}
             tone="honey"
           />
 

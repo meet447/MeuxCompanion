@@ -46,11 +46,13 @@ pub fn resolve_model_path(data_dir: &Path) -> Option<PathBuf> {
     model_candidates(data_dir).into_iter().find(|p| p.is_file())
 }
 
+#[cfg(test)]
 pub fn sha256_hex(data: &[u8]) -> String {
     let digest = Sha256::digest(data);
-    digest.iter().map(|b| format!("{:02x}", b)).collect()
+    digest.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+#[cfg(test)]
 pub fn verify_sha256_bytes(data: &[u8], expected: &str) -> Result<(), String> {
     let actual = sha256_hex(data);
     if actual.eq_ignore_ascii_case(expected.trim()) {
@@ -81,7 +83,7 @@ pub fn verify_file_sha256(path: &Path, expected: &str) -> Result<(), String> {
     let actual: String = hasher
         .finalize()
         .iter()
-        .map(|b| format!("{:02x}", b))
+        .map(|b| format!("{b:02x}"))
         .collect();
     if actual.eq_ignore_ascii_case(expected.trim()) {
         Ok(())

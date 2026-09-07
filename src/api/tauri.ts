@@ -70,8 +70,11 @@ export interface AgentSetupStatusResponse {
   };
 }
 
-export async function getAgentSetupStatus(preset: string) {
-  return invoke<AgentSetupStatusResponse>("agent_setup_status", { preset });
+export async function getAgentSetupStatus(preset: string, program?: string | null) {
+  return invoke<AgentSetupStatusResponse>("agent_setup_status", {
+    preset,
+    program: program ?? null,
+  });
 }
 
 export async function installAgentSetup(preset: string) {
