@@ -1,4 +1,4 @@
-/** User-facing TTS provider labels. */
+/** User-facing TTS provider labels (internal config id for Meuxe TTS stays `tiktok`). */
 
 export interface TtsPresetUi {
   name: string;
@@ -7,6 +7,11 @@ export interface TtsPresetUi {
 }
 
 export const TTS_PRESETS_UI: Record<string, TtsPresetUi> = {
+  tiktok: {
+    name: "Meuxe TTS",
+    needs_key: false,
+    hint: "Built into Meuxe - free, no API key needed",
+  },
   system: {
     name: "System voice",
     needs_key: false,
@@ -24,15 +29,16 @@ export const TTS_PRESETS_UI: Record<string, TtsPresetUi> = {
   },
 };
 
-export const DEFAULT_TTS_PROVIDER = "system";
-export const DEFAULT_TTS_VOICE = "";
+export const DEFAULT_TTS_PROVIDER = "tiktok";
+export const DEFAULT_TTS_VOICE = "en_us_001";
 
-/** True for the local Web Speech path, including migrated TikTok configs. */
+/** True for the local Web Speech path. */
 export function isSystemSpeechProvider(provider: string): boolean {
-  return provider === "system" || provider === "tiktok" || provider === "";
+  return provider === "system";
 }
 
 export function resolvedTtsProvider(provider?: string): string {
-  if (!provider || isSystemSpeechProvider(provider)) return "system";
+  if (!provider) return DEFAULT_TTS_PROVIDER;
+  if (isSystemSpeechProvider(provider)) return "system";
   return provider;
 }

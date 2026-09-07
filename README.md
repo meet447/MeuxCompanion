@@ -100,7 +100,7 @@ First launch walks you through choosing an agent, and you can change it later in
 
 Meuxe is an [Agent Client Protocol](https://agentclientprotocol.com) client. Before each turn it writes persona, memory, and relationship context into `companion-home/` in the app data directory and uses that tree as the agent's working directory. See [`docs/companion-home.md`](docs/companion-home.md) and [`docs/acp-agents.md`](docs/acp-agents.md) for details.
 
-For voice, Meuxe uses your computer’s system speech by default (nothing leaves the device). You can optionally add ElevenLabs and OpenAI in Settings → Voice. Microphone input uses on-device Whisper after a one-time model download.
+For voice, Meuxe TTS is the default (free, no API key). You can switch to this computer’s system speech, or add ElevenLabs and OpenAI in Settings → Voice. Microphone input uses on-device Whisper after a one-time model download.
 
 ## Development
 
@@ -152,7 +152,7 @@ Quit both apps, then copy the old app data directory into the new path (replace,
 | macOS | `~/Library/Application Support/com.meuxcompanion.app` → `~/Library/Application Support/com.meuxe.app` |
 | Linux | `~/.local/share/com.meuxcompanion.app` → `~/.local/share/com.meuxe.app` |
 
-Copy `config.json`, `data/`, `characters/`, `models/`, and `companion-home/` if they exist. TikTok TTS configs migrate to the system voice automatically.
+Copy `config.json`, `data/`, `characters/`, `models/`, and `companion-home/` if they exist.
 
 ## Releases
 
