@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Onboarding } from "./Onboarding";
 import { getAgentSetupStatus, listModels } from "../api/tauri";
 import type { AgentSetupStatusResponse } from "../api/tauri";
+import type { ModelInfo } from "../types";
 
 vi.mock("../api/tauri", () => ({
   saveConfig: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock("../lib/ttsClient", () => ({
   previewVoice: vi.fn(async () => []),
 }));
 
-const haruModel = {
+const haruModel: ModelInfo = {
   id: "haru",
   type: "live2d",
   model_file: "Haru.model3.json",
