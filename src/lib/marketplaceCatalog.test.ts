@@ -3,6 +3,7 @@ import {
   MARKETPLACE_LISTINGS,
   displayNameForModelId,
   filterMarketplaceListings,
+  isMarketplaceBrowseListing,
   mergeMarketplaceWithInstalled,
 } from "./marketplaceCatalog";
 
@@ -17,10 +18,6 @@ describe("mergeMarketplaceWithInstalled", () => {
     });
     expect(statuses.find((s) => s.id === "osa-olivia")).toMatchObject({
       installed: true,
-      installable: false,
-    });
-    expect(statuses.find((s) => s.id === "hiyori")).toMatchObject({
-      installed: false,
       installable: false,
     });
   });
@@ -44,6 +41,34 @@ describe("mergeMarketplaceWithInstalled", () => {
   });
 });
 
+describe("isMarketplaceBrowseListing", () => {
+  it("hides external-only Get model listings", () => {
+    const externalOnly = mergeMarketplaceWithInstalled(
+      [
+        {
+          id: "hiyori",
+          name: "Hiyori",
+          type: "live2d",
+          description: "External sample",
+          author: "Live2D Inc.",
+          license: "Free Material License",
+          tags: ["live2d"],
+          sourceUrl: "https://www.live2d.com/en/learn/sample/hiyori/",
+        },
+      ],
+      [],
+    )[0];
+
+    expect(isMarketplaceBrowseListing(externalOnly)).toBe(false);
+  });
+
+  it("keeps bundled, installable, and installed looks", () => {
+    const statuses = mergeMarketplaceWithInstalled(MARKETPLACE_LISTINGS, ["haru"]);
+    expect(statuses.every(isMarketplaceBrowseListing)).toBe(true);
+    expect(MARKETPLACE_LISTINGS.some((l) => l.id === "hiyori")).toBe(false);
+  });
+});
+
 describe("filterMarketplaceListings", () => {
   const statuses = mergeMarketplaceWithInstalled(MARKETPLACE_LISTINGS, []);
 
@@ -60,12 +85,6 @@ describe("filterMarketplaceListings", () => {
     );
     expect(filterMarketplaceListings(statuses, "cc0", "all").length).toBeGreaterThan(0);
     expect(filterMarketplaceListings(statuses, "100avatars", "all").length).toBeGreaterThan(0);
-    expect(filterMarketplaceListings(statuses, "live2d inc", "all").map((s) => s.id)).toContain(
-      "hiyori",
-    );
-    expect(filterMarketplaceListings(statuses, "free material", "all").map((s) => s.id)).toContain(
-      "mao",
-    );
   });
 
   it("is case-insensitive", () => {

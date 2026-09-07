@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { installMarketplaceModel } from "../../api/tauri";
 import {
   filterMarketplaceListings,
+  isMarketplaceBrowseListing,
   MARKETPLACE_LISTINGS,
   mergeMarketplaceWithInstalled,
   type MarketplaceListingStatus,
@@ -167,7 +168,7 @@ export function ModelMarketplace({
 
   const listings = useMemo(() => {
     const merged = mergeMarketplaceWithInstalled(MARKETPLACE_LISTINGS, installedModels);
-    return filterMarketplaceListings(merged, query, typeFilter);
+    return filterMarketplaceListings(merged, query, typeFilter).filter(isMarketplaceBrowseListing);
   }, [installedModels, query, typeFilter]);
 
   const handleInstall = async (listing: MarketplaceListingStatus) => {
@@ -274,8 +275,7 @@ export function ModelMarketplace({
       )}
 
       <Notice tone="info">
-        Live2D sample models open Live2D&apos;s free samples page; import the folder after download.
-        VRM looks from{" "}
+        Free VRM looks from{" "}
         <button
           type="button"
           className="font-semibold underline decoration-accent-300 underline-offset-2 hover:text-ink"
@@ -283,7 +283,7 @@ export function ModelMarketplace({
         >
           Open Source Avatars
         </button>{" "}
-        (CC0) install in one click.
+        (CC0) install in one click. Import your own Live2D or VRM files below.
       </Notice>
 
       {(onImportLive2D || onImportVRM) && (

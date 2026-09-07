@@ -49,8 +49,8 @@ export function CompanionAvatarPreview({
   return (
     <div
       className={cn(
-        "relative h-[180px] w-full overflow-hidden rounded-card bg-well",
-        className,
+        "relative w-full overflow-hidden rounded-card bg-well",
+        className ?? "h-[180px]",
       )}
     >
       {companionName?.trim() && (

@@ -50,86 +50,18 @@ const BUNDLED_LISTINGS: MarketplaceListing[] = [
   },
 ];
 
-const LIVE2D_SAMPLE_LISTINGS: MarketplaceListing[] = [
-  {
-    id: "hiyori",
-    name: "Hiyori",
-    type: "live2d",
-    description: "Official Live2D Cubism sample model.",
-    author: "Live2D Inc.",
-    license: "Free Material License",
-    sourceUrl: "https://www.live2d.com/en/learn/sample/hiyori/",
-    tags: ["live2d", "sample"],
-  },
-  {
-    id: "mao",
-    name: "Mao",
-    type: "live2d",
-    description: "Official Live2D Cubism sample model.",
-    author: "Live2D Inc.",
-    license: "Free Material License",
-    sourceUrl: "https://www.live2d.com/en/learn/sample/mao/",
-    tags: ["live2d", "sample"],
-  },
-  {
-    id: "rice",
-    name: "Rice",
-    type: "live2d",
-    description: "Official Live2D Cubism sample model.",
-    author: "Live2D Inc.",
-    license: "Free Material License",
-    sourceUrl: "https://www.live2d.com/en/learn/sample/rice/",
-    tags: ["live2d", "sample"],
-  },
-  {
-    id: "mark",
-    name: "Mark",
-    type: "live2d",
-    description: "Official Live2D Cubism sample model.",
-    author: "Live2D Inc.",
-    license: "Free Material License",
-    sourceUrl: "https://www.live2d.com/en/learn/sample/mark/",
-    tags: ["live2d", "sample"],
-  },
-  {
-    id: "natori",
-    name: "Natori",
-    type: "live2d",
-    description: "Official Live2D Cubism sample model.",
-    author: "Live2D Inc.",
-    license: "Free Material License",
-    sourceUrl: "https://www.live2d.com/en/learn/sample/natori/",
-    tags: ["live2d", "sample"],
-  },
-  {
-    id: "wanko",
-    name: "Wanko",
-    type: "live2d",
-    description: "Official Live2D Cubism sample model.",
-    author: "Live2D Inc.",
-    license: "Free Material License",
-    sourceUrl: "https://www.live2d.com/en/learn/sample/wanko/",
-    tags: ["live2d", "sample"],
-  },
-  {
-    id: "ren",
-    name: "Ren",
-    type: "live2d",
-    description: "Official Live2D Cubism sample model.",
-    author: "Live2D Inc.",
-    license: "Free Material License",
-    sourceUrl: "https://www.live2d.com/en/learn/sample/ren/",
-    tags: ["live2d", "sample"],
-  },
-];
-
 const OSA_CURATED_LISTINGS = osaCurated as MarketplaceListing[];
 
+/** Catalog shown in the marketplace: bundled defaults + installable VRM looks. */
 export const MARKETPLACE_LISTINGS: MarketplaceListing[] = [
   ...BUNDLED_LISTINGS,
-  ...LIVE2D_SAMPLE_LISTINGS,
   ...OSA_CURATED_LISTINGS,
 ];
+
+/** Listings that only link out (no install / not on disk) stay out of the browse grid. */
+export function isMarketplaceBrowseListing(listing: MarketplaceListingStatus): boolean {
+  return listing.installed || listing.installable || Boolean(listing.bundled);
+}
 
 export function mergeMarketplaceWithInstalled(
   listings: MarketplaceListing[],

@@ -241,17 +241,18 @@ export function AddCharacterModal({
           </IconButton>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="grid gap-6 px-7 lg:grid-cols-[minmax(240px,340px)_1fr] lg:gap-8">
-            <div className="lg:sticky lg:top-0 lg:self-start">
-              <CompanionAvatarPreview
-                model={previewModel}
-                companionName={name}
-                vibeLabel={selectedVibePack?.title}
-              />
-            </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="grid h-full min-h-0 gap-6 px-7 lg:grid-cols-[1fr_minmax(260px,360px)] lg:gap-8">
+            <div className="min-h-0 space-y-6 overflow-y-auto pb-2 scrollbar-thin">
+              <div className="lg:hidden">
+                <CompanionAvatarPreview
+                  model={previewModel}
+                  companionName={name}
+                  vibeLabel={selectedVibePack?.title}
+                  className="h-[220px]"
+                />
+              </div>
 
-            <div className="min-w-0 space-y-6">
               <Field label="Companion name">
                 <Input
                   type="text"
@@ -371,6 +372,15 @@ export function AddCharacterModal({
               </Surface>
 
               {error ? <Notice tone="danger">{error}</Notice> : null}
+            </div>
+
+            <div className="hidden min-h-0 lg:block lg:h-full">
+              <CompanionAvatarPreview
+                model={previewModel}
+                companionName={name}
+                vibeLabel={selectedVibePack?.title}
+                className="h-full min-h-[420px] rounded-panel"
+              />
             </div>
           </div>
         </div>
