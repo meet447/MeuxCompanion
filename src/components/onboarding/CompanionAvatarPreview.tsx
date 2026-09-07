@@ -70,7 +70,12 @@ export function CompanionAvatarPreview({
           <p className="text-xs text-ink-3">Your companion will appear here</p>
         </div>
       )}
-      {model && (
+      {model && !url && (
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-3">
+          Loading avatar…
+        </div>
+      )}
+      {model && url && (
         <Suspense
           fallback={
             <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-3">

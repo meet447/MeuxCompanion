@@ -43,6 +43,7 @@ export const VRMCanvas = memo(function VRMCanvas({
     handlePointerMove,
     handlePointerUp,
     handlePointerCancel,
+    lastError,
   } = useVRM(canvasRef);
   const prevModelPath = useRef<string | null>(null);
 
@@ -123,6 +124,13 @@ export const VRMCanvas = memo(function VRMCanvas({
         subMessage="Please wait"
         variant="model"
       />
+      {lastError && !modelLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center px-4 text-center">
+          <p className="text-sm text-ink-2">
+            Failed to load VRM: {lastError}
+          </p>
+        </div>
+      )}
       {!modelPath && !showMiniUi && (
         <div className="px-6 text-center">
           <p className="text-lg font-medium text-ink-2">No VRM model loaded</p>

@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 import * as THREE from "three";
 import { ACESFilmicToneMapping, SRGBColorSpace } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -108,6 +108,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const availableExpressionsRef = useRef<string[]>([]);
   const availableMotionGroupsRef = useRef<string[]>([]);
   const lastErrorRef = useRef("");
+  const [lastError, setLastError] = useState("");
 
   const disposeSceneResources = useCallback(() => {
     // Abort any in-flight loadModel so it never touches the disposed scene/renderer.
@@ -507,6 +508,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       }
 
       lastErrorRef.current = "";
+      setLastError("");
       if (vrmRef.current) {
         VRMUtils.deepDispose(vrmRef.current.scene);
         vrmRef.current.scene.removeFromParent();
@@ -523,19 +525,32 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
       // Create renderer once
       if (!rendererRef.current) {
-        const renderer = new THREE.WebGLRenderer({
-          canvas: canvasRef.current,
-          alpha: true,
-          antialias: false,
-          powerPreference: "low-power",
-        });
-        const { w, h } = readCanvasSize();
-        renderer.setSize(Math.max(w, 1), Math.max(h, 1));
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.outputColorSpace = SRGBColorSpace;
-        renderer.toneMapping = ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.15;
-        rendererRef.current = renderer;
+        try {
+          const renderer = new THREE.WebGLRenderer({
+            canvas: canvasRef.current,
+            alpha: true,
+            antialias: false,
+            powerPreference: "low-power",
+          });
+          if (!renderer.getContext()) {
+            const message = "WebGL context unavailable";
+            lastErrorRef.current = message;
+            setLastError(message);
+            return;
+          }
+          const { w, h } = readCanvasSize();
+          renderer.setSize(Math.max(w, 1), Math.max(h, 1));
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+          renderer.outputColorSpace = SRGBColorSpace;
+          renderer.toneMapping = ACESFilmicToneMapping;
+          renderer.toneMappingExposure = 1.15;
+          rendererRef.current = renderer;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          lastErrorRef.current = message;
+          setLastError(message);
+          return;
+        }
       }
 
       // Create scene once
@@ -685,7 +700,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         console.log("[VRM] Model loaded:", modelPath);
         console.log("[VRM] Expressions:", availableExpressionsRef.current);
       } catch (err) {
-        lastErrorRef.current = err instanceof Error ? err.message : String(err);
+        const message = err instanceof Error ? err.message : String(err);
+        lastErrorRef.current = message;
+        setLastError(message);
         console.error("[VRM] Failed to load model:", err);
       }
     },
@@ -820,5 +837,6 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     handlePointerMove,
     handlePointerUp: endPointerDrag,
     handlePointerCancel: endPointerDrag,
+    lastError,
   };
 }
