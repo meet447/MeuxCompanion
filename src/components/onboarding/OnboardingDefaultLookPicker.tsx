@@ -14,13 +14,13 @@ const LOOKS: {
     id: "haru",
     name: "Haru",
     typeLabel: "Live2D",
-    blurb: "Expressive 2D look — warm and classic.",
+    blurb: "Expressive 2D look - warm and classic.",
   },
   {
     id: "utsuwa",
     name: "Utsuwa",
     typeLabel: "3D VRM",
-    blurb: "Soft 3D presence — calm and modern.",
+    blurb: "Soft 3D presence - calm and modern.",
   },
 ];
 

@@ -6,7 +6,7 @@ export interface BlinkSchedulerOptions {
   minIntervalMs: number;
   maxIntervalMs: number;
   durationMs: number;
-  /** Chance (0–1) of scheduling a quick follow-up blink after one completes. */
+  /** Chance (0-1) of scheduling a quick follow-up blink after one completes. */
   doubleBlinkChance?: number;
   doubleBlinkGapMinMs?: number;
   doubleBlinkGapMaxMs?: number;

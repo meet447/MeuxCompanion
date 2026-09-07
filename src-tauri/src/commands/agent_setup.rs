@@ -244,7 +244,7 @@ fn status_from_resolution(preset: &str, resolution: AgentResolution) -> AgentPre
                     system_command.clone().unwrap_or_default()
                 ),
                 AgentInstallSource::Npx => {
-                    "No global adapter found — will run via npx on chat (install globally for a fixed version).".into()
+                    "No global adapter found - will run via npx on chat (install globally for a fixed version).".into()
                 }
                 AgentInstallSource::None => {
                     "Install Node.js, then npm i -g @agentclientprotocol/claude-agent-acp (or use Install in settings).".into()
@@ -260,7 +260,7 @@ fn status_from_resolution(preset: &str, resolution: AgentResolution) -> AgentPre
                     system_command.clone().unwrap_or_default()
                 ),
                 AgentInstallSource::Npx => {
-                    "No global adapter found — will run via npx on chat (install globally for a fixed version).".into()
+                    "No global adapter found - will run via npx on chat (install globally for a fixed version).".into()
                 }
                 AgentInstallSource::None => {
                     "Install Node.js, then npm i -g @agentclientprotocol/codex-acp (or use Install in settings).".into()

@@ -87,11 +87,11 @@ async function main() {
 
     const pause = (ms) => sleep(ms);
 
-    // Step 0 — Local-first
+    // Step 0 - Local-first
     await pause(2500);
     await continueButton().click();
 
-    // Step 1 — About you
+    // Step 1 - About you
     await pause(1200);
     await page.getByPlaceholder("What should your companion call you?").fill("Alex");
     await page
@@ -100,7 +100,7 @@ async function main() {
     await pause(2000);
     await continueButton().click();
 
-    // Step 2 — LLM (Ollama = no API key)
+    // Step 2 - LLM (Ollama = no API key)
     await pause(1200);
     await page.getByRole("button", { name: /Ollama/i }).click();
     await pause(800);
@@ -109,11 +109,11 @@ async function main() {
     await pause(2000);
     await continueButton().click();
 
-    // Step 3 — Voice
+    // Step 3 - Voice
     await pause(2500);
     await continueButton().click();
 
-    // Step 4 — Integrations
+    // Step 4 - Integrations
     await page.getByText("Connect optional sources").waitFor({ timeout: 10_000 });
     await pause(2000);
     await page.getByPlaceholder(/Composio API key/i).fill("demo-composio-key");
@@ -125,13 +125,13 @@ async function main() {
     await pause(2500);
     await continueButton().click();
 
-    // Step 5 — Build companion
+    // Step 5 - Build companion
     await pause(1200);
     await page.getByPlaceholder("What should your companion be called?").fill("Haru");
     await pause(3000);
     await page.getByRole("button", { name: "Finish" }).click();
 
-    // Step 6 — Success
+    // Step 6 - Success
     await page.getByText("Your companion is ready").waitFor({ timeout: 20_000 });
     await pause(4000);
 

@@ -73,7 +73,7 @@ pub(crate) fn build_acp_agent_prompt(
 ) -> String {
     let mut parts = vec![
         "## Meuxe companion (required)".to_string(),
-        "You are the user's companion in the Meuxe desktop app — not OpenCode, not a generic coding CLI, and not a nameless assistant."
+        "You are the user's companion in the Meuxe desktop app - not OpenCode, not a generic coding CLI, and not a nameless assistant."
             .to_string(),
         "When asked who you are, answer as the companion described in the persona below. Stay in character for every reply."
             .to_string(),

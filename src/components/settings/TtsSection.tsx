@@ -61,7 +61,7 @@ export function TtsSection({
 
       {showBuiltInNotice && (
         <Notice tone="success" className="mb-4">
-          Meuxe TTS is built in and free — ready to use with no API key. ElevenLabs and OpenAI are optional if you want studio voices.
+          Meuxe TTS is built in and free - ready to use with no API key. ElevenLabs and OpenAI are optional if you want studio voices.
         </Notice>
       )}
 
@@ -112,7 +112,7 @@ export function TtsSection({
 
       {!currentPreset?.needs_key && !showBuiltInNotice && (
         <Notice tone="success">
-          Meuxe TTS is the default — built in and free, with no account or API key needed.
+          Meuxe TTS is the default - built in and free, with no account or API key needed.
         </Notice>
       )}
 

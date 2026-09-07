@@ -134,7 +134,7 @@ fn num_cpus() -> i32 {
         .unwrap_or(4)
 }
 
-/// Transcribe using local whisper.cpp (tiny model) — no internet needed.
+/// Transcribe using local whisper.cpp (tiny model) - no internet needed.
 /// Accepts base64-encoded f32 PCM audio at 16kHz mono.
 #[tauri::command]
 pub async fn voice_transcribe_local(
