@@ -20,7 +20,7 @@
   --radius-sheet: 24px;
 
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --max-width: 1080px;
+  --max-width: 1120px;
   --nav-height: 64px;
 }
 
@@ -305,34 +305,33 @@ main {
 
 /* ── How it feels ── */
 .feels {
-  padding: 80px 0;
+  padding: 96px 0;
   border-top: 1px solid var(--line);
+  text-align: center;
 }
 
 .feels h2 {
-  margin: 0 0 40px;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  margin: 0 0 48px;
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
   color: var(--ink);
+}
+
+.feel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px 36px;
+  width: 100%;
+  text-align: left;
 }
 
 .feel-row {
   display: grid;
   grid-template-columns: 48px 1fr;
-  gap: 20px;
+  gap: 16px;
   align-items: start;
-  padding: 28px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.feel-row:first-of-type {
-  padding-top: 0;
-}
-
-.feel-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+  padding: 0;
 }
 
 .feel-mascot {
@@ -343,7 +342,7 @@ main {
 
 .feel-row h3 {
   margin: 0 0 6px;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -351,13 +350,15 @@ main {
 .feel-row p {
   margin: 0;
   color: var(--ink-2);
-  max-width: 52ch;
+  line-height: 1.55;
+  max-width: none;
 }
 
 /* ── Agents ── */
 .agents {
-  padding: 80px 0;
+  padding: 96px 0;
   border-top: 1px solid var(--line);
+  text-align: center;
 }
 
 .agents h2 {
@@ -368,9 +369,9 @@ main {
 }
 
 .agents-lead {
-  margin: 0 0 36px;
+  margin: 0 auto 40px;
   color: var(--ink-2);
-  max-width: 58ch;
+  max-width: 54ch;
   font-size: 16px;
   line-height: 1.6;
 }
@@ -378,8 +379,9 @@ main {
 .agent-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 32px;
-  margin-bottom: 20px;
+  justify-content: center;
+  gap: 48px;
+  margin-bottom: 28px;
 }
 
 .agent-item {
@@ -389,14 +391,16 @@ main {
   gap: 10px;
   text-decoration: none;
   color: var(--ink);
+  min-width: 96px;
 }
 
 .agent-item img {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--radius-control);
   background: var(--surface);
-  padding: 8px;
+  padding: 10px;
+  box-shadow: 0 0 0 1px rgba(27, 27, 30, 0.07);
 }
 
 .agent-item span {
@@ -406,6 +410,7 @@ main {
 }
 
 .agents-doc-link {
+  display: inline-block;
   font-size: 14px;
   font-weight: 500;
   color: var(--ink-2);
@@ -417,12 +422,16 @@ main {
 
 /* ── Onboarding ── */
 .onboarding {
-  padding: 80px 0;
+  padding: 96px 0;
   border-top: 1px solid var(--line);
+  text-align: center;
 }
 
 .onboarding-figure {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .onboarding-shot-wrap {
@@ -430,8 +439,9 @@ main {
   border-radius: var(--radius-panel);
   corner-shape: squircle;
   padding: 6px;
-  margin-bottom: 16px;
-  max-width: 720px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: none;
 }
 
 .onboarding-shot-wrap img {
@@ -443,8 +453,9 @@ main {
 .onboarding-figure figcaption {
   font-size: 15px;
   color: var(--ink-2);
-  max-width: 52ch;
+  max-width: 48ch;
   line-height: 1.55;
+  text-align: center;
 }
 
 /* ── Footer ── */
@@ -458,11 +469,13 @@ main {
   max-width: var(--max-width);
   margin: 0 auto;
   padding: 0 24px;
+  text-align: center;
 }
 
 .footer-links {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px 20px;
   margin: 0 0 20px;
   padding: 0;
@@ -532,6 +545,17 @@ main {
   .agents,
   .onboarding {
     padding: 56px 0;
+  }
+
+  .feel-grid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .agent-row {
+    gap: 32px;
   }
 }
 
