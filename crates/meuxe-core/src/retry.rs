@@ -70,7 +70,10 @@ pub fn is_retryable_llm_error(err: &crate::error::MeuxeError) -> bool {
 pub fn is_retryable_tts_error(err: &crate::error::MeuxeError) -> bool {
     // TTS errors from network are retryable, config errors are not
     let msg = err.to_string();
-    if msg.contains("API key") || msg.contains("Unknown TTS provider") {
+    if msg.contains("API key")
+        || msg.contains("Unknown TTS provider")
+        || msg.contains("system speech")
+    {
         return false;
     }
     is_retryable_llm_error(err)

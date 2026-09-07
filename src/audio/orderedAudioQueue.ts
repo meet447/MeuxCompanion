@@ -6,9 +6,12 @@ export interface SentenceTask {
 
 type AudioStatus = "pending" | "ready" | "failed";
 
+export type AudioEngine = "remote" | "system";
+
 interface QueueEntry {
   task?: SentenceTask;
   audio?: string;
+  engine?: AudioEngine;
   status: AudioStatus;
 }
 
@@ -21,6 +24,12 @@ export type QueueDecision =
       index: number;
       task: SentenceTask;
       audio: string;
+    }
+  | {
+      kind: "speak";
+      requestId: string;
+      index: number;
+      task: SentenceTask;
     }
   | { kind: "complete"; requestId: string };
 
@@ -61,12 +70,18 @@ export class OrderedAudioQueue {
     return "accepted";
   }
 
-  addAudio(requestId: string, index: number, audio: string): MutationResult {
+  addAudio(
+    requestId: string,
+    index: number,
+    audio: string,
+    engine: AudioEngine = "remote",
+  ): MutationResult {
     if (!this.isActive(requestId)) return "ignored";
 
     const entry = this.entryFor(index);
     if (entry.status === "pending") {
       entry.audio = audio;
+      entry.engine = engine;
       entry.status = "ready";
     }
     return "accepted";
@@ -105,6 +120,14 @@ export class OrderedAudioQueue {
     if (entry?.status === "failed") {
       return {
         kind: "skip",
+        requestId: this.requestId,
+        index: this.nextToPlay,
+        task: entry.task,
+      };
+    }
+    if (entry?.status === "ready" && entry.task && entry.engine === "system") {
+      return {
+        kind: "speak",
         requestId: this.requestId,
         index: this.nextToPlay,
         task: entry.task,

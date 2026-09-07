@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { transcribeVoice, transcribeVoiceLocal } from "../api/tauri";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { transcribeVoiceLocal } from "../api/tauri";
+import { downloadWhisperModel, whisperModelStatus, type WhisperModelStatus } from "../api/whisper";
 
 const SAMPLE_RATE = 16000;
 
@@ -47,24 +49,13 @@ function pickRecordingMimeType(): string {
   return "";
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result !== "string") {
-        reject(new Error("Failed to read voice blob"));
-        return;
-      }
-      resolve(result.split(",")[1] ?? "");
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read voice blob"));
-    reader.readAsDataURL(blob);
-  });
-}
-
 export function useVoice() {
   const [listening, setListening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [needsWhisperDownload, setNeedsWhisperDownload] = useState(false);
+  const [whisperStatus, setWhisperStatus] = useState<WhisperModelStatus | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{ received: number; total: number | null } | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -132,37 +123,8 @@ export function useVoice() {
   }, [stopMediaTracks, stopPcmCapture]);
 
   const startSpeechRecognitionFallback = useCallback(
-    (onResult: (text: string) => void) => {
-      const SpeechRecognitionCtor =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognitionCtor) {
-        console.error("Speech recognition not supported");
-        return;
-      }
-
-      const recognition = new SpeechRecognitionCtor();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = "en-US";
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        onResult(transcript);
-        setListening(false);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event?.error ?? "unknown");
-        setListening(false);
-      };
-
-      recognition.onend = () => {
-        setListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-      setListening(true);
+    (_onResult: (text: string) => void) => {
+      setError("This browser can't record from the microphone. Use the desktop app to talk with your voice.");
     },
     []
   );
@@ -170,6 +132,21 @@ export function useVoice() {
   const startListening = useCallback(
     async (onResult: (text: string) => void) => {
       if (listening) return;
+      setError(null);
+
+      try {
+        const status = await whisperModelStatus();
+        setWhisperStatus(status);
+        if (!status.present || !status.loaded) {
+          setNeedsWhisperDownload(true);
+          setError("On-device listening needs a speech model first.");
+          return;
+        }
+      } catch {
+        setNeedsWhisperDownload(true);
+        setError("On-device listening needs a speech model first.");
+        return;
+      }
 
       if (
         !navigator.mediaDevices?.getUserMedia ||
@@ -255,6 +232,7 @@ export function useVoice() {
           stopPcmCapture();
           mediaRecorderRef.current = null;
           setListening(false);
+          setError("Recording failed. Check the microphone and try again.");
         };
 
         recorder.onstop = async () => {
@@ -276,25 +254,18 @@ export function useVoice() {
                 onResultRef.current?.(text.trim());
                 return;
               }
+              setError("No speech detected. Try again a little closer to the mic.");
+              return;
             }
+            setError("That was too short to transcribe. Try speaking a bit longer.");
           } catch (err) {
-            console.warn("Local whisper failed, falling back to API:", err);
-          }
-
-          try {
-            const blob = new Blob(chunks, {
-              type: recorder.mimeType || mimeType || "audio/webm",
-            });
-            const audioBase64 = await blobToBase64(blob);
-            const transcript = await transcribeVoice(
-              audioBase64,
-              blob.type || recorder.mimeType || mimeType || "audio/webm",
-            );
-            if (transcript.trim()) {
-              onResultRef.current?.(transcript.trim());
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.startsWith("whisper_model_missing:")) {
+              setNeedsWhisperDownload(true);
+              setError("On-device listening needs a speech model first.");
+              return;
             }
-          } catch (err) {
-            console.error("Voice transcription error:", err);
+            setError(message || "Could not transcribe that. Try again.");
           }
         };
 
@@ -314,18 +285,74 @@ export function useVoice() {
         recorder.start();
         setListening(true);
       } catch (err) {
-        console.error("Microphone access failed, trying speech recognition fallback:", err);
+        console.error("Microphone access failed:", err);
         stopMediaTracks();
         stopPcmCapture();
         mediaRecorderRef.current = null;
-        startSpeechRecognitionFallback(onResult);
+        setError("Microphone access was denied. Allow it in system settings to talk out loud.");
       }
     },
     [listening, startSpeechRecognitionFallback, stopMediaTracks, stopPcmCapture]
   );
 
+  const downloadWhisper = useCallback(async () => {
+    setDownloading(true);
+    setError(null);
+    setDownloadProgress({ received: 0, total: null });
+    try {
+      await downloadWhisperModel();
+      const status = await whisperModelStatus();
+      setWhisperStatus(status);
+      setNeedsWhisperDownload(!status.present || !status.loaded);
+      setDownloadProgress(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    whisperModelStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setWhisperStatus(status);
+        setNeedsWhisperDownload(!status.present || !status.loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setNeedsWhisperDownload(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    void listen<{ received: number; total: number | null }>("whisper:download-progress", (event) => {
+      setDownloadProgress(event.payload);
+    }).then((fn) => {
+      unlisten = fn;
+    }).catch(() => {
+      /* browser-only vite has no Tauri events */
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  const clearError = useCallback(() => setError(null), []);
+
   return {
     listening,
+    error,
+    clearError,
+    needsWhisperDownload,
+    whisperStatus,
+    downloadProgress,
+    downloading,
+    downloadWhisper,
     startListening,
     stopListening,
   };

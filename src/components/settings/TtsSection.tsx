@@ -55,13 +55,15 @@ export function TtsSection({
     <div className="space-y-6">
       {showLocalFirstNotice && (
         <Notice tone={currentPreset?.needs_key ? "info" : "success"}>
-          Memory and chat stay on this device. Voice and your assistant only use the network when you configure them.
+          {currentPreset?.needs_key
+            ? "Memory and chat stay on this device. Cloud voices send spoken text to the service you choose."
+            : "Memory, chat, and this system voice stay on this device. Cloud voices are optional."}
         </Notice>
       )}
 
       {showBuiltInNotice && (
         <Notice tone="success" className="mb-4">
-          Meuxe TTS is built in and free - ready to use with no API key. ElevenLabs and OpenAI are optional if you want studio voices.
+          System voice uses the speech already on this computer. ElevenLabs and OpenAI are optional if you want studio voices.
         </Notice>
       )}
 
@@ -85,7 +87,7 @@ export function TtsSection({
               description={
                 compactGrid
                   ? undefined
-                  : (preset.hint ?? (preset.needs_key ? "Needs an API key" : "Built in, no key needed"))
+                  : (preset.hint ?? (preset.needs_key ? "Needs an API key" : "Uses this computer, no key needed"))
               }
               trailing={
                 configuredProviders?.[id]?.configured && value.provider !== id ? (
@@ -116,7 +118,7 @@ export function TtsSection({
 
       {!currentPreset?.needs_key && !showBuiltInNotice && (
         <Notice tone="success">
-          Meuxe TTS is the default - built in and free, with no account or API key needed.
+          System voice is the default. It stays on this computer and does not need an API key.
         </Notice>
       )}
 
@@ -127,8 +129,11 @@ export function TtsSection({
             value={value.voice}
             onChange={(event) => patch("voice", event.target.value)}
           >
+            {voices.length === 0 ? (
+              <option value="">System default</option>
+            ) : null}
             {voices.map((voice) => (
-              <option key={voice.id} value={voice.id}>
+              <option key={voice.id || "system-default"} value={voice.id}>
                 {voice.name}
               </option>
             ))}
