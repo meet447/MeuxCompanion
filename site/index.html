@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Meuxe — a local-first AI companion that lives on your desktop. Remembers you, talks back, and stays on your machine."
+    />
+    <title>Meuxe — A companion that lives on your desktop</title>
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="./" aria-label="Meuxe home">
+          <span class="mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M32 7C44 6 56 14 56 27c0 13-6 26-22 29C18 59 7 47 8 33 9 19 20 8 32 7Z"
+                fill="#f3cd78"
+              />
+              <ellipse cx="24" cy="19" rx="9" ry="5.5" fill="white" opacity="0.22" />
+              <circle cx="16.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.3" />
+              <circle cx="47.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.3" />
+              <ellipse cx="23" cy="31" rx="6" ry="7" fill="white" />
+              <ellipse cx="41" cy="31" rx="6" ry="7" fill="white" />
+              <circle cx="23" cy="32" r="3.2" fill="#1b1b1e" />
+              <circle cx="41" cy="32" r="3.2" fill="#1b1b1e" />
+              <circle cx="24.3" cy="30.6" r="1.05" fill="white" />
+              <circle cx="42.3" cy="30.6" r="1.05" fill="white" />
+              <path
+                d="M27.5 42.5Q32 46.2 36.5 42.5"
+                stroke="#1b1b1e"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                fill="none"
+                opacity="0.85"
+              />
+            </svg>
+          </span>
+          <span class="brand-wordmark">Meuxe</span>
+        </a>
+        <nav aria-label="Site">
+          <ul class="nav-links">
+            <li>
+              <a href="https://github.com/meet447/Meuxe" rel="noopener noreferrer">GitHub</a>
+            </li>
+            <li>
+              <a
+                class="nav-cta"
+                href="https://github.com/meet447/Meuxe/releases/latest"
+                rel="noopener noreferrer"
+                >Download</a
+              >
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- Hero: single viewport composition -->
+      <section class="hero section" aria-labelledby="hero-heading">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <div class="hero-brand-row">
+              <svg
+                class="hero-mascot"
+                viewBox="0 0 64 64"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M32 7C44 6 56 14 56 27c0 13-6 26-22 29C18 59 7 47 8 33 9 19 20 8 32 7Z"
+                  fill="#f3cd78"
+                />
+                <ellipse cx="24" cy="19" rx="9" ry="5.5" fill="white" opacity="0.22" />
+                <circle cx="16.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.3" />
+                <circle cx="47.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.3" />
+                <ellipse cx="23" cy="31" rx="6" ry="7" fill="white" />
+                <ellipse cx="41" cy="31" rx="6" ry="7" fill="white" />
+                <circle cx="23" cy="32" r="3.2" fill="#1b1b1e" />
+                <circle cx="41" cy="32" r="3.2" fill="#1b1b1e" />
+                <circle cx="24.3" cy="30.6" r="1.05" fill="white" />
+                <circle cx="42.3" cy="30.6" r="1.05" fill="white" />
+                <path
+                  d="M27.5 42.5Q32 46.2 36.5 42.5"
+                  stroke="#1b1b1e"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  fill="none"
+                  opacity="0.85"
+                />
+              </svg>
+              <span class="hero-brand-name">Meuxe</span>
+            </div>
+            <h1 id="hero-heading">A companion that lives on your desktop.</h1>
+            <p class="hero-lead">
+              Remembers you, talks back, and stays on your machine.
+            </p>
+            <a
+              class="btn-primary"
+              href="https://github.com/meet447/Meuxe/releases/latest"
+              rel="noopener noreferrer"
+              >Download</a
+            >
+            <p class="hero-meta">Early development · MIT · Bring your own agent</p>
+          </div>
+
+          <div class="hero-visual">
+            <div class="hero-screenshot-wrap ring-hairline">
+              <img
+                src="./assets/screenshot-app.png"
+                alt="Meuxe desktop app showing a Live2D companion avatar beside a conversation panel"
+                width="1280"
+                height="800"
+              />
+            </div>
+            <svg
+              class="hero-anchor-mascot"
+              viewBox="0 0 64 64"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                d="M32 7C44 6 56 14 56 27c0 13-6 26-22 29C18 59 7 47 8 33 9 19 20 8 32 7Z"
+                fill="#f3cd78"
+              />
+              <ellipse cx="24" cy="19" rx="9" ry="5.5" fill="white" opacity="0.22" />
+              <circle cx="16.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.45" />
+              <circle cx="47.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.45" />
+              <g stroke="#1b1b1e" stroke-width="2.4" stroke-linecap="round" fill="none">
+                <path d="M17.5 32.5Q23 26 28.5 32.5" />
+                <path d="M35.5 32.5Q41 26 46.5 32.5" />
+              </g>
+              <path
+                d="M25 41Q32 49 39 41"
+                stroke="#1b1b1e"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                fill="none"
+                opacity="0.85"
+              />
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- How it feels -->
+      <section class="feels section" aria-labelledby="feels-heading">
+        <h2 id="feels-heading">How it feels</h2>
+
+        <article class="feel-row">
+          <svg
+            class="feel-mascot"
+            viewBox="0 0 64 64"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              d="M32 7C44 6 56 14 56 27c0 13-6 26-22 29C18 59 7 47 8 33 9 19 20 8 32 7Z"
+              fill="#f3cd78"
+            />
+            <ellipse cx="24" cy="19" rx="9" ry="5.5" fill="white" opacity="0.22" />
+            <circle cx="16.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.3" />
+            <circle cx="47.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.3" />
+            <ellipse cx="23" cy="31" rx="6" ry="7" fill="white" />
+            <ellipse cx="41" cy="31" rx="6" ry="7" fill="white" />
+            <circle cx="23" cy="32" r="3.2" fill="#1b1b1e" />
+            <circle cx="41" cy="32" r="3.2" fill="#1b1b1e" />
+            <circle cx="24.3" cy="30.6" r="1.05" fill="white" />
+            <circle cx="42.3" cy="30.6" r="1.05" fill="white" />
+            <path
+              d="M27.5 42.5Q32 46.2 36.5 42.5"
+              stroke="#1b1b1e"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              fill="none"
+              opacity="0.85"
+            />
+          </svg>
+          <div>
+            <h3>Remembers you</h3>
+            <p>
+              Facts, moments, and a mood that has a cause — your companion builds a
+              relationship over time, not just a chat log.
+            </p>
+          </div>
+        </article>
+
+        <article class="feel-row">
+          <svg
+            class="feel-mascot"
+            viewBox="0 0 64 64"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              d="M32 7C44 6 56 14 56 27c0 13-6 26-22 29C18 59 7 47 8 33 9 19 20 8 32 7Z"
+              fill="#f3cd78"
+            />
+            <ellipse cx="24" cy="19" rx="9" ry="5.5" fill="white" opacity="0.22" />
+            <circle cx="16.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.45" />
+            <circle cx="47.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.45" />
+            <g stroke="#1b1b1e" stroke-width="2.4" stroke-linecap="round" fill="none">
+              <path d="M17.5 32.5Q23 26 28.5 32.5" />
+              <path d="M35.5 32.5Q41 26 46.5 32.5" />
+            </g>
+            <path
+              d="M25 41Q32 49 39 41"
+              stroke="#1b1b1e"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              fill="none"
+              opacity="0.85"
+            />
+          </svg>
+          <div>
+            <h3>Speaks and reacts</h3>
+            <p>
+              A Live2D or VRM avatar with lip sync, voice in and out — presence you
+              can see and hear, not just read.
+            </p>
+          </div>
+        </article>
+
+        <article class="feel-row">
+          <svg
+            class="feel-mascot"
+            viewBox="0 0 64 64"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              d="M32 7C44 6 56 14 56 27c0 13-6 26-22 29C18 59 7 47 8 33 9 19 20 8 32 7Z"
+              fill="#f3cd78"
+            />
+            <ellipse cx="24" cy="19" rx="9" ry="5.5" fill="white" opacity="0.22" />
+            <circle cx="16.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.3" />
+            <circle cx="47.5" cy="39.5" r="3.4" fill="#e4889d" opacity="0.3" />
+            <ellipse cx="24.6" cy="29.2" rx="6" ry="7" fill="white" />
+            <ellipse cx="42.6" cy="29.2" rx="6" ry="7" fill="white" />
+            <circle cx="24.6" cy="30.2" r="3.2" fill="#1b1b1e" />
+            <circle cx="42.6" cy="30.2" r="3.2" fill="#1b1b1e" />
+            <circle cx="25.9" cy="28.8" r="1.05" fill="white" />
+            <circle cx="43.9" cy="28.8" r="1.05" fill="white" />
+            <path
+              d="M29 44.2Q32 42.6 35 44.2"
+              stroke="#1b1b1e"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              fill="none"
+              opacity="0.85"
+            />
+          </svg>
+          <div>
+            <h3>Stays on your machine</h3>
+            <p>
+              Memory, persona, and relationship are local files — nothing leaves your
+              desktop unless you choose to send it.
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <!-- Their mind is your agent -->
+      <section class="agents section" aria-labelledby="agents-heading">
+        <h2 id="agents-heading">Their mind is your agent</h2>
+        <p class="agents-lead">
+          Meuxe owns presence — persona, memory, voice, and avatar. Chat runs through
+          the ACP agent you already use: Claude Code, Codex, OpenCode, or any ACP
+          agent.
+        </p>
+        <div class="agent-row" role="list" aria-label="Supported ACP agents">
+          <a class="agent-item" href="https://github.com/meet447/Meuxe/blob/main/docs/acp-agents.md" rel="noopener noreferrer" role="listitem">
+            <img src="./assets/claude.png" alt="Claude Code" width="48" height="48" />
+            <span>Claude Code</span>
+          </a>
+          <a class="agent-item" href="https://github.com/meet447/Meuxe/blob/main/docs/acp-agents.md" rel="noopener noreferrer" role="listitem">
+            <img src="./assets/codex.png" alt="Codex" width="48" height="48" />
+            <span>Codex</span>
+          </a>
+          <a class="agent-item" href="https://github.com/meet447/Meuxe/blob/main/docs/acp-agents.md" rel="noopener noreferrer" role="listitem">
+            <img src="./assets/opencode.png" alt="OpenCode" width="48" height="48" />
+            <span>OpenCode</span>
+          </a>
+        </div>
+        <a
+          class="agents-doc-link"
+          href="https://github.com/meet447/Meuxe/blob/main/docs/acp-agents.md"
+          rel="noopener noreferrer"
+          >Learn about ACP agents →</a
+        >
+      </section>
+
+      <!-- Onboarding -->
+      <section class="onboarding section" aria-labelledby="onboarding-caption">
+        <figure class="onboarding-figure">
+          <div class="onboarding-shot-wrap ring-hairline">
+            <img
+              src="./assets/screenshot-onboarding.png"
+              alt="Meuxe onboarding flow for setting up your companion, voice, and agent"
+              width="960"
+              height="600"
+            />
+          </div>
+          <figcaption id="onboarding-caption">
+            First launch: a short guided setup for you, your companion, their voice,
+            and the agent behind them.
+          </figcaption>
+        </figure>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <ul class="footer-links">
+          <li>
+            <a href="https://github.com/meet447/Meuxe/blob/main/README.md" rel="noopener noreferrer"
+              >Build from source</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/meet447/Meuxe/blob/main/docs/DIRECTION.md" rel="noopener noreferrer"
+              >Direction</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/meet447/Meuxe/blob/main/docs/ROADMAP.md" rel="noopener noreferrer"
+              >Roadmap</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/meet447/Meuxe/blob/main/docs/DESIGN.md" rel="noopener noreferrer"
+              >Design</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/meet447/Meuxe/blob/main/CONTRIBUTING.md" rel="noopener noreferrer"
+              >Contributing</a
+            >
+          </li>
+        </ul>
+        <div class="footer-meta">
+          <p>MIT License</p>
+          <p>
+            Meuxe is in early development. Features, APIs, and data formats may change
+            between releases.
+          </p>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
