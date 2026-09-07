@@ -1,6 +1,6 @@
 # Meuxe product direction
 
-Meuxe is a **desktop companion**—one continuous relationship with a character who remembers you, speaks, shows emotion on an avatar, and can help with real life (including technical work). It is **not** a demo repo, a settings dashboard for APIs, or a second coding IDE.
+Meuxe is a **desktop companion** - one continuous relationship with a character who remembers you, speaks, shows emotion on an avatar, and can help with real life (including technical work). It is **not** a demo repo, a settings dashboard for APIs, or a second coding IDE.
 
 ## North star
 
@@ -12,7 +12,7 @@ Their **mind** should eventually run on **your chosen agent** (Claude Code, Code
 
 | Layer | Responsibility |
 |--------|----------------|
-| **Persona** | Layered character files (`soul.md`, style, rules)—opinionated defaults, not blank slop |
+| **Persona** | Layered character files (`soul.md`, style, rules) - opinionated defaults, not blank slop |
 | **Memory & relationship** | Facts about you, shared moments, and a bond with a persistent mood that has a cause (see `MEMORY.md`) |
 | **Presence** | Expressions, lip sync, TTS, mini desktop widget |
 | **Companion home** | Local workspace the agent can use (journals, memory exports, character data) |
@@ -43,13 +43,13 @@ Optional **Meuxe MCP** later: `remember`, `recall`, `relationship_snapshot` so a
 
 Until ACP landed, chat used an OpenAI-compatible loop in Meuxe; **default chat is now ACP-only**. Migration was **replace the backend session**, not add a second mode.
 
-## Product principles (anti–AI slop)
+## Product principles (anti-AI slop)
 
-1. **Default character quality** — ship one companion people fall in love with; customization is depth, not 47 toggles on day one.
-2. **Local-first is trust** — memories and relationship live on device; explain outbound data in plain language once, not every screen.
-3. **Presence before features** — avatar + voice + pacing beat integration count.
-4. **No mode switch** — no “chat vs agent” tabs; one timeline.
-5. **Consumer-first onboarding** — meet the companion first; API keys and integrations live in Settings.
+1. **Default character quality** - ship one companion people fall in love with; customization is depth, not 47 toggles on day one.
+2. **Local-first is trust** - memories and relationship live on device; explain outbound data in plain language once, not every screen.
+3. **Presence before features** - avatar + voice + pacing beat integration count.
+4. **No mode switch** - no “chat vs agent” tabs; one timeline.
+5. **Consumer-first onboarding** - meet the companion first; API keys and integrations live in Settings.
 
 ## Non-goals
 

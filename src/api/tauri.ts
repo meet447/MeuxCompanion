@@ -117,6 +117,10 @@ export async function importVRMModel() {
   return invoke<any | null>("models_import_vrm_dialog");
 }
 
+export async function installMarketplaceModel(modelId: string, url: string) {
+  return invoke<ModelInfo>("models_install_from_url", { modelId, url });
+}
+
 // Chat
 export async function sendChat(characterId: string, message: string, requestId: string) {
   return invoke("chat_send", { characterId, message, requestId });

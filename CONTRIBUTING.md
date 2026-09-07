@@ -58,9 +58,9 @@ On Linux without a display, `npm run dev` exercises the frontend; full `npm run 
 
 ## Areas of the repo
 
-- `src/` — React (Vite) frontend
-- `src-tauri/` — Tauri shell and Rust commands
-- `crates/meuxe-core/` — shared Rust logic (persona, memory, sessions, TTS; chat backend is ACP in `src-tauri`)
+- `src/` - React (Vite) frontend
+- `src-tauri/` - Tauri shell and Rust commands
+- `crates/meuxe-core/` - shared Rust logic (persona, memory, sessions, TTS; chat backend is ACP in `src-tauri`)
 
 ## Questions
 

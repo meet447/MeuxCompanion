@@ -52,8 +52,8 @@ One markdown file per companion, rendered from `bond.json` before each turn: sta
 
 ### `memory/`
 
-- **`brief.md`** — The facts and recent moments the companion knows, rendered from `profile.json` and `moments.jsonl` before each turn. Same content the prompt receives; readable by the agent as a file.
-- **`exports/`** — Reserved for future user-initiated exports.
+- **`brief.md`** - The facts and recent moments the companion knows, rendered from `profile.json` and `moments.jsonl` before each turn. Same content the prompt receives; readable by the agent as a file.
+- **`exports/`** - Reserved for future user-initiated exports.
 
 ### `journal/`
 

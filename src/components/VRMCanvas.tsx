@@ -31,6 +31,7 @@ export const VRMCanvas = memo(function VRMCanvas({
   framing,
   getAudioLevels,
 }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const {
     loadModel,
@@ -43,39 +44,34 @@ export const VRMCanvas = memo(function VRMCanvas({
     handlePointerMove,
     handlePointerUp,
     handlePointerCancel,
-  } = useVRM(canvasRef);
-  const prevModelPath = useRef<string | null>(null);
-
-  // The hook disposes its renderer on unmount; forget what was loaded so a remount
-  // (including React StrictMode's simulated one in dev) loads the model again.
-  useEffect(() => {
-    return () => {
-      prevModelPath.current = null;
-    };
-  }, []);
+    lastError,
+  } = useVRM(canvasRef, containerRef);
   const prevExpression = useRef<string>("");
   const expressionRef = useRef(expression);
   expressionRef.current = expression;
+  const loadModelRef = useRef(loadModel);
+  loadModelRef.current = loadModel;
+  const setViewportRef = useRef(setViewport);
+  setViewportRef.current = setViewport;
+  const setExpressionRef = useRef(setExpression);
+  setExpressionRef.current = setExpression;
+  const backgroundRef = useRef(background);
+  backgroundRef.current = background;
   const [modelLoading, setModelLoading] = useState(false);
 
   useEffect(() => {
     if (!modelPath) return;
 
-    const pathChanged = modelPath !== prevModelPath.current;
-    if (!pathChanged) return;
-
-    prevModelPath.current = modelPath;
-
     let cancelled = false;
     setModelLoading(true);
-    loadModel(modelPath, animations)
+    loadModelRef.current(modelPath, animations, backgroundRef.current)
       .then(() => {
         if (cancelled) return;
-        setViewport(zoom, framing);
+        setViewportRef.current(zoom, framing);
         const expr = expressionRef.current;
         if (expr) {
           prevExpression.current = expr;
-          setExpression(expr);
+          setExpressionRef.current(expr);
         }
       })
       .finally(() => {
@@ -85,7 +81,7 @@ export const VRMCanvas = memo(function VRMCanvas({
     return () => {
       cancelled = true;
     };
-  }, [modelPath, animations, loadModel, setViewport, setExpression, zoom, framing]);
+  }, [modelPath, animations]);
 
   useEffect(() => {
     if (expression && expression !== prevExpression.current) {
@@ -113,33 +109,43 @@ export const VRMCanvas = memo(function VRMCanvas({
   const showMiniUi = uiMode === "mini";
 
   return (
-    <div
-      className="w-full h-full flex items-center justify-center relative overflow-hidden"
-      style={{ background }}
-    >
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden" style={{ background }}>
       <LoadingOverlay
         visible={modelLoading}
         message="Loading VRM model..."
         subMessage="Please wait"
         variant="model"
       />
-      {!modelPath && !showMiniUi && (
-        <div className="px-6 text-center">
-          <p className="text-lg font-medium text-ink-2">No VRM model loaded</p>
-          <p className="mt-2 text-sm text-ink-3">
-            Add a <code className="rounded-[6px] bg-well px-1 font-mono text-[12px] text-ink-2">.vrm</code> file to <code className="rounded-[6px] bg-well px-1 font-mono text-[12px] text-ink-2">models/vrm/</code>
+      {lastError && !modelLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center px-4 text-center">
+          <p className="text-sm text-ink-2">
+            Failed to load VRM: {lastError}
           </p>
         </div>
       )}
+      {!modelPath && !showMiniUi && (
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+          <div>
+            <p className="text-lg font-medium text-ink-2">No VRM model loaded</p>
+            <p className="mt-2 text-sm text-ink-3">
+              Add a <code className="rounded-[6px] bg-well px-1 font-mono text-[12px] text-ink-2">.vrm</code> file to <code className="rounded-[6px] bg-well px-1 font-mono text-[12px] text-ink-2">models/vrm/</code>
+            </p>
+          </div>
+        </div>
+      )}
       {!modelPath && showMiniUi && (
-        <div className="text-center">
+        <div className="absolute inset-0 flex items-center justify-center text-center">
           <p className="text-lg text-ink-3">No VRM model loaded</p>
         </div>
       )}
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-        style={{ display: modelPath ? "block" : "none", touchAction: "none" }}
+        className="absolute inset-0 block h-full w-full cursor-grab active:cursor-grabbing"
+        style={{
+          display: modelPath ? "block" : "none",
+          touchAction: "none",
+          transform: "translateZ(0)",
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

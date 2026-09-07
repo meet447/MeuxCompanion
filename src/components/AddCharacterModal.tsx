@@ -11,7 +11,8 @@ import { COMPANION_VIBE_PACKS } from "../lib/companionVibes";
 import { DEFAULT_TTS_VOICE } from "../lib/ttsPresets";
 import type { AppConfig, ModelInfo } from "../types";
 import { CompanionAvatarPreview } from "./onboarding/CompanionAvatarPreview";
-import { ModelPicker } from "./settings/ModelPicker";
+import { ModelMarketplace } from "./marketplace/ModelMarketplace";
+import { MARKETPLACE_LISTINGS } from "../lib/marketplaceCatalog";
 import {
   Button,
   ChevronDownIcon,
@@ -25,7 +26,6 @@ import {
   Select,
   Surface,
   Textarea,
-  UploadIcon,
   VibeGlyph,
   WandIcon,
 } from "./ui";
@@ -57,6 +57,8 @@ export function AddCharacterModal({
   const [relationshipStyle, setRelationshipStyle] = useState("Gentle");
   const [speechStyle, setSpeechStyle] = useState("Calm");
   const [modelId, setModelId] = useState("haru");
+  /** Don't mount Live2D/VRM until the user picks a look — avoids burning the WebGL context on the default Haru. */
+  const [livePreviewArmed, setLivePreviewArmed] = useState(false);
   const [personality, setPersonality] = useState("");
   const [personalityTouched, setPersonalityTouched] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -96,7 +98,13 @@ export function AddCharacterModal({
       });
 
     setImportMessage("");
+    setLivePreviewArmed(false);
   }, [open]);
+
+  const selectLook = (id: string) => {
+    setModelId(id);
+    setLivePreviewArmed(true);
+  };
 
   const draftInput = useMemo(
     () => ({
@@ -121,14 +129,19 @@ export function AddCharacterModal({
   );
 
   const previewModel = useMemo(() => {
-    if (!selectedModel) return null;
+    if (!livePreviewArmed || !selectedModel) return null;
     return {
       id: selectedModel.id,
       type: selectedModel.type,
       path: selectedModel.path,
       animations: selectedModel.animations,
     };
-  }, [selectedModel]);
+  }, [livePreviewArmed, selectedModel]);
+
+  const previewThumbnailUrl = useMemo(() => {
+    if (!modelId) return null;
+    return MARKETPLACE_LISTINGS.find((listing) => listing.id === modelId)?.thumbnailUrl ?? null;
+  }, [modelId]);
 
   const selectedVibePack = COMPANION_VIBE_PACKS.find((pack) => pack.id === vibe);
 
@@ -154,7 +167,7 @@ export function AddCharacterModal({
       const refreshed = (await listModels()) as ModelInfo[];
       setModels(refreshed);
       if (imported.id) {
-        setModelId(imported.id);
+        selectLook(imported.id);
         setImportMessage(`Imported model "${imported.id}" and selected it.`);
       } else {
         setImportMessage("Model imported successfully.");
@@ -173,6 +186,7 @@ export function AddCharacterModal({
     setRelationshipStyle("Gentle");
     setSpeechStyle("Calm");
     setModelId("haru");
+    setLivePreviewArmed(false);
     setPersonalityTouched(false);
     setAdvancedOpen(false);
     setError("");
@@ -228,7 +242,7 @@ export function AddCharacterModal({
         radius="sheet"
         tone="surface"
         elevation="pop"
-        className="relative z-[101] flex max-h-[92vh] w-full max-w-5xl animate-pop-in flex-col overflow-hidden"
+        className="relative z-[101] flex h-[min(860px,92vh)] w-full max-w-5xl animate-fade-in flex-col overflow-hidden"
       >
         <div className="flex shrink-0 items-start justify-between gap-4 px-7 pb-4 pt-6">
           <div>
@@ -242,17 +256,19 @@ export function AddCharacterModal({
           </IconButton>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="grid gap-6 px-7 lg:grid-cols-[minmax(240px,340px)_1fr] lg:gap-8">
-            <div className="lg:sticky lg:top-0 lg:self-start">
-              <CompanionAvatarPreview
-                model={previewModel}
-                companionName={name}
-                vibeLabel={selectedVibePack?.title}
-              />
-            </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="grid h-full min-h-0 grid-rows-1 gap-6 px-7 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] lg:gap-8">
+            <div className="min-h-0 space-y-6 overflow-y-auto overscroll-contain pb-2 pr-1 scrollbar-thin">
+              <div className="lg:hidden">
+                <CompanionAvatarPreview
+                  model={previewModel}
+                  companionName={name}
+                  vibeLabel={selectedVibePack?.title}
+                  thumbnailUrl={previewThumbnailUrl}
+                  className="h-[220px]"
+                />
+              </div>
 
-            <div className="min-w-0 space-y-6">
               <Field label="Companion name">
                 <Input
                   type="text"
@@ -264,35 +280,22 @@ export function AddCharacterModal({
 
               <Field
                 label="Look"
-                hint="Live2D or 3D VRM. The preview updates as you choose."
+                hint="Browse the marketplace, install a free look, or import your own files."
               >
-                {models.length > 0 ? (
-                  <ModelPicker models={models} selectedId={modelId} onSelect={setModelId} />
-                ) : (
-                  <Notice tone="neutral">No models detected yet. Import one below.</Notice>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    leading={<UploadIcon className="h-4 w-4" />}
-                    loading={importing === "live2d"}
-                    disabled={importing !== null}
-                    onClick={() => handleImportModel("live2d")}
-                  >
-                    Import Live2D
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    leading={<UploadIcon className="h-4 w-4" />}
-                    loading={importing === "vrm"}
-                    disabled={importing !== null}
-                    onClick={() => handleImportModel("vrm")}
-                  >
-                    Import VRM
-                  </Button>
-                </div>
+                <ModelMarketplace
+                  installedModels={models}
+                  selectedId={modelId}
+                  onSelect={selectLook}
+                  onInstalled={async (model) => {
+                    const refreshed = (await listModels()) as ModelInfo[];
+                    setModels(refreshed);
+                    selectLook(model.id);
+                    setImportMessage(`Installed "${model.id}" and selected it.`);
+                  }}
+                  onImportLive2D={() => handleImportModel("live2d")}
+                  onImportVRM={() => handleImportModel("vrm")}
+                  importing={importing}
+                />
                 {importMessage ? (
                   <Notice tone="success" className="mt-3">
                     {importMessage}
@@ -385,6 +388,16 @@ export function AddCharacterModal({
               </Surface>
 
               {error ? <Notice tone="danger">{error}</Notice> : null}
+            </div>
+
+            <div className="hidden min-h-0 lg:block">
+              <CompanionAvatarPreview
+                model={previewModel}
+                companionName={name}
+                vibeLabel={selectedVibePack?.title}
+                thumbnailUrl={previewThumbnailUrl}
+                className="h-full min-h-0 rounded-panel"
+              />
             </div>
           </div>
         </div>

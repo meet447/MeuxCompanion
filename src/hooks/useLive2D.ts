@@ -155,12 +155,18 @@ export function useLive2D(hostRef: React.RefObject<HTMLElement | null>) {
       modelSizeRef.current = { width: 0, height: 0 };
     }
 
+    const canvas = canvasRef.current;
+
     if (appRef.current) {
       appRef.current.destroy(true, { children: true, texture: true, baseTexture: true });
       appRef.current = null;
     }
-    // destroy() lost this canvas's WebGL context; a fresh one is created on next load.
-    canvasRef.current?.remove();
+
+    if (canvas) {
+      const gl = canvas.getContext("webgl") || canvas.getContext("webgl2");
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
+      canvas.remove();
+    }
     canvasRef.current = null;
   }, []);
 

@@ -6,15 +6,15 @@ Chat runs only through the [Agent Client Protocol](https://agentclientprotocol.c
 
 For each preset, Meuxe picks the first match:
 
-1. **System / global** — executable on `PATH` or common locations (`~/.local/bin`, npm global `bin`, `$NPM_CONFIG_PREFIX/bin`, etc.)
-2. **Meuxe local fallback** — legacy `{app_data}/agents/npm/bin/` if present from older Meuxe versions
-3. **npx** — Claude and Codex only, when Node/npx is available and no binary was found
+1. **System / global** - executable on `PATH` or common locations (`~/.local/bin`, npm global `bin`, `$NPM_CONFIG_PREFIX/bin`, etc.)
+2. **Meuxe local fallback** - legacy `{app_data}/agents/npm/bin/` if present from older Meuxe versions
+3. **npx** - Claude and Codex only, when Node/npx is available and no binary was found
 
-When nothing is found (`None`), Meuxe runs **`npm install -g`** for the preset package:
+When nothing is found (`None`), Meuxe runs **`npm install -g --prefix`** into a user-writable npm prefix (`~/.npm-global` on Unix, `%APPDATA%\npm` on Windows), not system `/usr/lib/node_modules`:
 
-- **Onboarding** — **Finish** (or **Install globally (npm)** on the agent step)
-- **Chat** — automatically before the first message
-- **Settings** — **Install globally (npm)** on the agent panel
+- **Onboarding** - **Finish** (or **Install globally (npm)** on the agent step)
+- **Chat** - automatically before the first message
+- **Settings** - **Install globally (npm)** on the agent panel
 
 Restart the app if the new CLI is not detected immediately after install.
 

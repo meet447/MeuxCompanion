@@ -718,7 +718,9 @@ function App() {
           </div>
         ) : (
           <>
-            <div className="absolute inset-0">{avatarCanvas}</div>
+            <div className="absolute inset-0">
+              {!addCharacterOpen ? avatarCanvas : null}
+            </div>
 
             <CharacterSelect
               menuOnly

@@ -26,7 +26,7 @@ where
                 if attempt < max_retries && should_retry(&e) {
                     let delay = base_delay_ms * (1 << attempt); // exponential: 500, 1000, 2000...
                     eprintln!(
-                        "[retry] attempt {}/{} failed: {} — retrying in {}ms",
+                        "[retry] attempt {}/{} failed: {} - retrying in {}ms",
                         attempt + 1,
                         max_retries + 1,
                         e,

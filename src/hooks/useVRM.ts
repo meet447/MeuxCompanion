@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 import * as THREE from "three";
 import { ACESFilmicToneMapping, SRGBColorSpace } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -33,6 +33,33 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+function isOpaqueBackground(bg: string): boolean {
+  const trimmed = bg.trim();
+  if (!trimmed || trimmed === "transparent") return false;
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed) || /^#[0-9a-fA-F]{3}$/.test(trimmed)) return true;
+  const rgba = trimmed.match(/^rgba?\(([^)]+)\)$/);
+  if (rgba) {
+    const parts = rgba[1].split(",").map((s) => s.trim());
+    if (parts.length === 4) {
+      const alpha = parseFloat(parts[3]);
+      return !Number.isNaN(alpha) && alpha >= 1;
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Cache-bust only /static/ HTTP URLs; asset: and Tauri asset protocol break with ?t= */
+function withCacheBust(url: string): string {
+  if (url.startsWith("asset:") || url.startsWith("http://asset.localhost")) {
+    return url;
+  }
+  if (!url.includes("/static/")) {
+    return url;
+  }
+  return `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+}
+
 const EMOTION_PRESETS = [
   VRMExpressionPresetName.Happy,
   VRMExpressionPresetName.Angry,
@@ -55,7 +82,10 @@ function applyEmotion(vrm: VRM, expressionName: string) {
 
 const ORBIT_ROTATE_SPEED = 0.005;
 
-export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
+export function useVRM(
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  containerRef?: React.RefObject<HTMLElement | null>,
+) {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -108,6 +138,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const availableExpressionsRef = useRef<string[]>([]);
   const availableMotionGroupsRef = useRef<string[]>([]);
   const lastErrorRef = useRef("");
+  const [lastError, setLastError] = useState("");
 
   const disposeSceneResources = useCallback(() => {
     // Abort any in-flight loadModel so it never touches the disposed scene/renderer.
@@ -126,6 +157,8 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
 
     if (rendererRef.current) {
+      // Soft dispose only — forceContextLoss can poison the next WebGL context on
+      // software/GL drivers with a low context limit (blank VRM preview after main unmount).
       rendererRef.current.dispose();
       rendererRef.current = null;
     }
@@ -153,13 +186,16 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     const { zoom, framing, offsetX, offsetY } = viewportRef.current;
     let zIdx = 4.5 / zoom;
     let yPos = 1.3;
+    let lookY = 1.0;
 
     if (framing === "half") {
       zIdx = 2.0 / zoom;
       yPos = 1.5;
+      lookY = 1.35;
     }
 
     cameraRef.current.position.set(0, yPos, zIdx);
+    cameraRef.current.lookAt(0, lookY, 0);
 
     if (vrmRef.current) {
       vrmRef.current.scene.position.x = offsetX * 0.0025;
@@ -167,15 +203,97 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
   }, []);
 
+  const readCanvasSize = useCallback(() => {
+    const container = containerRef?.current ?? canvasRef.current?.parentElement ?? null;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 1 && rect.height > 1) {
+        return { w: Math.floor(rect.width), h: Math.floor(rect.height) };
+      }
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) return { w: 0, h: 0 };
+    return {
+      w: canvas.clientWidth || 0,
+      h: canvas.clientHeight || 0,
+    };
+  }, [canvasRef, containerRef]);
+
+  const waitForCanvasLayout = useCallback((): Promise<{ w: number; h: number }> => {
+    const measure = () => readCanvasSize();
+
+    return new Promise((resolve) => {
+      const initial = measure();
+      if (initial.w > 0 && initial.h > 0) {
+        resolve(initial);
+        return;
+      }
+
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        resolve({ w: 0, h: 0 });
+        return;
+      }
+
+      console.log("[VRM] Waiting for canvas layout before load…");
+
+      let settled = false;
+      const finish = (size: { w: number; h: number }) => {
+        if (settled) return;
+        settled = true;
+        observer?.disconnect();
+        resolve(size);
+      };
+
+      let observer: ResizeObserver | undefined;
+      const parent = canvas.parentElement;
+      if (parent) {
+        observer = new ResizeObserver(() => {
+          const size = measure();
+          if (size.w > 0 && size.h > 0) finish(size);
+        });
+        observer.observe(parent);
+        observer.observe(canvas);
+      }
+
+      const startedAt = performance.now();
+      const LAYOUT_TIMEOUT_MS = 2000;
+
+      const poll = () => {
+        const size = measure();
+        if (size.w > 0 && size.h > 0) {
+          finish(size);
+          return;
+        }
+        if (performance.now() - startedAt >= LAYOUT_TIMEOUT_MS) {
+          console.warn("[VRM] Canvas layout wait timed out after 2s; using last measured size");
+          finish(size);
+          return;
+        }
+        requestAnimationFrame(poll);
+      };
+      requestAnimationFrame(poll);
+    });
+  }, [canvasRef, readCanvasSize]);
+
   const layoutRendererSize = useCallback(() => {
     if (!cameraRef.current || !rendererRef.current || !canvasRef.current) return;
-    const w = canvasRef.current.parentElement?.clientWidth || canvasRef.current.clientWidth;
-    const h = canvasRef.current.parentElement?.clientHeight || canvasRef.current.clientHeight;
+    const { w, h } = readCanvasSize();
     if (w <= 0 || h <= 0) return;
-    cameraRef.current.aspect = w / h;
-    cameraRef.current.updateProjectionMatrix();
-    rendererRef.current.setSize(w, h);
-  }, [canvasRef]);
+    const camera = cameraRef.current;
+    const renderer = rendererRef.current;
+    if (camera.aspect !== w / h) {
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    const size = new THREE.Vector2();
+    renderer.getSize(size);
+    if (size.x !== w || size.y !== h) {
+      // false = don't overwrite CSS; absolute inset-0 + h/w-full owns layout.
+      renderer.setSize(w, h, false);
+    }
+  }, [canvasRef, readCanvasSize]);
 
   const syncStageLayout = useCallback(() => {
     layoutRendererSize();
@@ -196,8 +314,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   }, [applyOrbitRotation]);
 
   useEffect(() => {
-    const parent = canvasRef.current?.parentElement;
-    if (!parent) return;
+    const canvas = canvasRef.current;
+    const parent = canvas?.parentElement;
+    if (!canvas || !parent) return;
 
     const observer = new ResizeObserver(() => {
       requestAnimationFrame(() => {
@@ -205,7 +324,14 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       });
     });
     observer.observe(parent);
-    return () => observer.disconnect();
+    observer.observe(canvas);
+    // Catch late layout after modal/grid height settles.
+    requestAnimationFrame(() => applyViewportRef.current());
+    const timeout = window.setTimeout(() => applyViewportRef.current(), 50);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timeout);
+    };
   }, [canvasRef]);
 
   // Retarget Mixamo FBX animation to VRM skeleton
@@ -422,6 +548,8 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       }
 
       vrm.update(delta);
+      // Keep picking up late modal/grid layout after h-full settles.
+      applyViewportRef.current();
       renderer.render(scene, camera);
       animFrameRef.current = requestAnimationFrame(tick);
     };
@@ -457,10 +585,21 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   }, []);
 
   const loadModel = useCallback(
-    async (modelPath: string, animations?: AnimationInfo[]) => {
+    async (modelPath: string, animations?: AnimationInfo[], background = "transparent") => {
       if (!canvasRef.current) return;
 
       const generation = ++loadGenerationRef.current;
+
+      const layout = await waitForCanvasLayout();
+      if (generation !== loadGenerationRef.current) return;
+      console.log(`[VRM] Load starting (${layout.w}x${layout.h}):`, modelPath);
+      if (layout.w <= 0 || layout.h <= 0) {
+        const message = "Canvas has zero size";
+        lastErrorRef.current = message;
+        setLastError(message);
+        console.warn("[VRM] Load aborted:", message);
+        return;
+      }
 
       // Stop animation (invalidate any in-flight RAF loop)
       loopGenerationRef.current += 1;
@@ -471,6 +610,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       }
 
       lastErrorRef.current = "";
+      setLastError("");
       if (vrmRef.current) {
         VRMUtils.deepDispose(vrmRef.current.scene);
         vrmRef.current.scene.removeFromParent();
@@ -485,20 +625,41 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       blinkSchedulerRef.current.reset(Date.now());
       lipSyncDriverRef.current.reset();
 
+      const opaqueBg = isOpaqueBackground(background);
+
       // Create renderer once
       if (!rendererRef.current) {
-        const renderer = new THREE.WebGLRenderer({
-          canvas: canvasRef.current,
-          alpha: true,
-          antialias: false,
-          powerPreference: "low-power",
-        });
-        renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.outputColorSpace = SRGBColorSpace;
-        renderer.toneMapping = ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.15;
-        rendererRef.current = renderer;
+        try {
+          const renderer = new THREE.WebGLRenderer({
+            canvas: canvasRef.current,
+            alpha: !opaqueBg,
+            antialias: false,
+            powerPreference: "low-power",
+          });
+          if (!renderer.getContext()) {
+            const message = "WebGL context unavailable";
+            lastErrorRef.current = message;
+            setLastError(message);
+            return;
+          }
+          const { w, h } = readCanvasSize();
+          renderer.setSize(Math.max(w, 1), Math.max(h, 1), false);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+          renderer.outputColorSpace = SRGBColorSpace;
+          renderer.toneMapping = ACESFilmicToneMapping;
+          renderer.toneMappingExposure = 1.15;
+          if (opaqueBg) {
+            renderer.setClearColor(new THREE.Color(background));
+          }
+          rendererRef.current = renderer;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          lastErrorRef.current = message;
+          setLastError(message);
+          return;
+        }
+      } else if (opaqueBg) {
+        rendererRef.current.setClearColor(new THREE.Color(background));
       }
 
       // Create scene once
@@ -531,8 +692,13 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
       // Create camera once
       if (!cameraRef.current) {
-        const canvas = canvasRef.current;
-        const camera = new THREE.PerspectiveCamera(30, canvas.clientWidth / canvas.clientHeight, 0.1, 20);
+        const { w, h } = readCanvasSize();
+        const camera = new THREE.PerspectiveCamera(
+          30,
+          w > 0 && h > 0 ? w / h : 1,
+          0.1,
+          20,
+        );
         camera.position.set(0, 1.3, 4.5);
         camera.lookAt(0, 1.0, 0);
         cameraRef.current = camera;
@@ -543,8 +709,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
 
       try {
-        const cacheBust = `${modelPath}${modelPath.includes("?") ? "&" : "?"}t=${Date.now()}`;
-        const gltf = await gltfLoader.loadAsync(cacheBust);
+        const gltf = await gltfLoader.loadAsync(withCacheBust(modelPath));
         const vrm = gltf.userData.vrm as VRM;
 
         if (generation !== loadGenerationRef.current) {
@@ -555,7 +720,10 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         }
 
         if (!vrm || !sceneRef.current || !rendererRef.current) {
-          console.error("[VRM] Failed to load: scene or renderer destroyed");
+          const message = "Failed to load: scene or renderer destroyed";
+          console.error(`[VRM] ${message}`);
+          lastErrorRef.current = message;
+          setLastError(message);
           return;
         }
 
@@ -569,49 +737,68 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         const mixer = new THREE.AnimationMixer(vrm.scene);
         mixerRef.current = mixer;
 
-        // Load animations (VRMA or Mixamo FBX)
+        clockRef.current = new THREE.Clock();
+        availableExpressionsRef.current = Object.keys(vrm.expressionManager?.expressionMap || {});
+        availableMotionGroupsRef.current = [];
+
+        // Paint the mesh immediately; load clips in the background so preview/main
+        // aren't blocked on large VRMA batches (utsuwa ships many files).
+        applyViewportRef.current();
+        startAnimationLoop();
+
         if (animations && animations.length > 0) {
           const fbxLoader = new FBXLoader();
-          await Promise.allSettled(
+          void Promise.allSettled(
             animations.map(async (anim) => {
               try {
                 const assetUrl = await resolveAssetUrl(anim.path);
-                const cacheBustUrl = `${assetUrl}${assetUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+                const animUrl = withCacheBust(assetUrl);
                 const lower = anim.path.toLowerCase();
                 let clip: THREE.AnimationClip | null = null;
 
                 if (lower.endsWith(".vrma")) {
-                  clip = await loadVrmaClip(cacheBustUrl, vrm);
+                  clip = await loadVrmaClip(animUrl, vrm);
                 } else if (lower.endsWith(".fbx")) {
-                  const fbx = await fbxLoader.loadAsync(cacheBustUrl);
+                  const fbx = await fbxLoader.loadAsync(animUrl);
                   clip = retargetAnimation(fbx, vrm, anim.name);
+                }
+
+                if (generation !== loadGenerationRef.current || vrmRef.current !== vrm) {
+                  return;
                 }
 
                 if (clip) {
                   clipsRef.current.set(anim.name, clip);
+                  availableMotionGroupsRef.current = [...clipsRef.current.keys()];
                   console.log(`[VRM] Loaded animation: "${anim.name}" (${clip.duration.toFixed(1)}s)`);
                 }
               } catch (err) {
                 console.warn(`[VRM] Failed to load animation "${anim.name}":`, err);
               }
-            })
-          );
-
-          const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
-          let matchFound = false;
-          for (const name of idleNames) {
-            for (const k of clipsRef.current.keys()) {
-              if (k.toLowerCase().includes(name)) {
-                playAnimation(k);
-                matchFound = true;
-                break;
-              }
+            }),
+          ).then(() => {
+            if (generation !== loadGenerationRef.current || vrmRef.current !== vrm) {
+              return;
             }
-            if (matchFound) break;
-          }
-          if (!currentActionRef.current && clipsRef.current.size > 0) {
-            playAnimation(clipsRef.current.keys().next().value!);
-          }
+
+            const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
+            let matchFound = false;
+            for (const name of idleNames) {
+              for (const k of clipsRef.current.keys()) {
+                if (k.toLowerCase().includes(name)) {
+                  playAnimation(k);
+                  matchFound = true;
+                  break;
+                }
+              }
+              if (matchFound) break;
+            }
+            if (!currentActionRef.current && clipsRef.current.size > 0) {
+              playAnimation(clipsRef.current.keys().next().value!);
+            }
+            availableMotionGroupsRef.current = [...clipsRef.current.keys()];
+            console.log("[VRM] Animations:", availableMotionGroupsRef.current);
+          });
         }
 
         if (generation !== loadGenerationRef.current) {
@@ -621,23 +808,25 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           return;
         }
 
-        clockRef.current = new THREE.Clock();
-
-        availableExpressionsRef.current = Object.keys(vrm.expressionManager?.expressionMap || {});
-        availableMotionGroupsRef.current = [...clipsRef.current.keys()];
-
         console.log("[VRM] Model loaded:", modelPath);
         console.log("[VRM] Expressions:", availableExpressionsRef.current);
-        console.log("[VRM] Animations:", availableMotionGroupsRef.current);
-
-        applyViewportRef.current();
-        startAnimationLoop();
       } catch (err) {
-        lastErrorRef.current = err instanceof Error ? err.message : String(err);
+        const message = err instanceof Error ? err.message : String(err);
+        lastErrorRef.current = message;
+        setLastError(message);
         console.error("[VRM] Failed to load model:", err);
       }
     },
-    [canvasRef, startAnimationLoop, retargetAnimation, playAnimation, resetOrbitRotation, loadVrmaClip]
+    [
+      canvasRef,
+      startAnimationLoop,
+      retargetAnimation,
+      playAnimation,
+      resetOrbitRotation,
+      loadVrmaClip,
+      readCanvasSize,
+      waitForCanvasLayout,
+    ],
   );
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -760,5 +949,6 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     handlePointerMove,
     handlePointerUp: endPointerDrag,
     handlePointerCancel: endPointerDrag,
+    lastError,
   };
 }
