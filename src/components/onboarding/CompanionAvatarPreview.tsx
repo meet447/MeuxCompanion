@@ -43,17 +43,14 @@ export function CompanionAvatarPreview({
     setUrl(null);
     setCanvasReady(false);
     setResolveError(null);
-    console.log("[Preview] Resolving asset:", model.type, model.id, model.path);
     resolveAssetUrl(model.path)
       .then((resolved) => {
         if (cancelled) return;
-        console.log("[Preview] Resolved URL:", resolved.slice(0, 120));
         setUrl(resolved);
       })
       .catch((err) => {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
-        console.error("[Preview] Resolve failed:", message);
         setResolveError(message);
         setUrl(null);
       });
@@ -69,7 +66,6 @@ export function CompanionAvatarPreview({
     }
     setCanvasReady(false);
     const timer = window.setTimeout(() => {
-      console.log("[Preview] Mounting canvas for", model.type, model.id);
       setCanvasReady(true);
     }, CANVAS_MOUNT_DELAY_MS);
     return () => window.clearTimeout(timer);
