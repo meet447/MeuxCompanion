@@ -73,7 +73,21 @@ function ListingCard({
         "flex h-full flex-col overflow-hidden transition-all duration-150",
         selected && "bg-accent-100 ring-2 ring-accent-300/70",
         compact ? "p-3" : "p-3.5",
+        showUse && "cursor-pointer",
       )}
+      onClick={showUse ? onSelect : undefined}
+      onKeyDown={
+        showUse
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect();
+              }
+            }
+          : undefined
+      }
+      role={showUse ? "button" : undefined}
+      tabIndex={showUse ? 0 : undefined}
     >
       <div
         className={cn(
@@ -117,7 +131,10 @@ function ListingCard({
               size="sm"
               className="flex-1"
               leading={selected ? <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.4} /> : undefined}
-              onClick={onSelect}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect();
+              }}
             >
               {selected ? "Selected" : "Use"}
             </Button>
@@ -128,7 +145,10 @@ function ListingCard({
               size="sm"
               className="flex-1"
               loading={installing}
-              onClick={onInstall}
+              onClick={(event) => {
+                event.stopPropagation();
+                onInstall();
+              }}
             >
               Install
             </Button>
@@ -139,7 +159,10 @@ function ListingCard({
               size="sm"
               className="flex-1"
               trailing={<ExternalIcon className="h-3.5 w-3.5" />}
-              onClick={onGetModel}
+              onClick={(event) => {
+                event.stopPropagation();
+                onGetModel();
+              }}
             >
               Get model
             </Button>

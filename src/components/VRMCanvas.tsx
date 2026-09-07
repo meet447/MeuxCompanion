@@ -45,38 +45,32 @@ export const VRMCanvas = memo(function VRMCanvas({
     handlePointerCancel,
     lastError,
   } = useVRM(canvasRef);
-  const prevModelPath = useRef<string | null>(null);
-
-  // The hook disposes its renderer on unmount; forget what was loaded so a remount
-  // (including React StrictMode's simulated one in dev) loads the model again.
-  useEffect(() => {
-    return () => {
-      prevModelPath.current = null;
-    };
-  }, []);
   const prevExpression = useRef<string>("");
   const expressionRef = useRef(expression);
   expressionRef.current = expression;
+  const loadModelRef = useRef(loadModel);
+  loadModelRef.current = loadModel;
+  const setViewportRef = useRef(setViewport);
+  setViewportRef.current = setViewport;
+  const setExpressionRef = useRef(setExpression);
+  setExpressionRef.current = setExpression;
+  const backgroundRef = useRef(background);
+  backgroundRef.current = background;
   const [modelLoading, setModelLoading] = useState(false);
 
   useEffect(() => {
     if (!modelPath) return;
 
-    const pathChanged = modelPath !== prevModelPath.current;
-    if (!pathChanged) return;
-
-    prevModelPath.current = modelPath;
-
     let cancelled = false;
     setModelLoading(true);
-    loadModel(modelPath, animations)
+    loadModelRef.current(modelPath, animations, backgroundRef.current)
       .then(() => {
         if (cancelled) return;
-        setViewport(zoom, framing);
+        setViewportRef.current(zoom, framing);
         const expr = expressionRef.current;
         if (expr) {
           prevExpression.current = expr;
-          setExpression(expr);
+          setExpressionRef.current(expr);
         }
       })
       .finally(() => {
@@ -86,7 +80,7 @@ export const VRMCanvas = memo(function VRMCanvas({
     return () => {
       cancelled = true;
     };
-  }, [modelPath, animations, loadModel, setViewport, setExpression, zoom, framing]);
+  }, [modelPath, animations]);
 
   useEffect(() => {
     if (expression && expression !== prevExpression.current) {
@@ -147,7 +141,11 @@ export const VRMCanvas = memo(function VRMCanvas({
       <canvas
         ref={canvasRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
-        style={{ display: modelPath ? "block" : "none", touchAction: "none" }}
+        style={{
+          display: modelPath ? "block" : "none",
+          touchAction: "none",
+          transform: "translateZ(0)",
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

@@ -83,9 +83,13 @@ export function CompanionAvatarPreview({
             </div>
           }
         >
-          <div className="absolute inset-0">
+          <div
+            className="absolute inset-0"
+            style={{ transform: "translateZ(0)", isolation: "isolate" }}
+          >
             {model.type === "vrm" ? (
               <VRMCanvas
+                key={`${model.type}-${model.id}-${url}`}
                 modelPath={url}
                 animations={undefined}
                 expression="neutral"
@@ -101,6 +105,7 @@ export function CompanionAvatarPreview({
               />
             ) : (
               <Live2DCanvas
+                key={`${model.type}-${model.id}-${url}`}
                 modelPath={url}
                 modelMapping={null}
                 expression="neutral"

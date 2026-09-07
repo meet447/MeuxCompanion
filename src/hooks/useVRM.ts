@@ -33,6 +33,33 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+function isOpaqueBackground(bg: string): boolean {
+  const trimmed = bg.trim();
+  if (!trimmed || trimmed === "transparent") return false;
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed) || /^#[0-9a-fA-F]{3}$/.test(trimmed)) return true;
+  const rgba = trimmed.match(/^rgba?\(([^)]+)\)$/);
+  if (rgba) {
+    const parts = rgba[1].split(",").map((s) => s.trim());
+    if (parts.length === 4) {
+      const alpha = parseFloat(parts[3]);
+      return !Number.isNaN(alpha) && alpha >= 1;
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Cache-bust only /static/ HTTP URLs; asset: and Tauri asset protocol break with ?t= */
+function withCacheBust(url: string): string {
+  if (url.startsWith("asset:") || url.startsWith("http://asset.localhost")) {
+    return url;
+  }
+  if (!url.includes("/static/")) {
+    return url;
+  }
+  return `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+}
+
 const EMOTION_PRESETS = [
   VRMExpressionPresetName.Happy,
   VRMExpressionPresetName.Angry,
@@ -224,9 +251,17 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         observer.observe(canvas);
       }
 
+      const startedAt = performance.now();
+      const LAYOUT_TIMEOUT_MS = 2000;
+
       const poll = () => {
         const size = measure();
         if (size.w > 0 && size.h > 0) {
+          finish(size);
+          return;
+        }
+        if (performance.now() - startedAt >= LAYOUT_TIMEOUT_MS) {
+          console.warn("[VRM] Canvas layout wait timed out after 2s; using last measured size");
           finish(size);
           return;
         }
@@ -543,7 +578,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   }, []);
 
   const loadModel = useCallback(
-    async (modelPath: string, animations?: AnimationInfo[]) => {
+    async (modelPath: string, animations?: AnimationInfo[], background = "transparent") => {
       if (!canvasRef.current) return;
 
       const generation = ++loadGenerationRef.current;
@@ -583,12 +618,14 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       blinkSchedulerRef.current.reset(Date.now());
       lipSyncDriverRef.current.reset();
 
+      const opaqueBg = isOpaqueBackground(background);
+
       // Create renderer once
       if (!rendererRef.current) {
         try {
           const renderer = new THREE.WebGLRenderer({
             canvas: canvasRef.current,
-            alpha: true,
+            alpha: !opaqueBg,
             antialias: false,
             powerPreference: "low-power",
           });
@@ -604,6 +641,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           renderer.outputColorSpace = SRGBColorSpace;
           renderer.toneMapping = ACESFilmicToneMapping;
           renderer.toneMappingExposure = 1.15;
+          if (opaqueBg) {
+            renderer.setClearColor(new THREE.Color(background));
+          }
           rendererRef.current = renderer;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -611,6 +651,8 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           setLastError(message);
           return;
         }
+      } else if (opaqueBg) {
+        rendererRef.current.setClearColor(new THREE.Color(background));
       }
 
       // Create scene once
@@ -660,8 +702,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
 
       try {
-        const cacheBust = `${modelPath}${modelPath.includes("?") ? "&" : "?"}t=${Date.now()}`;
-        const gltf = await gltfLoader.loadAsync(cacheBust);
+        const gltf = await gltfLoader.loadAsync(withCacheBust(modelPath));
         const vrm = gltf.userData.vrm as VRM;
 
         if (generation !== loadGenerationRef.current) {
@@ -701,14 +742,14 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
             animations.map(async (anim) => {
               try {
                 const assetUrl = await resolveAssetUrl(anim.path);
-                const cacheBustUrl = `${assetUrl}${assetUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+                const animUrl = withCacheBust(assetUrl);
                 const lower = anim.path.toLowerCase();
                 let clip: THREE.AnimationClip | null = null;
 
                 if (lower.endsWith(".vrma")) {
-                  clip = await loadVrmaClip(cacheBustUrl, vrm);
+                  clip = await loadVrmaClip(animUrl, vrm);
                 } else if (lower.endsWith(".fbx")) {
-                  const fbx = await fbxLoader.loadAsync(cacheBustUrl);
+                  const fbx = await fbxLoader.loadAsync(animUrl);
                   clip = retargetAnimation(fbx, vrm, anim.name);
                 }
 
