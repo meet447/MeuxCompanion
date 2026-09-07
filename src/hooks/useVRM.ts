@@ -154,7 +154,10 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
 
     if (rendererRef.current) {
-      rendererRef.current.dispose();
+      const renderer = rendererRef.current;
+      renderer.forceContextLoss?.();
+      renderer.getContext()?.getExtension("WEBGL_lose_context")?.loseContext();
+      renderer.dispose();
       rendererRef.current = null;
     }
 

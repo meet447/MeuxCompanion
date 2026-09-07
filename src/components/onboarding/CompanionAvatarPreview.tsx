@@ -27,6 +27,7 @@ export function CompanionAvatarPreview({
   className?: string;
 }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [canvasReady, setCanvasReady] = useState(false);
 
   useEffect(() => {
     if (!model?.path) {
@@ -35,6 +36,7 @@ export function CompanionAvatarPreview({
     }
     let cancelled = false;
     setUrl(null);
+    setCanvasReady(false);
     resolveAssetUrl(model.path)
       .then((resolved) => {
         if (!cancelled) setUrl(resolved);
@@ -46,6 +48,17 @@ export function CompanionAvatarPreview({
       cancelled = true;
     };
   }, [model?.path]);
+
+  // Brief gap after URL resolves so the browser can reclaim the previous WebGL context.
+  useEffect(() => {
+    if (!model || !url) {
+      setCanvasReady(false);
+      return;
+    }
+    setCanvasReady(false);
+    const timer = window.setTimeout(() => setCanvasReady(true), 120);
+    return () => window.clearTimeout(timer);
+  }, [model?.type, model?.id, url]);
 
   return (
     <div
@@ -70,12 +83,12 @@ export function CompanionAvatarPreview({
           <p className="text-xs text-ink-3">Your companion will appear here</p>
         </div>
       )}
-      {model && !url && (
+      {model && (!url || !canvasReady) && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-3">
           Loading avatar…
         </div>
       )}
-      {model && url && (
+      {model && url && canvasReady && (
         <Suspense
           fallback={
             <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-3">
@@ -89,7 +102,7 @@ export function CompanionAvatarPreview({
           >
             {model.type === "vrm" ? (
               <VRMCanvas
-                key={`${model.type}-${model.id}-${url}`}
+                key={`${model.type}-${model.id}`}
                 modelPath={url}
                 animations={undefined}
                 expression="neutral"
@@ -105,7 +118,7 @@ export function CompanionAvatarPreview({
               />
             ) : (
               <Live2DCanvas
-                key={`${model.type}-${model.id}-${url}`}
+                key={`${model.type}-${model.id}`}
                 modelPath={url}
                 modelMapping={null}
                 expression="neutral"
