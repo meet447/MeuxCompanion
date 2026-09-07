@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshot-app.png" alt="Meuxe main window: companion on stage with the conversation panel open" width="880" />
+  <img src="assets/screenshot-chat.png" alt="Meuxe main window: companion on stage with an active conversation" width="880" />
 </p>
 
 ## What is Meuxe
