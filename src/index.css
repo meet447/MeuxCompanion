@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+@import "@fontsource/figtree/400.css";
+@import "@fontsource/figtree/500.css";
+@import "@fontsource/figtree/600.css";
+@import "@fontsource/figtree/700.css";
+@import "@fontsource/figtree/800.css";
+@import "@fontsource/figtree/400-italic.css";
+@import "@fontsource/figtree/500-italic.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
 /* ──────────────────────────────────────────────────────────────
    Meuxe design tokens
    Neutral white/grey surfaces, pastel accents, soft geometry.
