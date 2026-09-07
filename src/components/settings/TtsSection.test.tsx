@@ -23,6 +23,25 @@ describe("TtsSection", () => {
     expect(screen.getByText("Default")).toBeInTheDocument();
   });
 
+  it("calls onChange when provider changes", () => {
+    const onChange = vi.fn();
+    render(
+      <TtsSection
+        value={baseValue}
+        onChange={onChange}
+        voices={[{ id: "en_us_001", name: "Default" }]}
+        presets={TTS_PRESETS_UI}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("ElevenLabs"));
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...baseValue,
+      provider: "elevenlabs",
+    });
+  });
+
   it("hides provider descriptions in compact onboarding layout", () => {
     render(
       <TtsSection
