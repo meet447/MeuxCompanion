@@ -82,7 +82,10 @@ function applyEmotion(vrm: VRM, expressionName: string) {
 
 const ORBIT_ROTATE_SPEED = 0.005;
 
-export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
+export function useVRM(
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  containerRef?: React.RefObject<HTMLElement | null>,
+) {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -183,13 +186,16 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     const { zoom, framing, offsetX, offsetY } = viewportRef.current;
     let zIdx = 4.5 / zoom;
     let yPos = 1.3;
+    let lookY = 1.0;
 
     if (framing === "half") {
       zIdx = 2.0 / zoom;
       yPos = 1.5;
+      lookY = 1.35;
     }
 
     cameraRef.current.position.set(0, yPos, zIdx);
+    cameraRef.current.lookAt(0, lookY, 0);
 
     if (vrmRef.current) {
       vrmRef.current.scene.position.x = offsetX * 0.0025;
@@ -198,23 +204,21 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   }, []);
 
   const readCanvasSize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { w: 0, h: 0 };
-
-    let node: HTMLElement | null = canvas.parentElement;
-    while (node) {
-      const rect = node.getBoundingClientRect();
+    const container = containerRef?.current ?? canvasRef.current?.parentElement ?? null;
+    if (container) {
+      const rect = container.getBoundingClientRect();
       if (rect.width > 1 && rect.height > 1) {
         return { w: Math.floor(rect.width), h: Math.floor(rect.height) };
       }
-      node = node.parentElement;
     }
 
+    const canvas = canvasRef.current;
+    if (!canvas) return { w: 0, h: 0 };
     return {
       w: canvas.clientWidth || 0,
       h: canvas.clientHeight || 0,
     };
-  }, [canvasRef]);
+  }, [canvasRef, containerRef]);
 
   const waitForCanvasLayout = useCallback((): Promise<{ w: number; h: number }> => {
     const measure = () => readCanvasSize();

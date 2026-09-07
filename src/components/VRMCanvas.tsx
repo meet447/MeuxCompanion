@@ -31,6 +31,7 @@ export const VRMCanvas = memo(function VRMCanvas({
   framing,
   getAudioLevels,
 }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const {
     loadModel,
@@ -44,7 +45,7 @@ export const VRMCanvas = memo(function VRMCanvas({
     handlePointerUp,
     handlePointerCancel,
     lastError,
-  } = useVRM(canvasRef);
+  } = useVRM(canvasRef, containerRef);
   const prevExpression = useRef<string>("");
   const expressionRef = useRef(expression);
   expressionRef.current = expression;
@@ -108,7 +109,7 @@ export const VRMCanvas = memo(function VRMCanvas({
   const showMiniUi = uiMode === "mini";
 
   return (
-    <div className="relative h-full w-full overflow-hidden" style={{ background }}>
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden" style={{ background }}>
       <LoadingOverlay
         visible={modelLoading}
         message="Loading VRM model..."

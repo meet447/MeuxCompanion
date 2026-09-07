@@ -390,13 +390,13 @@ export function AddCharacterModal({
               {error ? <Notice tone="danger">{error}</Notice> : null}
             </div>
 
-            <div className="hidden min-h-0 lg:block lg:h-full">
+            <div className="hidden min-h-0 lg:block lg:h-[min(640px,calc(92vh-12rem))]">
               <CompanionAvatarPreview
                 model={previewModel}
                 companionName={name}
                 vibeLabel={selectedVibePack?.title}
                 thumbnailUrl={previewThumbnailUrl}
-                className="h-full min-h-[420px] rounded-panel"
+                className="h-full rounded-panel"
               />
             </div>
           </div>
