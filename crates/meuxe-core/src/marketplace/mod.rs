@@ -6,7 +6,7 @@ use crate::ids::validate_id;
 use crate::{MeuxeError, Result};
 use std::path::Path;
 
-/// Hosts we are willing to download avatar files from.
+/// Exact hosts we are willing to download avatar files from.
 const ALLOWED_DOWNLOAD_HOSTS: &[&str] = &[
     "arweave.net",
     "www.arweave.net",
@@ -18,7 +18,20 @@ const ALLOWED_DOWNLOAD_HOSTS: &[&str] = &[
     "www.opensourceavatars.com",
 ];
 
+/// Suffix hosts (gateway subdomains such as `<id>.arweave.net`).
+const ALLOWED_DOWNLOAD_HOST_SUFFIXES: &[&str] = &[".arweave.net"];
+
 const MAX_VRM_BYTES: usize = 80 * 1024 * 1024; // 80 MiB
+
+fn host_allowed(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    ALLOWED_DOWNLOAD_HOSTS
+        .iter()
+        .any(|allowed| host == *allowed)
+        || ALLOWED_DOWNLOAD_HOST_SUFFIXES
+            .iter()
+            .any(|suffix| host.ends_with(suffix) && host.len() > suffix.len())
+}
 
 /// Reject non-HTTPS or non-allowlisted download URLs.
 pub fn validate_marketplace_download_url(url: &str) -> Result<()> {
@@ -40,16 +53,18 @@ pub fn validate_marketplace_download_url(url: &str) -> Result<()> {
         .host_str()
         .ok_or_else(|| MeuxeError::InvalidConfig("Download URL is missing a host".into()))?;
 
-    let allowed = ALLOWED_DOWNLOAD_HOSTS
-        .iter()
-        .any(|allowed| host.eq_ignore_ascii_case(allowed));
-    if !allowed {
+    if !host_allowed(host) {
         return Err(MeuxeError::InvalidConfig(format!(
             "Download host is not allowlisted: {host}"
         )));
     }
 
     Ok(())
+}
+
+/// Whether a redirect target is still on an allowlisted host.
+pub fn marketplace_redirect_allowed(url: &reqwest::Url) -> bool {
+    url.scheme() == "https" && url.host_str().is_some_and(host_allowed)
 }
 
 /// Install a VRM model from raw bytes into `{data_dir}/models/vrm/{model_id}/model.vrm`.
@@ -120,6 +135,11 @@ mod tests {
             "https://raw.githubusercontent.com/org/repo/main/model.vrm"
         )
         .is_ok());
+        assert!(validate_marketplace_download_url(
+            "https://gifq3fjxvxgaufiqf2cpuwzqr6xg7j5uvwiomv253zhi4ovtmgja.arweave.net/abc"
+        )
+        .is_ok());
+        assert!(validate_marketplace_download_url("https://notarweave.net/abc").is_err());
     }
 
     #[test]

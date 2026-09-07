@@ -139,18 +139,34 @@ pub async fn models_install_from_url(
     let data_dir = state.data_dir.clone();
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
-        .redirect(reqwest::redirect::Policy::limited(5))
+        .user_agent("Meuxe/0.1 (desktop companion; +https://github.com/meet447/Meuxe)")
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 {
+                return attempt.error("too many redirects");
+            }
+            if meuxe_core::marketplace::marketplace_redirect_allowed(attempt.url()) {
+                attempt.follow()
+            } else {
+                let host = attempt.url().host_str().unwrap_or("unknown").to_string();
+                attempt.error(format!("redirect host is not allowlisted: {host}"))
+            }
+        }))
         .build()
         .map_err(|e| e.to_string())?;
 
     let response = client
         .get(&url)
+        .header(reqwest::header::ACCEPT, "application/octet-stream,*/*")
         .send()
         .await
         .map_err(|e| format!("Failed to download model: {e}"))?;
 
     if !response.status().is_success() {
-        return Err(format!("Download failed with status {}", response.status()));
+        return Err(format!(
+            "Download failed with status {} from {}",
+            response.status(),
+            response.url()
+        ));
     }
 
     let bytes = response
