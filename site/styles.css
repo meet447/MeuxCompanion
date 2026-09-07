@@ -41,6 +41,7 @@ body {
   line-height: 1.6;
   color: var(--ink);
   background: var(--canvas);
+  color-scheme: light;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -310,11 +311,10 @@ main {
 
 .feels h2 {
   margin: 0 0 40px;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-3);
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
 .feel-row {
