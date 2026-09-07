@@ -108,10 +108,7 @@ export const VRMCanvas = memo(function VRMCanvas({
   const showMiniUi = uiMode === "mini";
 
   return (
-    <div
-      className="w-full h-full flex items-center justify-center relative overflow-hidden"
-      style={{ background }}
-    >
+    <div className="relative h-full w-full overflow-hidden" style={{ background }}>
       <LoadingOverlay
         visible={modelLoading}
         message="Loading VRM model..."
@@ -126,21 +123,23 @@ export const VRMCanvas = memo(function VRMCanvas({
         </div>
       )}
       {!modelPath && !showMiniUi && (
-        <div className="px-6 text-center">
-          <p className="text-lg font-medium text-ink-2">No VRM model loaded</p>
-          <p className="mt-2 text-sm text-ink-3">
-            Add a <code className="rounded-[6px] bg-well px-1 font-mono text-[12px] text-ink-2">.vrm</code> file to <code className="rounded-[6px] bg-well px-1 font-mono text-[12px] text-ink-2">models/vrm/</code>
-          </p>
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+          <div>
+            <p className="text-lg font-medium text-ink-2">No VRM model loaded</p>
+            <p className="mt-2 text-sm text-ink-3">
+              Add a <code className="rounded-[6px] bg-well px-1 font-mono text-[12px] text-ink-2">.vrm</code> file to <code className="rounded-[6px] bg-well px-1 font-mono text-[12px] text-ink-2">models/vrm/</code>
+            </p>
+          </div>
         </div>
       )}
       {!modelPath && showMiniUi && (
-        <div className="text-center">
+        <div className="absolute inset-0 flex items-center justify-center text-center">
           <p className="text-lg text-ink-3">No VRM model loaded</p>
         </div>
       )}
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
+        className="absolute inset-0 block h-full w-full cursor-grab active:cursor-grabbing"
         style={{
           display: modelPath ? "block" : "none",
           touchAction: "none",

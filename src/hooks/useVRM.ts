@@ -286,7 +286,8 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     const size = new THREE.Vector2();
     renderer.getSize(size);
     if (size.x !== w || size.y !== h) {
-      renderer.setSize(w, h);
+      // false = don't overwrite CSS; absolute inset-0 + h/w-full owns layout.
+      renderer.setSize(w, h, false);
     }
   }, [canvasRef, readCanvasSize]);
 
@@ -638,7 +639,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
             return;
           }
           const { w, h } = readCanvasSize();
-          renderer.setSize(Math.max(w, 1), Math.max(h, 1));
+          renderer.setSize(Math.max(w, 1), Math.max(h, 1), false);
           renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
           renderer.outputColorSpace = SRGBColorSpace;
           renderer.toneMapping = ACESFilmicToneMapping;
