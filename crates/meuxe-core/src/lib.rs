@@ -5,6 +5,7 @@ pub mod expressions;
 pub mod fs_util;
 pub mod ids;
 pub mod llm;
+pub mod marketplace;
 pub mod memory;
 pub mod prompt;
 pub mod reset;

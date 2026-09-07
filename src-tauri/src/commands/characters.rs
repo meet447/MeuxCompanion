@@ -128,6 +128,45 @@ pub async fn models_import_live2d_dialog(
 }
 
 #[tauri::command]
+pub async fn models_install_from_url(
+    state: State<'_, Arc<AppState>>,
+    model_id: String,
+    url: String,
+) -> Result<ModelInfo, String> {
+    require_id(&model_id)?;
+    meuxe_core::marketplace::validate_marketplace_download_url(&url).map_err(|e| e.to_string())?;
+
+    let data_dir = state.data_dir.clone();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download model: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Download failed with status {}", response.status()));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read downloaded model: {e}"))?;
+
+    tokio::task::spawn_blocking(move || {
+        meuxe_core::marketplace::install_vrm_model(&data_dir, &model_id, &bytes)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub async fn models_import_vrm_dialog(
     state: State<'_, Arc<AppState>>,
 ) -> Result<Option<ModelInfo>, String> {

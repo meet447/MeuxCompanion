@@ -209,6 +209,7 @@ pub fn run() {
             commands::characters::models_list,
             commands::characters::models_import_live2d_dialog,
             commands::characters::models_import_vrm_dialog,
+            commands::characters::models_install_from_url,
             commands::chat::chat_send,
             commands::chat::chat_cancel,
             commands::chat::chat_tool_confirm,

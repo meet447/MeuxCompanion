@@ -41,6 +41,7 @@ Phases are ordered; later work assumes earlier product polish unless noted.
 - [x] Agent picker with validated presets (OpenCode, Claude Code, Codex, custom)
 - [ ] Optional Meuxe MCP server (`remember`, `recall`, `how_do_you_feel`) for agents that prefer tools to turn notes
 - [ ] Character packs (file-only distribution)
+- [x] Avatar model marketplace (curated Live2D samples + installable CC0 VRM looks)
 
 ## Tracking
 

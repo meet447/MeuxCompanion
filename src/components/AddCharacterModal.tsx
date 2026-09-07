@@ -11,7 +11,7 @@ import { COMPANION_VIBE_PACKS } from "../lib/companionVibes";
 import { DEFAULT_TTS_VOICE } from "../lib/ttsPresets";
 import type { AppConfig, ModelInfo } from "../types";
 import { CompanionAvatarPreview } from "./onboarding/CompanionAvatarPreview";
-import { ModelPicker } from "./settings/ModelPicker";
+import { ModelMarketplace } from "./marketplace/ModelMarketplace";
 import {
   Button,
   ChevronDownIcon,
@@ -25,7 +25,6 @@ import {
   Select,
   Surface,
   Textarea,
-  UploadIcon,
   VibeGlyph,
   WandIcon,
 } from "./ui";
@@ -264,35 +263,22 @@ export function AddCharacterModal({
 
               <Field
                 label="Look"
-                hint="Live2D or 3D VRM. The preview updates as you choose."
+                hint="Browse the marketplace, install a free look, or import your own files."
               >
-                {models.length > 0 ? (
-                  <ModelPicker models={models} selectedId={modelId} onSelect={setModelId} />
-                ) : (
-                  <Notice tone="neutral">No models detected yet. Import one below.</Notice>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    leading={<UploadIcon className="h-4 w-4" />}
-                    loading={importing === "live2d"}
-                    disabled={importing !== null}
-                    onClick={() => handleImportModel("live2d")}
-                  >
-                    Import Live2D
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    leading={<UploadIcon className="h-4 w-4" />}
-                    loading={importing === "vrm"}
-                    disabled={importing !== null}
-                    onClick={() => handleImportModel("vrm")}
-                  >
-                    Import VRM
-                  </Button>
-                </div>
+                <ModelMarketplace
+                  installedModels={models}
+                  selectedId={modelId}
+                  onSelect={setModelId}
+                  onInstalled={async (model) => {
+                    const refreshed = (await listModels()) as ModelInfo[];
+                    setModels(refreshed);
+                    setModelId(model.id);
+                    setImportMessage(`Installed "${model.id}" and selected it.`);
+                  }}
+                  onImportLive2D={() => handleImportModel("live2d")}
+                  onImportVRM={() => handleImportModel("vrm")}
+                  importing={importing}
+                />
                 {importMessage ? (
                   <Notice tone="success" className="mt-3">
                     {importMessage}

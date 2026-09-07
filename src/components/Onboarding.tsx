@@ -15,7 +15,7 @@ import { DEFAULT_TTS_PROVIDER, DEFAULT_TTS_VOICE, TTS_PRESETS_UI } from "../lib/
 import { AgentSection } from "./settings/AgentSection";
 import { TtsSection } from "./settings/TtsSection";
 import { CompanionAvatarPreview } from "./onboarding/CompanionAvatarPreview";
-import { ModelPicker } from "./settings/ModelPicker";
+import { ModelMarketplace } from "./marketplace/ModelMarketplace";
 import { OnboardingShell } from "./onboarding/OnboardingShell";
 import {
   BackIcon,
@@ -429,10 +429,16 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
           </Field>
 
           <Field label="Look" className="mt-4 mb-0">
-            <ModelPicker
-              models={models}
+            <ModelMarketplace
+              compact
+              installedModels={models}
               selectedId={form.companion.model_id}
               onSelect={(id) => updateForm("companion", "model_id", id)}
+              onInstalled={async (model) => {
+                const refreshed = await listModels();
+                setModels(refreshed);
+                updateForm("companion", "model_id", model.id);
+              }}
             />
           </Field>
         </>
