@@ -1,4 +1,5 @@
 import { cn } from "../ui/cn";
+import { displayNameForModelId } from "../../lib/marketplaceCatalog";
 
 export interface PreviewModel {
   id: string;
@@ -16,12 +17,6 @@ export function ModelPicker({
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
-  const labelFor = (model: PreviewModel) => {
-    if (model.id === "haru") return "Haru";
-    if (model.id === "utsuwa") return "Utsuwa";
-    return model.id;
-  };
-
   const typeLabel = (type: string) => (type === "vrm" ? "3D VRM" : "Live2D");
   if (models.length === 0) {
     return (
@@ -47,7 +42,7 @@ export function ModelPicker({
                 : "bg-surface-2 text-ink-2 shadow-soft hover:bg-white hover:text-ink",
             )}
           >
-            {labelFor(model)}
+            {displayNameForModelId(model.id)}
             <span className="ml-1.5 text-xs font-normal text-ink-4">{typeLabel(model.type)}</span>
           </button>
         );

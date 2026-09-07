@@ -36,13 +36,20 @@ export function AgentSection({
 
   return (
     <div className="space-y-6">
-      <div className={friendly ? "mb-4 grid grid-cols-1 gap-3" : "grid grid-cols-1 gap-3"}>
+      <div
+        className={
+          friendly
+            ? "mb-4 grid grid-cols-2 gap-2.5"
+            : "grid grid-cols-1 gap-2.5 sm:grid-cols-2"
+        }
+      >
         {ACP_AGENT_PRESET_IDS.map((id) => (
           <AgentPresetCard
             key={id}
             id={id}
             selected={value.preset === id}
             onSelect={() => patch("preset", id)}
+            compact={friendly}
           />
         ))}
       </div>

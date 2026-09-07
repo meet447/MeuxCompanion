@@ -41,4 +41,19 @@ describe("TtsSection", () => {
       provider: "elevenlabs",
     });
   });
+
+  it("hides provider descriptions in compact onboarding layout", () => {
+    render(
+      <TtsSection
+        value={baseValue}
+        onChange={vi.fn()}
+        voices={[{ id: "en_us_001", name: "Default" }]}
+        presets={TTS_PRESETS_UI}
+        compactGrid
+      />,
+    );
+    expect(screen.getByText("Meuxe TTS")).toBeInTheDocument();
+    expect(screen.queryByText(/Built into Meuxe/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Studio voices/i)).not.toBeInTheDocument();
+  });
 });
