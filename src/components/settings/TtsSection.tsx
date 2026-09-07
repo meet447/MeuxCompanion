@@ -82,7 +82,11 @@ export function TtsSection({
               onClick={() => patch("provider", id)}
               leading={<SpeakerIcon className="h-5 w-5" />}
               title={preset.name}
-              description={preset.hint ?? (preset.needs_key ? "Needs an API key" : "Built in, no key needed")}
+              description={
+                compactGrid
+                  ? undefined
+                  : (preset.hint ?? (preset.needs_key ? "Needs an API key" : "Built in, no key needed"))
+              }
               trailing={
                 configuredProviders?.[id]?.configured && value.provider !== id ? (
                   <Pill tone="sage" size="xs">
