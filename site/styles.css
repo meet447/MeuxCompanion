@@ -266,7 +266,7 @@ main {
 .hero-meta {
   margin: 14px 0 0;
   font-size: 13px;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 .hero-visual {
@@ -510,7 +510,11 @@ main {
   }
 
   .hero-visual {
-    order: -1;
+    order: 0;
+  }
+
+  .hero-copy {
+    order: 0;
   }
 
   .hero-anchor-mascot {
