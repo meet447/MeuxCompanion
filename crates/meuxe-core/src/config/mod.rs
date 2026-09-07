@@ -46,7 +46,13 @@ impl ConfigManager {
             return Ok(AppConfig::default());
         }
         let data = std::fs::read_to_string(&self.config_path)?;
-        let config: AppConfig = serde_json::from_str(&data)?;
+        let mut config: AppConfig = serde_json::from_str(&data)?;
+        if crate::tts::is_system_speech_provider(&config.tts.provider) {
+            config.tts.provider = "system".to_string();
+            if config.tts.voice == "en_us_001" {
+                config.tts.voice.clear();
+            }
+        }
         Ok(config)
     }
 
@@ -90,8 +96,7 @@ impl ConfigManager {
                 merged.llm.base_url = existing.llm.base_url;
                 merged.llm.model = existing.llm.model.clone();
             }
-            if merged.tts.voice.is_empty() {
-                merged.tts.voice = existing.tts.voice.clone();
+            if merged.tts.provider.is_empty() {
                 merged.tts.provider = existing.tts.provider.clone();
             }
 
@@ -152,24 +157,24 @@ mod tests {
         assert_eq!(config.user.name, "");
         assert!(!config.onboarding_complete);
         assert!(config.llm_providers.is_empty());
-        assert_eq!(config.tts.provider, "tiktok");
-        assert_eq!(config.tts.voice, "en_us_001");
+        assert_eq!(config.tts.provider, "system");
+        assert_eq!(config.tts.voice, "");
         assert_eq!(config.tts.api_key, None);
     }
 
     #[test]
     fn test_tts_config_defaults() {
         let tts = TtsConfig::default();
-        assert_eq!(tts.provider, "tiktok");
-        assert_eq!(tts.voice, "en_us_001");
+        assert_eq!(tts.provider, "system");
+        assert_eq!(tts.voice, "");
         assert_eq!(tts.api_key, None);
     }
 
     #[test]
     fn test_tts_config_deserialize_empty_applies_defaults() {
         let tts: TtsConfig = serde_json::from_str("{}").unwrap();
-        assert_eq!(tts.provider, "tiktok");
-        assert_eq!(tts.voice, "en_us_001");
+        assert_eq!(tts.provider, "system");
+        assert_eq!(tts.voice, "");
         assert_eq!(tts.api_key, None);
     }
 
@@ -301,6 +306,23 @@ mod tests {
         assert_eq!(loaded.user.name, "Bob Smith");
         assert_eq!(loaded.user.id, original_id);
         assert_eq!(loaded.user.id, "alice_nova");
+    }
+
+    #[test]
+    fn load_migrates_tiktok_tts_to_system() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.json");
+        std::fs::write(
+            &path,
+            r#"{
+              "tts": { "provider": "tiktok", "voice": "en_us_001" }
+            }"#,
+        )
+        .unwrap();
+        let mgr = ConfigManager::new(tmp.path());
+        let loaded = mgr.load().unwrap();
+        assert_eq!(loaded.tts.provider, "system");
+        assert_eq!(loaded.tts.voice, "");
     }
 
     #[cfg(unix)]

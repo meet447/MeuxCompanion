@@ -1,6 +1,3 @@
-#[path = "../whisper.rs"]
-mod whisper;
-
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use meuxe_core::config::types::AppConfig;
@@ -158,7 +155,7 @@ pub async fn voice_transcribe_local(pcm_base64: String) -> Result<String, String
         return Err("Empty PCM audio data".into());
     }
 
-    let ctx = whisper::get_ctx()?;
+    let ctx = crate::whisper::get_ctx()?;
 
     let text = tokio::task::spawn_blocking(move || whisper_transcribe_inner(&ctx, &pcm_samples))
         .await
@@ -245,15 +242,15 @@ pub async fn voice_transcribe(
     }
 
     Err(if last_error.is_empty() {
-        "Voice transcription failed. Configure OpenAI or Groq for voice input.".to_string()
+        "On-device transcription needs the Whisper model. Download it in Settings.".to_string()
     } else {
         format!("Voice transcription failed: {last_error}")
     })
 }
 
 #[tauri::command]
-pub fn voice_whisper_status(state: State<'_, Arc<AppState>>) -> whisper::WhisperStatus {
-    whisper::whisper_status(&state.data_dir)
+pub fn voice_whisper_status(state: State<'_, Arc<AppState>>) -> crate::whisper::WhisperStatus {
+    crate::whisper::whisper_status(&state.data_dir)
 }
 
 #[tauri::command]
@@ -261,5 +258,5 @@ pub async fn voice_whisper_download(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
-    whisper::download_whisper_model(&app, &state.data_dir).await
+    crate::whisper::download_whisper_model(&app, &state.data_dir).await
 }

@@ -2,6 +2,7 @@
   "name": "meuxe-desktop",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "predev": "node scripts/fetch-cubism-core.mjs",
