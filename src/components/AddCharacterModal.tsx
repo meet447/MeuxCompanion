@@ -12,6 +12,7 @@ import { DEFAULT_TTS_VOICE } from "../lib/ttsPresets";
 import type { AppConfig, ModelInfo } from "../types";
 import { CompanionAvatarPreview } from "./onboarding/CompanionAvatarPreview";
 import { ModelMarketplace } from "./marketplace/ModelMarketplace";
+import { MARKETPLACE_LISTINGS } from "../lib/marketplaceCatalog";
 import {
   Button,
   ChevronDownIcon,
@@ -128,6 +129,11 @@ export function AddCharacterModal({
       animations: selectedModel.animations,
     };
   }, [selectedModel]);
+
+  const previewThumbnailUrl = useMemo(() => {
+    if (!modelId) return null;
+    return MARKETPLACE_LISTINGS.find((listing) => listing.id === modelId)?.thumbnailUrl ?? null;
+  }, [modelId]);
 
   const selectedVibePack = COMPANION_VIBE_PACKS.find((pack) => pack.id === vibe);
 
@@ -249,6 +255,7 @@ export function AddCharacterModal({
                   model={previewModel}
                   companionName={name}
                   vibeLabel={selectedVibePack?.title}
+                  thumbnailUrl={previewThumbnailUrl}
                   className="h-[220px]"
                 />
               </div>
@@ -379,6 +386,7 @@ export function AddCharacterModal({
                 model={previewModel}
                 companionName={name}
                 vibeLabel={selectedVibePack?.title}
+                thumbnailUrl={previewThumbnailUrl}
                 className="h-full min-h-[420px] rounded-panel"
               />
             </div>

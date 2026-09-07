@@ -154,10 +154,9 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
 
     if (rendererRef.current) {
-      const renderer = rendererRef.current;
-      renderer.forceContextLoss?.();
-      renderer.getContext()?.getExtension("WEBGL_lose_context")?.loseContext();
-      renderer.dispose();
+      // Soft dispose only — forceContextLoss can poison the next WebGL context on
+      // software/GL drivers with a low context limit (blank VRM preview after main unmount).
+      rendererRef.current.dispose();
       rendererRef.current = null;
     }
 
@@ -716,7 +715,10 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         }
 
         if (!vrm || !sceneRef.current || !rendererRef.current) {
-          console.error("[VRM] Failed to load: scene or renderer destroyed");
+          const message = "Failed to load: scene or renderer destroyed";
+          console.error(`[VRM] ${message}`);
+          lastErrorRef.current = message;
+          setLastError(message);
           return;
         }
 
