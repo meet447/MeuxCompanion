@@ -187,6 +187,55 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     };
   }, [canvasRef]);
 
+  const waitForCanvasLayout = useCallback((): Promise<{ w: number; h: number }> => {
+    const measure = () => readCanvasSize();
+
+    return new Promise((resolve) => {
+      const initial = measure();
+      if (initial.w > 0 && initial.h > 0) {
+        resolve(initial);
+        return;
+      }
+
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        resolve({ w: 0, h: 0 });
+        return;
+      }
+
+      console.log("[VRM] Waiting for canvas layout before load…");
+
+      let settled = false;
+      const finish = (size: { w: number; h: number }) => {
+        if (settled) return;
+        settled = true;
+        observer?.disconnect();
+        resolve(size);
+      };
+
+      let observer: ResizeObserver | undefined;
+      const parent = canvas.parentElement;
+      if (parent) {
+        observer = new ResizeObserver(() => {
+          const size = measure();
+          if (size.w > 0 && size.h > 0) finish(size);
+        });
+        observer.observe(parent);
+        observer.observe(canvas);
+      }
+
+      const poll = () => {
+        const size = measure();
+        if (size.w > 0 && size.h > 0) {
+          finish(size);
+          return;
+        }
+        requestAnimationFrame(poll);
+      };
+      requestAnimationFrame(poll);
+    });
+  }, [canvasRef, readCanvasSize]);
+
   const layoutRendererSize = useCallback(() => {
     if (!cameraRef.current || !rendererRef.current || !canvasRef.current) return;
     const { w, h } = readCanvasSize();
@@ -499,6 +548,17 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
       const generation = ++loadGenerationRef.current;
 
+      const layout = await waitForCanvasLayout();
+      if (generation !== loadGenerationRef.current) return;
+      console.log(`[VRM] Load starting (${layout.w}x${layout.h}):`, modelPath);
+      if (layout.w <= 0 || layout.h <= 0) {
+        const message = "Canvas has zero size";
+        lastErrorRef.current = message;
+        setLastError(message);
+        console.warn("[VRM] Load aborted:", message);
+        return;
+      }
+
       // Stop animation (invalidate any in-flight RAF loop)
       loopGenerationRef.current += 1;
       animatingRef.current = false;
@@ -714,6 +774,7 @@ export function useVRM(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       resetOrbitRotation,
       loadVrmaClip,
       readCanvasSize,
+      waitForCanvasLayout,
     ],
   );
 

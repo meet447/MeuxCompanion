@@ -227,7 +227,7 @@ export function AddCharacterModal({
         radius="sheet"
         tone="surface"
         elevation="pop"
-        className="relative z-[101] flex max-h-[92vh] w-full max-w-5xl animate-pop-in flex-col overflow-hidden"
+        className="relative z-[101] flex max-h-[92vh] w-full max-w-5xl animate-fade-in flex-col overflow-hidden"
       >
         <div className="flex shrink-0 items-start justify-between gap-4 px-7 pb-4 pt-6">
           <div>
