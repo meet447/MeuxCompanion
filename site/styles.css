@@ -354,6 +354,62 @@ main {
   max-width: none;
 }
 
+/* ── Product moments ── */
+.moments {
+  padding: 96px 0;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.moments h2 {
+  margin: 0 0 14px;
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.moments-lead {
+  margin: 0 auto 40px;
+  color: var(--ink-2);
+  max-width: 42ch;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.moments-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  width: 100%;
+  text-align: left;
+}
+
+.moment {
+  margin: 0;
+}
+
+.moment-shot {
+  background: var(--surface);
+  border-radius: var(--radius-panel);
+  corner-shape: squircle;
+  padding: 6px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.moment-shot img {
+  width: 100%;
+  border-radius: calc(var(--radius-panel) - 4px);
+  corner-shape: squircle;
+}
+
+.moment figcaption {
+  font-size: 14px;
+  color: var(--ink-2);
+  text-align: center;
+  line-height: 1.5;
+}
+
 /* ── Agents ── */
 .agents {
   padding: 96px 0;
@@ -542,6 +598,7 @@ main {
   }
 
   .feels,
+  .moments,
   .agents,
   .onboarding {
     padding: 56px 0;
@@ -553,6 +610,13 @@ main {
     max-width: 480px;
     margin: 0 auto;
     text-align: left;
+  }
+
+  .moments-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    max-width: 640px;
+    margin: 0 auto;
   }
 
   .agent-row {
