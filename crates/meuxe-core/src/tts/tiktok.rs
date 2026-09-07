@@ -129,7 +129,7 @@ async fn generate_audio(text: &str, voice: &str, endpoint: &str) -> Result<Vec<u
         resp.url()
     );
 
-    // Don't check status code — just read body like the Python version
+    // Don't check status code - just read body like the Python version
     let bytes = resp
         .bytes()
         .await

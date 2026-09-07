@@ -244,7 +244,7 @@ fn status_from_resolution(preset: &str, resolution: AgentResolution) -> AgentPre
                     system_command.clone().unwrap_or_default()
                 ),
                 AgentInstallSource::Npx => {
-                    "No global adapter found — will run via npx on chat (install globally for a fixed version).".into()
+                    "No global adapter found - will run via npx on chat (install globally for a fixed version).".into()
                 }
                 AgentInstallSource::None => {
                     "Install Node.js, then npm i -g @agentclientprotocol/claude-agent-acp (or use Install in settings).".into()
@@ -260,7 +260,7 @@ fn status_from_resolution(preset: &str, resolution: AgentResolution) -> AgentPre
                     system_command.clone().unwrap_or_default()
                 ),
                 AgentInstallSource::Npx => {
-                    "No global adapter found — will run via npx on chat (install globally for a fixed version).".into()
+                    "No global adapter found - will run via npx on chat (install globally for a fixed version).".into()
                 }
                 AgentInstallSource::None => {
                     "Install Node.js, then npm i -g @agentclientprotocol/codex-acp (or use Install in settings).".into()
@@ -309,9 +309,44 @@ pub async fn check_preset(data_dir: &Path, preset: &str) -> AgentPresetSetupStat
     }
 }
 
+/// User-writable npm global prefix (avoids system `/usr/lib/node_modules` when npm prefix is `/`).
+pub fn meuxe_npm_global_prefix() -> Result<PathBuf, String> {
+    #[cfg(windows)]
+    {
+        let appdata = std::env::var("APPDATA")
+            .map_err(|_| "APPDATA is not set; cannot determine npm global prefix".to_string())?;
+        Ok(PathBuf::from(appdata).join("npm"))
+    }
+    #[cfg(not(windows))]
+    {
+        let home = std::env::var("HOME")
+            .map_err(|_| "HOME is not set; cannot determine npm global prefix".to_string())?;
+        Ok(PathBuf::from(home).join(".npm-global"))
+    }
+}
+
+fn ensure_dir(path: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(path).map_err(|e| format!("Failed to create {}: {e}", path.display()))
+}
+
 async fn run_npm_global_install(package: &str) -> Result<(), String> {
+    let prefix = meuxe_npm_global_prefix()?;
+    ensure_dir(&prefix)?;
+    #[cfg(not(windows))]
+    ensure_dir(&prefix.join("bin"))?;
+
+    let prefix_str = prefix.to_string_lossy().into_owned();
     let child = AsyncCommand::new("npm")
-        .args(["install", "-g", "--no-audit", "--no-fund", package])
+        .args([
+            "install",
+            "-g",
+            "--prefix",
+            &prefix_str,
+            "--no-audit",
+            "--no-fund",
+            package,
+        ])
+        .env("NPM_CONFIG_PREFIX", &prefix_str)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -328,14 +363,18 @@ async fn run_npm_global_install(package: &str) -> Result<(), String> {
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        Err(format!(
-            "npm install -g failed: {}",
-            if !stderr.trim().is_empty() {
-                stderr.trim().to_string()
-            } else {
-                stdout.trim().to_string()
-            }
-        ))
+        let message = if !stderr.trim().is_empty() {
+            stderr.trim().to_string()
+        } else {
+            stdout.trim().to_string()
+        };
+        let mut err = format!("npm install -g failed: {message}");
+        if message.contains("EACCES") {
+            err.push_str(
+                " Hint: Meuxe installs into ~/.npm-global (or %APPDATA%\\npm on Windows); ensure that directory is writable.",
+            );
+        }
+        Err(err)
     }
 }
 
@@ -349,7 +388,7 @@ fn preset_npm_package(preset: &str) -> Result<&'static str, String> {
     }
 }
 
-/// Install the preset's npm package with `npm install -g` (user-global, same as terminal).
+/// Install the preset's npm package into the Meuxe user npm prefix (`~/.npm-global` / `%APPDATA%\\npm`).
 pub async fn install_global_package(preset: &str) -> Result<(), String> {
     let prerequisites = check_prerequisites().await;
     if !prerequisites.node_available {
@@ -441,5 +480,25 @@ mod tests {
 
         let found = find_executable_in_dirs("opencode", &[tmp.path().to_path_buf()]);
         assert!(found.is_some());
+    }
+
+    #[test]
+    fn meuxe_npm_global_prefix_uses_home_on_unix() {
+        #[cfg(not(windows))]
+        {
+            let home = std::env::var("HOME").expect("HOME must be set for this test");
+            let prefix = meuxe_npm_global_prefix().unwrap();
+            assert_eq!(prefix, PathBuf::from(home).join(".npm-global"));
+        }
+    }
+
+    #[test]
+    fn meuxe_npm_global_prefix_uses_appdata_on_windows() {
+        #[cfg(windows)]
+        {
+            let appdata = std::env::var("APPDATA").expect("APPDATA must be set for this test");
+            let prefix = meuxe_npm_global_prefix().unwrap();
+            assert_eq!(prefix, PathBuf::from(appdata).join("npm"));
+        }
     }
 }

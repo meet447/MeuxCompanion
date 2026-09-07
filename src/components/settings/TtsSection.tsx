@@ -61,7 +61,7 @@ export function TtsSection({
 
       {showBuiltInNotice && (
         <Notice tone="success" className="mb-4">
-          Meuxe TTS is built in and free — ready to use with no API key. ElevenLabs and OpenAI are optional if you want studio voices.
+          Meuxe TTS is built in and free - ready to use with no API key. ElevenLabs and OpenAI are optional if you want studio voices.
         </Notice>
       )}
 
@@ -82,7 +82,11 @@ export function TtsSection({
               onClick={() => patch("provider", id)}
               leading={<SpeakerIcon className="h-5 w-5" />}
               title={preset.name}
-              description={preset.hint ?? (preset.needs_key ? "Needs an API key" : "Built in, no key needed")}
+              description={
+                compactGrid
+                  ? undefined
+                  : (preset.hint ?? (preset.needs_key ? "Needs an API key" : "Built in, no key needed"))
+              }
               trailing={
                 configuredProviders?.[id]?.configured && value.provider !== id ? (
                   <Pill tone="sage" size="xs">
@@ -112,7 +116,7 @@ export function TtsSection({
 
       {!currentPreset?.needs_key && !showBuiltInNotice && (
         <Notice tone="success">
-          Meuxe TTS is the default — built in and free, with no account or API key needed.
+          Meuxe TTS is the default - built in and free, with no account or API key needed.
         </Notice>
       )}
 

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <!--
-    Meuxe app icon — master artwork, full bleed (no corner radius,
+    Meuxe app icon - master artwork, full bleed (no corner radius,
     margin or drop shadow). Platform masks are applied downstream:
     macOS 26+ masks to its squircle itself; scripts/generate-icons.mjs
     emits a rounded-corner variant for Windows/Linux and a legacy-macOS

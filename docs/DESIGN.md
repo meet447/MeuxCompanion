@@ -1,8 +1,8 @@
 # Meuxe design language
 
-Meuxe should feel like a **personal desk companion**, not a tech demo or an enterprise AI console. The visual system balances Linear/Raycast-style utility (structured sidebar, keyboard-first, quiet chrome) with Notion-style warmth from the mascot and pastel tints — never from warm greys.
+Meuxe should feel like a **personal desk companion**, not a tech demo or an enterprise AI console. The visual system balances Linear/Raycast-style utility (structured sidebar, keyboard-first, quiet chrome) with Notion-style warmth from the mascot and pastel tints - never from warm greys.
 
-Tokens live in `src/index.css` (`@theme`). Primitives live in `src/components/ui/`. **Use them** — do not hand-roll colours, radii, shadows or icons in feature components.
+Tokens live in `src/index.css` (`@theme`). Primitives live in `src/components/ui/`. **Use them** - do not hand-roll colours, radii, shadows or icons in feature components.
 
 ## Principles
 
@@ -25,26 +25,26 @@ Tokens live in `src/index.css` (`@theme`). Primitives live in `src/components/ui
 | `well` `#f0f0f2` / `well-2` `#e6e6e9` | Sunken insets, resting inputs, sidebar rails, code |
 | `line` `#ebebee` / `line-2` `#dcdce0` | Hairlines (sparingly) |
 | `ink` `#1b1b1e` → `ink-4` `#bbbbc2` | Text: primary, secondary, tertiary, placeholder |
-| `accent-*` (pastel amber, 300 = `#f3cd78`) | Tint for highlights, selection rings, links, mascot body, user chat bubbles (`bg-accent-300 text-ink`). Not for filled buttons with white text — primary actions are ink. |
+| `accent-*` (pastel amber, 300 = `#f3cd78`) | Tint for highlights, selection rings, links, mascot body, user chat bubbles (`bg-accent-300 text-ink`). Not for filled buttons with white text - primary actions are ink. |
 | `peach-*` (pastel rose) | Soft highlights |
 | `honey-*` (pastel lemon) | In progress, needs attention |
 | `sage-*` (pastel mint) | Ready / success |
 | `clay-*` (pastel coral) | Destructive / errors |
 
-The default Tailwind palette is disabled (`--color-*: initial`). If a class like `bg-slate-100` slips in it will silently render nothing — grep for `slate|blue|indigo|violet|gray|emerald|red-` before merging.
+The default Tailwind palette is disabled (`--color-*: initial`). If a class like `bg-slate-100` slips in it will silently render nothing - grep for `slate|blue|indigo|violet|gray|emerald|red-` before merging.
 
 ## Type
 
-- **Figtree** for all UI. Headings 600–700, `tracking-tight`, line-height 1.2. Body 400–500, 14–15px, relaxed line height.
+- **Figtree** for all UI. Headings 600-700, `tracking-tight`, line-height 1.2. Body 400-500, 14-15px, relaxed line height.
 - **JetBrains Mono** for code, file paths, tool arguments and the ASCII accent.
-- Sizes: page title 22–26px, section 15–16px semibold, body 14–15px, meta 12–13px `ink-3`, pills 11px.
+- Sizes: page title 22-26px, section 15-16px semibold, body 14-15px, meta 12-13px `ink-3`, pills 11px.
 
 ## Layout
 
-- **App shell** — canvas background with 12px padding; a 64px icon rail on the left (mark on top, settings at bottom); the avatar stage is a `rounded-panel` `surface` card that fills the rest. The conversation docks to the right as a second panel (not an overlay). Settings opens as a centred sheet with its own left navigation.
-- **Composer** — a single pill field (`rounded-full`, `surface-2`, hairline edge via `shadow-float`) anchored at the bottom of the stage: mic on the left, ink send button on the right.
-- **Onboarding** — centred single-column flow on a light page (`bg-surface`): thin top bar with the mark and five tiny progress dots on the right; mascot, meta line, heading and subtitle centred; content in a 560px column; footer row with ghost Back on the left and an ink primary Continue on the right.
-- **Mini widget** — transparent window. Chrome stays minimal and appears on hover; same tokens, same radii.
+- **App shell** - canvas background with 12px padding; a 64px icon rail on the left (mark on top, settings at bottom); the avatar stage is a `rounded-panel` `surface` card that fills the rest. The conversation docks to the right as a second panel (not an overlay). Settings opens as a centred sheet with its own left navigation.
+- **Composer** - a single pill field (`rounded-full`, `surface-2`, hairline edge via `shadow-float`) anchored at the bottom of the stage: mic on the left, ink send button on the right.
+- **Onboarding** - centred single-column flow on a light page (`bg-surface`): thin top bar with the mark and five tiny progress dots on the right; mascot, meta line, heading and subtitle centred; content in a 560px column; footer row with ghost Back on the left and an ink primary Continue on the right.
+- **Mini widget** - transparent window. Chrome stays minimal and appears on hover; same tokens, same radii.
 
 ## Primitives (`src/components/ui`)
 
@@ -70,10 +70,10 @@ Short and soft: `animate-fade-in`, `animate-rise-in`, `animate-pop-in` (≤350ms
 
 ## App icon
 
-The master artwork is `src-tauri/icons/source/icon.svg`: a 1024px **full-bleed** amber tile with the cream mascot blob. It deliberately has no corner radius, margin or shadow — platforms mask it differently:
+The master artwork is `src-tauri/icons/source/icon.svg`: a 1024px **full-bleed** amber tile with the cream mascot blob. It deliberately has no corner radius, margin or shadow - platforms mask it differently:
 
-- **macOS** — `icon.icns` is built on Apple's grid (824px squircle, 100px margin, no baked shadow). macOS 26+ applies its own squircle and lighting, so the artwork must work when masked.
-- **Windows / Linux** — full-bleed tile with 22.4% rounded corners (`icon.ico`, `Square*Logo.png`, `32x32.png`…).
-- **Tray** — `icons/tray/trayTemplate*.png` is a monochrome template image (black silhouette, transparent eye/mouth holes) for the macOS menu bar; `tray*.png` is the coloured tile for Windows/Linux.
+- **macOS** - `icon.icns` is built on Apple's grid (824px squircle, 100px margin, no baked shadow). macOS 26+ applies its own squircle and lighting, so the artwork must work when masked.
+- **Windows / Linux** - full-bleed tile with 22.4% rounded corners (`icon.ico`, `Square*Logo.png`, `32x32.png`…).
+- **Tray** - `icons/tray/trayTemplate*.png` is a monochrome template image (black silhouette, transparent eye/mouth holes) for the macOS menu bar; `tray*.png` is the coloured tile for Windows/Linux.
 
 Edit the SVG, then run `npm run icons` (`scripts/generate-icons.mjs`) to regenerate every file. Never edit the PNGs by hand.
