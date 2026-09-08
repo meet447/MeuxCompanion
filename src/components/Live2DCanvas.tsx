@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, memo, useMemo } from "react";
 import { useLive2D } from "../hooks/useLive2D";
 import type { ModelMapping } from "../types";
 import { LoadingOverlay } from "./LoadingOverlay";
+import { Notice } from "./ui";
 
 interface Props {
   modelPath: string | null;
@@ -49,6 +50,7 @@ export const Live2DCanvas = memo(function Live2DCanvas({
   const expressionRef = useRef(expression);
   expressionRef.current = expression;
   const [modelLoading, setModelLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const dragOffset = { x: 0, y: 0 };
   const mappingKey = useMemo(() => JSON.stringify(modelMapping), [modelMapping]);
 
@@ -64,6 +66,7 @@ export const Live2DCanvas = memo(function Live2DCanvas({
 
     let cancelled = false;
     setModelLoading(true);
+    setLoadError(null);
     loadModel(modelPath, modelMapping || undefined)
       .then(() => {
         if (cancelled) return;
@@ -73,6 +76,11 @@ export const Live2DCanvas = memo(function Live2DCanvas({
           prevExpression.current = expr;
           setExpression(expr);
         }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : String(err);
+        setLoadError(message);
       })
       .finally(() => {
         if (!cancelled) setModelLoading(false);
@@ -119,6 +127,13 @@ export const Live2DCanvas = memo(function Live2DCanvas({
         subMessage="Please wait"
         variant="model"
       />
+      {loadError ? (
+        <div className="pointer-events-none absolute inset-x-8 top-16 z-10">
+          <Notice tone="danger" title="Could not show this look">
+            {loadError}
+          </Notice>
+        </div>
+      ) : null}
       {!modelPath && !showMiniUi && (
         <div className="px-6 text-center">
           <p className="text-lg font-medium text-ink-2">No Live2D model loaded</p>

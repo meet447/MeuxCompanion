@@ -111,6 +111,17 @@ fn resolve_asset_path(
     Err(format!("Asset not found: {clean}"))
 }
 
+#[tauri::command]
+fn read_asset_text(
+    app: tauri::AppHandle,
+    state: tauri::State<Arc<AppState>>,
+    path: String,
+) -> Result<String, String> {
+    let resolved = resolve_asset_path(app, state, path)?;
+    std::fs::read_to_string(&resolved.path)
+        .map_err(|e| format!("Failed to read {}: {e}", resolved.path))
+}
+
 fn resolve_under_root(root: &Path, relative: &str) -> Option<PathBuf> {
     let rel = Path::new(relative);
     if rel.is_absolute() {
@@ -250,6 +261,7 @@ pub fn run() {
             get_data_dir,
             broadcast_event,
             resolve_asset_path,
+            read_asset_text,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
