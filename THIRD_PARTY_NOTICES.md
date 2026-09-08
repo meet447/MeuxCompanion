@@ -63,6 +63,7 @@ System speech, ElevenLabs, and OpenAI are optional alternatives.
 |---------|---------|
 | pixi-live2d-display | MIT |
 | pixi.js | MIT |
+| @pixi/unsafe-eval | MIT |
 | three | MIT |
 | @pixiv/three-vrm | MIT |
 

@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
+import "../lib/installPixiUnsafeEval";
 import * as PIXI from "pixi.js";
 import { Live2DModel } from "pixi-live2d-display/cubism4";
 import type { ModelMapping } from "../types";
