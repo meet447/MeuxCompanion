@@ -48,42 +48,48 @@ Meuxe is a character on your screen who remembers past conversations, speaks wit
 
 <p align="center"><em>First launch: a short guided setup for you, your companion, their voice, and the agent behind them.</em></p>
 
-## Get started
+## Install
 
-### Download (macOS and Linux)
+Pre-built binaries are on [GitHub Releases](https://github.com/meet447/Meuxe/releases). This first release is a **prerelease** for **macOS 11+ (Apple Silicon)** and **Linux** (`.deb` for Ubuntu 22.04+ and AppImage). Intel Macs and Windows are not built yet.
 
-Pre-built installers are on [GitHub Releases](https://github.com/meet447/Meuxe/releases). This first release is a **prerelease** for **macOS 11+ (Apple Silicon)** and **Linux** (`.deb` for Ubuntu 22.04+ and AppImage). Intel Macs and Windows are not built yet.
+### macOS (Apple Silicon)
 
-1. Download the asset that matches your machine.
-2. **macOS:** these builds are unsigned. If Gatekeeper blocks Meuxe, right-click the app → Open, or run `xattr -dr com.apple.quarantine /Applications/Meuxe.app`.
-3. **Linux `.deb`:** `sudo apt install ./Meuxe_*.deb` (pulls WebKitGTK 4.1 and AppIndicator). **AppImage:** `chmod +x Meuxe_*.AppImage && ./Meuxe_*.AppImage` (some distros need FUSE).
-4. First launch walks you through you, your companion, voice, and an assistant. **Chat will not start without an ACP agent** (see [Pick an agent](#pick-an-agent)).
-5. The first time you use the microphone, Meuxe downloads a ~75 MB speech model into app data (`models/whisper/ggml-tiny.bin`). After that, transcription stays on this computer.
+Builds are **not signed or notarized**, so Gatekeeper treats the download as quarantined. macOS may say the developer cannot be verified, or that the app is damaged.
 
-You can also build and run from source:
-
-### Prerequisites
-
-- **Node.js** 22 (see [`.nvmrc`](.nvmrc))
-- **Rust** 1.88.0 with **Cargo** (pinned in [`rust-toolchain.toml`](rust-toolchain.toml); see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
-- **Linux:** WebKitGTK and related dev packages (the same set [used in the release workflow](.github/workflows/release.yml) is a good reference)
-- **An ACP agent** for chat (see [Pick an agent](#pick-an-agent) below)
-- Network access during `npm run build` / `npm run tauri dev` to fetch Live2D Cubism Core (not committed; see `scripts/fetch-cubism-core.mjs`)
-
-### Install and run
+1. Download the `.dmg` from [Releases](https://github.com/meet447/Meuxe/releases).
+2. Open it and drag **Meuxe** into **Applications**.
+3. Clear the quarantine flag (required once):
 
 ```bash
-git clone https://github.com/meet447/Meuxe.git
-cd Meuxe
-npm ci
-npm run tauri dev
+xattr -cr /Applications/Meuxe.app
 ```
 
-### Production build
+4. Open Meuxe from Applications or Spotlight.
+
+If you skip step 3, right-click the app → **Open** sometimes works, but the `xattr` command is the reliable fix.
+
+### Linux
+
+**Debian / Ubuntu (`.deb`)** — also pulls WebKitGTK 4.1 and AppIndicator:
 
 ```bash
-npm run tauri build
+sudo apt install ./Meuxe_*.deb
 ```
+
+**AppImage** (some distros need FUSE):
+
+```bash
+chmod +x Meuxe_*.AppImage
+./Meuxe_*.AppImage
+```
+
+### After install
+
+First launch walks you through you, your companion, voice, and an assistant. **Chat will not start without an ACP agent** (see [Pick an agent](#pick-an-agent)).
+
+The first time you use the microphone, Meuxe downloads a ~75 MB speech model into app data (`models/whisper/ggml-tiny.bin`). After that, transcription stays on this computer.
+
+To hack on Meuxe instead of installing a release, see [Build from source](#build-from-source).
 
 ### Pick an agent
 
@@ -104,8 +110,23 @@ For voice, Meuxe TTS is the default (free, no API key). You can switch to this c
 
 ## Development
 
+### Build from source
+
+- **Node.js** 22 (see [`.nvmrc`](.nvmrc))
+- **Rust** 1.88.0 with **Cargo** (pinned in [`rust-toolchain.toml`](rust-toolchain.toml); see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
+- **Linux:** WebKitGTK and related dev packages (the same set [used in the release workflow](.github/workflows/release.yml) is a good reference)
+- **An ACP agent** for chat (see [Pick an agent](#pick-an-agent))
+- Network access during `npm run build` / `npm run tauri dev` to fetch Live2D Cubism Core (not committed; see `scripts/fetch-cubism-core.mjs`)
+
 ```bash
-npm run tauri dev    # desktop app + hot reload
+git clone https://github.com/meet447/Meuxe.git
+cd Meuxe
+npm ci
+npm run tauri dev
+```
+
+```bash
+npm run tauri build  # production desktop bundle
 npm run dev          # Vite frontend only (without Tauri shell)
 npm test             # Vitest unit tests
 npm run build        # typecheck + production frontend build

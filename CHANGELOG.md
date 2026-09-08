@@ -31,6 +31,6 @@ First public **macOS and Linux** prerelease.
 - Privacy copy lists the assistant, Meuxe TTS, optional studio voices, and the one-time Whisper download.
 
 ### Known limits
-- macOS builds are unsigned; Gatekeeper needs a right-click Open (or removing quarantine) until signing is added.
+- macOS builds are not signed or notarized. After dragging the app to Applications, run `xattr -cr /Applications/Meuxe.app`.
 - Intel Macs and Windows are not built for this release.
 - Chat requires a separately installed ACP agent (OpenCode, Claude Code, Codex, or custom).

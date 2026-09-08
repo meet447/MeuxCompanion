@@ -48,7 +48,7 @@ When CI finishes, review the draft release on GitHub and publish. Users on an ol
 
 | Platform | Update bundle | Notes |
 |----------|---------------|-------|
-| macOS (Apple Silicon) | `.app.tar.gz` | Unsigned app bundles still install; Gatekeeper may require manual approval. Code signing + notarization improves first-run and update UX. |
+| macOS (Apple Silicon) | `.app.tar.gz` | Not signed or notarized. First install: `xattr -cr /Applications/Meuxe.app`. Code signing + notarization improves first-run and update UX. |
 | Linux | `.AppImage` | `.deb` is built for manual install; the updater uses AppImage. |
 | Windows | Not in CI yet | Add a Windows matrix job and NSIS/MSI targets when needed. |
 
