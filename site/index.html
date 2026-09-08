@@ -61,13 +61,15 @@
         <nav aria-label="Site">
           <ul class="nav-links">
             <li>
+              <a href="#changelog">Changelog</a>
+            </li>
+            <li>
               <a href="https://github.com/meet447/Meuxe" rel="noopener noreferrer">GitHub</a>
             </li>
             <li>
               <a
                 class="nav-cta"
-                href="https://github.com/meet447/Meuxe/releases/latest"
-                rel="noopener noreferrer"
+                href="#download"
                 >Download</a
               >
             </li>
@@ -116,12 +118,7 @@
             <p class="hero-lead">
               Remembers you, talks back, and stays on your machine.
             </p>
-            <a
-              class="btn-primary"
-              href="https://github.com/meet447/Meuxe/releases/latest"
-              rel="noopener noreferrer"
-              >Download</a
-            >
+            <a class="btn-primary" href="#download">Download</a>
             <p class="hero-meta">Pre-release · macOS &amp; Linux · MIT · Bring your own agent</p>
           </div>
 
@@ -362,6 +359,80 @@
           </figcaption>
         </figure>
       </section>
+      <!-- Download: wired to the latest GitHub Release -->
+      <section class="download section" id="download" aria-labelledby="download-heading">
+        <h2 id="download-heading">Download</h2>
+        <p class="download-lead" id="download-lead">Fetching the latest release…</p>
+        <div class="dl-grid" id="dl-grid" hidden>
+          <article class="dl-card ring-hairline">
+            <h3>macOS <span class="dl-arch">Apple Silicon</span></h3>
+            <a class="btn-primary dl-btn" id="dl-mac" href="https://github.com/meet447/Meuxe/releases/latest" rel="noopener noreferrer"
+              ><span class="dl-btn-label">Download for Mac</span></a
+            >
+            <p class="dl-meta mono" id="dl-mac-meta"></p>
+            <ol class="dl-steps">
+              <li>Open the <code>.dmg</code> and drag <strong>Meuxe</strong> into <strong>Applications</strong>.</li>
+              <li>
+                Clear the quarantine flag once (builds aren&rsquo;t notarized):
+                <span class="codebox"><code id="mac-cmd">xattr -cr /Applications/Meuxe.app</code><button type="button" class="copy-btn" data-copy="mac-cmd">Copy</button></span>
+              </li>
+              <li>Open Meuxe from Applications or Spotlight.</li>
+            </ol>
+          </article>
+          <article class="dl-card ring-hairline">
+            <h3>Linux <span class="dl-arch">Debian / Ubuntu</span></h3>
+            <a class="btn-primary dl-btn" id="dl-deb" href="https://github.com/meet447/Meuxe/releases/latest" rel="noopener noreferrer"
+              ><span class="dl-btn-label">Download .deb</span></a
+            >
+            <p class="dl-meta mono" id="dl-deb-meta"></p>
+            <a class="btn-ghost dl-btn" id="dl-appimage" href="https://github.com/meet447/Meuxe/releases/latest" rel="noopener noreferrer"
+              ><span class="dl-btn-label">Download .AppImage</span></a
+            >
+            <p class="dl-meta mono" id="dl-appimage-meta"></p>
+            <ol class="dl-steps">
+              <li>
+                Install the <code>.deb</code> (pulls WebKitGTK 4.1 and AppIndicator):
+                <span class="codebox"><code id="linux-cmd">sudo apt install ./Meuxe_*.deb</code><button type="button" class="copy-btn" data-copy="linux-cmd">Copy</button></span>
+              </li>
+              <li>Or make the <code>.AppImage</code> executable and run it.</li>
+            </ol>
+          </article>
+        </div>
+        <div class="dl-fallback ring-hairline" id="dl-fallback" hidden>
+          <p>
+            Couldn&rsquo;t reach the release feed. Get the newest build here:
+          </p>
+          <a
+            class="btn-primary"
+            href="https://github.com/meet447/Meuxe/releases/latest"
+            rel="noopener noreferrer"
+            >Open latest release</a
+          >
+        </div>
+        <p class="dl-all">
+          <a
+            href="https://github.com/meet447/Meuxe/releases"
+            rel="noopener noreferrer"
+            >Browse all releases →</a
+          >
+        </p>
+      </section>
+
+      <!-- Changelog: rendered from CHANGELOG.md -->
+      <section class="changelog section" id="changelog" aria-labelledby="changelog-heading">
+        <h2 id="changelog-heading">Changelog</h2>
+        <p class="changelog-lead">
+          Every release, in plain words. Full history lives in
+          <a
+            href="https://github.com/meet447/Meuxe/blob/main/CHANGELOG.md"
+            rel="noopener noreferrer"
+            >CHANGELOG.md</a
+          >.
+        </p>
+        <div id="changelog-body" aria-live="polite">
+          <p class="muted">Loading changelog…</p>
+        </div>
+      </section>
     </main>
 
     <footer class="site-footer">
@@ -403,5 +474,6 @@
         </div>
       </div>
     </footer>
+    <script src="./app.js" defer></script>
   </body>
 </html>
