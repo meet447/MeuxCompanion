@@ -3,6 +3,7 @@ import * as PIXI from "pixi.js";
 import { Live2DModel } from "pixi-live2d-display/cubism4";
 import type { ModelMapping } from "../types";
 import type { AudioLevels } from "./useAudioAnalyser";
+import { withCacheBust } from "../lib/assetUrls";
 import {
   createBlinkScheduler,
   createLipSyncDriver,
@@ -458,9 +459,9 @@ export function useLive2D(hostRef: React.RefObject<HTMLElement | null>) {
       }
 
       try {
-        const cacheBust = `${modelPath}${modelPath.includes("?") ? "&" : "?"}t=${Date.now()}`;
-        console.log("[Live2D] Loading from URL:", cacheBust);
-        const model = await Live2DModel.from(cacheBust, {
+        const loadUrl = withCacheBust(modelPath);
+        console.log("[Live2D] Loading from URL:", loadUrl);
+        const model = await Live2DModel.from(loadUrl, {
           motionPreload: "IDLE" as any,
         });
 
