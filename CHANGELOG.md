@@ -6,9 +6,18 @@ The GitHub Release workflow uses the version in `package.json` / `src-tauri/taur
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-08
+
+Patch for the 0.1.1 macOS and Linux prerelease.
+
 ### Fixed
 - Live2D (Haru) in the packaged app: PixiJS now uses `@pixi/unsafe-eval` so shader compilation works under Tauri CSP without allowing `'unsafe-eval'`.
 - Marketplace look cards: Arweave thumbnail redirects to `*.arweave.net` gateways are allowed in `img-src`, so preview images load in the packaged app.
+
+### Known limits
+- macOS builds are not signed or notarized. After dragging the app to Applications, run `xattr -c /Applications/Meuxe.app`.
+- Intel Macs and Windows are not built for this release.
+- Chat requires a separately installed ACP agent (OpenCode, Claude Code, Codex, or custom).
 
 ## [0.1.1] - 2026-09-08
 
