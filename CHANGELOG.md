@@ -4,6 +4,11 @@ All notable changes to Meuxe are documented here.
 
 The GitHub Release workflow uses the version in `package.json` / `src-tauri/tauri.conf.json` and the matching `## [version]` section below as the release title and notes. Write that section before tagging.
 
+## [Unreleased]
+
+### Fixed
+- Live2D (Haru) in the packaged app: PixiJS now uses `@pixi/unsafe-eval` so shader compilation works under Tauri CSP without allowing `'unsafe-eval'`.
+
 ## [0.1.1] - 2026-09-08
 
 First public **macOS and Linux** prerelease.
