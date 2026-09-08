@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import {
   saveConfig,
   createCharacter,
-  getVoices,
-  previewVoice,
   listModels,
-  installAgentSetup,
   type AgentSetupStatusResponse,
 } from "../api/tauri";
 import type { AcpAgentPresetId } from "../lib/agentPresets";
 import { COMPANION_VIBE_PACKS } from "../lib/companionVibes";
 import { buildCompanionPersonalityDraft } from "../lib/companionCharacterDraft";
-import { DEFAULT_TTS_PROVIDER, DEFAULT_TTS_VOICE, TTS_PRESETS_UI } from "../lib/ttsPresets";
+import { getVoices, previewVoice } from "../lib/ttsClient";
+import {
+  DEFAULT_TTS_PROVIDER,
+  DEFAULT_TTS_VOICE,
+  TTS_PRESETS_UI,
+  isSystemSpeechProvider,
+} from "../lib/ttsPresets";
 import { AgentSection } from "./settings/AgentSection";
 import { TtsSection } from "./settings/TtsSection";
 import { CompanionAvatarPreview } from "./onboarding/CompanionAvatarPreview";
@@ -182,6 +185,9 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
     setPreviewing(true);
     try {
       const data = await previewVoice(form.tts.provider, form.tts.voice, form.tts.api_key || undefined);
+      if (isSystemSpeechProvider(form.tts.provider)) {
+        return;
+      }
       if (!data || data.length === 0) {
         setPreviewError("Could not load a sample");
         return;
@@ -228,15 +234,13 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
       case 3:
         return form.companion.name.trim() !== "" && form.companion.vibe !== "";
       case 4:
-        return form.tts.voice !== "";
+        return isSystemSpeechProvider(form.tts.provider) || form.tts.voice.trim() !== "";
       case 5:
         if (form.agent.preset === "custom") {
           return form.agent.program.trim() !== "";
         }
         if (agentSetupLoading) return false;
-        if (agentSetup?.agent.ready) return true;
-        if (agentSetupError || agentSetup === null) return true;
-        return agentSetup?.prerequisites.node_available === true;
+        return agentSetup?.agent.ready === true;
       default:
         return false;
     }
@@ -246,24 +250,16 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
     step === 5 &&
     form.agent.preset !== "custom" &&
     !agentSetupLoading &&
-    (agentSetupError || agentSetup === null);
+    Boolean(agentSetupError);
 
   const stepHint = (): string | null => {
     if (step === 2 && !canProceed()) {
       return "Choose Haru or Utsuwa to continue.";
     }
     if (step === 5 && form.agent.preset !== "custom" && !canProceed() && !agentSetupLoading) {
-      return "Install Node.js above to finish setup.";
-    }
-    if (
-      step === 5 &&
-      form.agent.preset !== "custom" &&
-      !agentSetupLoading &&
-      agentSetup &&
-      !agentSetup.agent.ready &&
-      agentSetup.prerequisites.node_available
-    ) {
-      return "Finish will install the assistant globally if it is not on your system yet.";
+      return agentSetupError
+        ? "Could not check the assistant. Retry after you are online, or pick Custom with a full path."
+        : "Install the assistant above to continue. Chat cannot start without one.";
     }
     return null;
   };
@@ -272,14 +268,10 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
     setSubmitting(true);
     setError("");
     try {
-      if (form.agent.preset !== "custom" && agentSetup && !agentSetup.agent.ready) {
-        const installed = await installAgentSetup(form.agent.preset);
-        setAgentSetup(installed);
-        if (!installed.agent.ready) {
-          setError(installed.agent.detail || "Could not install the assistant. Try Install above, then finish again.");
-          setSubmitting(false);
-          return;
-        }
+      if (form.agent.preset !== "custom" && !agentSetup?.agent.ready) {
+        setError("Install an assistant before finishing. Chat will not work without one.");
+        setSubmitting(false);
+        return;
       }
 
       const charId = await createCharacter({
@@ -467,12 +459,13 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
           onChange={(next) => setForm((prev) => ({ ...prev, agent: next }))}
           onAgentSetupStatus={handleAgentSetupStatus}
           friendly
+          showToolPermissions={false}
         />
       )}
 
       {agentSetupWarning && (
         <Notice tone="warning" className="mt-4">
-          Could not verify the assistant setup. You can finish now and fix this later in Settings.
+          Could not verify the assistant. Check your connection, then try Install again.
         </Notice>
       )}
 

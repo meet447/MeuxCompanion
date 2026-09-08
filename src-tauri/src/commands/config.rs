@@ -1,4 +1,5 @@
 use crate::acp::{invalidate_acp, invalidate_acp_if_agent_changed};
+use crate::bundled_assets::seed_bundled_models;
 use crate::commands::require_id;
 use crate::AppState;
 use meuxe_core::config::types::AppConfig;
@@ -45,6 +46,11 @@ pub fn config_reset_all(state: State<Arc<AppState>>) -> Result<(), String> {
     state.characters.clear_cache();
     state.memory.invalidate_all();
     state.config.reset_to_default().map_err(|e| e.to_string())?;
+    if let Some(resource_dir) = &state.resource_dir {
+        if let Err(err) = seed_bundled_models(resource_dir, &state.data_dir) {
+            eprintln!("[bundled_assets] failed to re-seed bundled models: {err}");
+        }
+    }
     invalidate_acp(&state);
     Ok(())
 }

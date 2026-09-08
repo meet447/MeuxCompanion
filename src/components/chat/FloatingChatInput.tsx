@@ -14,6 +14,7 @@ type Props = {
   inputRef: RefObject<HTMLInputElement | null>;
   caption?: string | null;
   captionSpeaker?: string;
+  placeholder?: string;
 };
 
 export const FloatingChatInput = memo(function FloatingChatInput({
@@ -27,6 +28,7 @@ export const FloatingChatInput = memo(function FloatingChatInput({
   inputRef,
   caption,
   captionSpeaker,
+  placeholder = "Type a message...",
 }: Props) {
   const [input, setInput] = useState("");
   const typingTimeoutRef = useRef<number | null>(null);
@@ -77,7 +79,7 @@ export const FloatingChatInput = memo(function FloatingChatInput({
           type="text"
           value={input}
           onChange={handleInputChange}
-          placeholder="Type a message..."
+          placeholder={placeholder}
           disabled={isProcessing}
           className="companion-chat-input min-w-0 flex-1 bg-transparent px-2 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-4 focus:outline-none focus-visible:outline-none disabled:opacity-50"
         />

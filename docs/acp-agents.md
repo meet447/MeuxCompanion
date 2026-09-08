@@ -6,25 +6,23 @@ Chat runs only through the [Agent Client Protocol](https://agentclientprotocol.c
 
 For each preset, Meuxe picks the first match:
 
-1. **System / global** - executable on `PATH` or common locations (`~/.local/bin`, npm global `bin`, `$NPM_CONFIG_PREFIX/bin`, etc.)
-2. **Meuxe local fallback** - legacy `{app_data}/agents/npm/bin/` if present from older Meuxe versions
-3. **npx** - Claude and Codex only, when Node/npx is available and no binary was found
+1. **System / global** — executable on `PATH`, plus extra directories Meuxe prepends so Dock / `.desktop` launches still work:
+   `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.npm-global/bin`, `~/bin`, `$NPM_CONFIG_PREFIX/bin`, nvm/fnm/volta/pnpm/bun install dirs
+2. **npx** — Claude and Codex only, when Node/npx is available and no binary was found
 
-When nothing is found (`None`), Meuxe runs **`npm install -g --prefix`** into a user-writable npm prefix (`~/.npm-global` on Unix, `%APPDATA%\npm` on Windows), not system `/usr/lib/node_modules`:
+If nothing is found, chat shows an error. Install from **Onboarding** or **Settings → Agent** (the Install button). Chat does **not** install an agent in the background.
 
-- **Onboarding** - **Finish** (or **Install globally (npm)** on the agent step)
-- **Chat** - automatically before the first message
-- **Settings** - **Install globally (npm)** on the agent panel
-
-Restart the app if the new CLI is not detected immediately after install.
+Restart the app if a newly installed CLI is not detected immediately.
 
 | Preset | System binary name | Global install example |
 |--------|-------------------|-------------------------|
 | `opencode` | `opencode` | `npm i -g opencode-ai` |
 | `claude` | `claude-agent-acp` | `npm i -g @agentclientprotocol/claude-agent-acp` |
 | `codex` | `codex-acp` | `npm i -g @agentclientprotocol/codex-acp` |
-| `custom` | User-defined command + args | Your PATH or full path |
+| `custom` | User-defined command + args | Your PATH or a full path |
 
 OpenCode is launched as `{binary} acp`. Claude/Codex adapters are launched as a single executable when found globally.
+
+You can paste a full path in Settings if detection still fails.
 
 Persona and memory context are written under `data_dir/companion-home/` before each turn; the session working directory is that tree.
