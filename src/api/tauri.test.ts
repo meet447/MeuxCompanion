@@ -91,7 +91,7 @@ describe('tauri api utilities', () => {
 
   describe('resolveLive2DModelUrl', () => {
     it('rewrites moc/texture refs using ResolvedAssetPath.path', async () => {
-      const createObjectURL = vi.fn(() => 'blob:live2d-settings');
+      const createObjectURL = vi.fn((_blob: Blob) => 'blob:live2d-settings');
       const originalCreateObjectURL = URL.createObjectURL;
       URL.createObjectURL = createObjectURL;
       vi.mocked(invoke).mockImplementation(async (command: string) => {
