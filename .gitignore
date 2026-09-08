@@ -14,6 +14,7 @@ node_modules/
 public/vendor/
 dist/
 coverage/
+public/vendor/
 .vite/
 *.tsbuildinfo
 npm-debug.log*
