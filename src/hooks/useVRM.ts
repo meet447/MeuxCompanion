@@ -7,6 +7,8 @@ import { VRMLoaderPlugin, VRM, VRMExpressionPresetName, VRMUtils } from "@pixiv/
 import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from "@pixiv/three-vrm-animation";
 import { mixamoVRMRigMap } from "../utils/mixamoRigMap";
 import { resolveAssetUrl } from "../api/tauri";
+import { withCacheBust } from "../lib/assetUrls";
+import { withHtmlImageTextures, patchGltfImageBitmapLoader } from "../lib/gltfTextures";
 import { resolveVrmExpressionName } from "../utils/vrmExpressions";
 import {
   createBlinkScheduler,
@@ -47,17 +49,6 @@ function isOpaqueBackground(bg: string): boolean {
     return true;
   }
   return false;
-}
-
-/** Cache-bust only /static/ HTTP URLs; asset: and Tauri asset protocol break with ?t= */
-function withCacheBust(url: string): string {
-  if (url.startsWith("asset:") || url.startsWith("http://asset.localhost")) {
-    return url;
-  }
-  if (!url.includes("/static/")) {
-    return url;
-  }
-  return `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
 }
 
 const EMOTION_PRESETS = [
@@ -338,7 +329,7 @@ export function useVRM(
   const loadVrmaClip = useCallback(async (url: string, vrm: VRM): Promise<THREE.AnimationClip | null> => {
     const gltfLoader = new GLTFLoader();
     gltfLoader.register((parser) => new VRMAnimationLoaderPlugin(parser));
-    const gltf = await gltfLoader.loadAsync(url);
+    const gltf = await withHtmlImageTextures(() => gltfLoader.loadAsync(url));
     const vrmAnimations = gltf.userData.vrmAnimations as unknown[] | undefined;
     if (!vrmAnimations?.length) {
       return null;
@@ -705,11 +696,14 @@ export function useVRM(
       }
 
       // Load VRM
+      patchGltfImageBitmapLoader();
       const gltfLoader = new GLTFLoader();
       gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
 
       try {
-        const gltf = await gltfLoader.loadAsync(withCacheBust(modelPath));
+        const gltf = await withHtmlImageTextures(() =>
+          gltfLoader.loadAsync(withCacheBust(modelPath)),
+        );
         const vrm = gltf.userData.vrm as VRM;
 
         if (generation !== loadGenerationRef.current) {

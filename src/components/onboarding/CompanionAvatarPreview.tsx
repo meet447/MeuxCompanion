@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { resolveAssetUrl } from "../../api/tauri";
+import { resolveAssetUrl, resolveLive2DModelUrl } from "../../api/tauri";
 import { Mascot } from "../ui";
 import { cn } from "../ui/cn";
 
@@ -60,7 +60,8 @@ export function CompanionAvatarPreview({
     setUrl(null);
     setCanvasReady(false);
     setResolveError(null);
-    resolveAssetUrl(model.path)
+    const resolver = model.type === "live2d" ? resolveLive2DModelUrl : resolveAssetUrl;
+    resolver(model.path)
       .then((resolved) => {
         if (cancelled) return;
         setUrl(resolved);
