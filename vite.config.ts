@@ -5,6 +5,10 @@ import fs from "fs";
 import path from "path";
 import { homedir } from "os";
 
+const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
+  version: string;
+};
+
 const host = process.env.TAURI_DEV_HOST;
 
 // Serve files from app data directory under /static/ path in dev mode
@@ -83,6 +87,9 @@ function appDataStaticPlugin() {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), appDataStaticPlugin()],
+  define: {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(packageJson.version),
+  },
   clearScreen: false,
   build: {
     chunkSizeWarningLimit: 900,
