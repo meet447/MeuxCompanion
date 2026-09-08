@@ -11,6 +11,7 @@ import { AddCharacterModal } from "./components/AddCharacterModal";
 import { CharacterSelect } from "./components/CharacterSelect";
 import { Onboarding } from "./components/Onboarding";
 import { Settings } from "./components/Settings";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { MiniWidget } from "./components/MiniWidget";
 import { StageEmptyState } from "./components/stage/StageEmptyState";
 import { WhisperDownloadCard } from "./components/voice/WhisperDownloadCard";
@@ -712,6 +713,7 @@ function App() {
 
   return (
     <div className="flex h-screen gap-3 bg-canvas p-3 font-sans text-ink">
+      <UpdateBanner />
       {expressionsConfigured && (
         <Sidebar
           historyOpen={historyOpen}
