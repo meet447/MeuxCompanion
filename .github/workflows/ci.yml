@@ -31,6 +31,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check Tauri JS/Rust versions
+        run: npm run check:tauri-versions
+
+      - name: Check release notes match the app version
+        run: npm run check:release-notes
+
       - name: Typecheck and production build
         run: npm run build
 
@@ -98,4 +104,5 @@ jobs:
         run: cargo test --workspace
 
       - name: Tauri build (smoke)
-        run: npm run tauri build
+        # Compile only: updater artifacts need TAURI_SIGNING_PRIVATE_KEY, which CI does not have.
+        run: npm run tauri build -- --no-bundle
