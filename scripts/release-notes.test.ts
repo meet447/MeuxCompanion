@@ -81,9 +81,10 @@ tauri-build = { version = "2.6" }
     expect(notes.version).toBe(version);
     expect(notes.tag).toBe(`v${version}`);
     expect(notes.name).toBe(`Meuxe v${version}`);
-    expect(notes.body).toContain("First public");
+    expect(notes.body).toContain("### Fixed");
+    expect(notes.body).toContain("Live2D");
+    expect(notes.body).toContain("Arweave");
     expect(notes.body).toContain("Known limits");
-    expect(notes.body).toContain("### Added");
     expect(notes.body).not.toContain("## [");
   });
 });
