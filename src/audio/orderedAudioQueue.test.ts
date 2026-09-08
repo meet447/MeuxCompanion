@@ -103,6 +103,16 @@ describe("OrderedAudioQueue", () => {
     expect(queue.peekNext()).toMatchObject({ kind: "skip", index: 0 });
   });
 
+  it("plays system speech without remote audio bytes", () => {
+    const queue = new OrderedAudioQueue();
+    queue.begin("r1");
+    queue.addSentence("r1", task(0));
+    queue.addAudio("r1", 0, "", "system");
+    expect(queue.peekNext()).toMatchObject({ kind: "speak", index: 0 });
+    queue.advance("r1", 0);
+    expect(queue.peekNext()).toEqual({ kind: "wait" });
+  });
+
   it("completes an empty response after text done", () => {
     const queue = new OrderedAudioQueue();
     queue.begin("r1");

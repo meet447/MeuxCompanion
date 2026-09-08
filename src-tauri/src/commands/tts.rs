@@ -18,6 +18,10 @@ pub async fn tts_preview(
     api_key: Option<String>,
     text: Option<String>,
 ) -> Result<Vec<u8>, String> {
+    if meuxe_core::tts::is_system_speech_provider(&provider) {
+        return Err("System voice is previewed in the app, not by the backend.".into());
+    }
+
     let sample_text = text.unwrap_or_else(|| "Hello! This is a voice preview.".to_string());
 
     let tts_config = meuxe_core::config::types::TtsConfig {

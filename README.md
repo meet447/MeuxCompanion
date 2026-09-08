@@ -50,14 +50,25 @@ Meuxe is a character on your screen who remembers past conversations, speaks wit
 
 ## Get started
 
-Pre-built installers come from GitHub Releases when maintainers publish a tag. You can also build and run from source:
+### Download (macOS and Linux)
+
+Pre-built installers are on [GitHub Releases](https://github.com/meet447/Meuxe/releases). This first release is a **prerelease** for **macOS 11+** (separate arm64 and Intel DMGs) and **Linux** (`.deb` for Ubuntu 22.04+ and AppImage). Windows is not built yet.
+
+1. Download the asset that matches your machine.
+2. **macOS:** these builds are unsigned. If Gatekeeper blocks Meuxe, right-click the app → Open, or run `xattr -dr com.apple.quarantine /Applications/Meuxe.app`.
+3. **Linux `.deb`:** `sudo apt install ./Meuxe_*.deb` (pulls WebKitGTK 4.1 and AppIndicator). **AppImage:** `chmod +x Meuxe_*.AppImage && ./Meuxe_*.AppImage` (some distros need FUSE).
+4. First launch walks you through you, your companion, voice, and an assistant. **Chat will not start without an ACP agent** (see [Pick an agent](#pick-an-agent)).
+5. The first time you use the microphone, Meuxe downloads a ~75 MB speech model into app data (`models/whisper/ggml-tiny.bin`). After that, transcription stays on this computer.
+
+You can also build and run from source:
 
 ### Prerequisites
 
 - **Node.js** 22 (see [`.nvmrc`](.nvmrc))
 - **Rust** 1.88.0 with **Cargo** (pinned in [`rust-toolchain.toml`](rust-toolchain.toml); see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
-- **Linux:** WebKitGTK and related dev packages (the same set [used in CI](.github/workflows/release.yml) is a good reference)
+- **Linux:** WebKitGTK and related dev packages (the same set [used in CI](.github/workflows/ci.yml) is a good reference)
 - **An ACP agent** for chat (see [Pick an agent](#pick-an-agent) below)
+- Network access during `npm run build` / `npm run tauri dev` to fetch Live2D Cubism Core (not committed; see `scripts/fetch-cubism-core.mjs`)
 
 ### Install and run
 
@@ -81,15 +92,15 @@ First launch walks you through choosing an agent, and you can change it later in
 | Preset | Typical install |
 |--------|-------------------|
 | **OpenCode** | `opencode` CLI (`npm i -g opencode-ai`), launched as `opencode acp` |
-| **Claude Code** | `npx -y @agentclientprotocol/claude-agent-acp@latest` |
-| **Codex** | `npx -y @agentclientprotocol/codex-acp@latest` |
-| **Custom** | Any ACP agent: set command and args in Settings |
+| **Claude Code** | `npm i -g @agentclientprotocol/claude-agent-acp` (binary `claude-agent-acp`) |
+| **Codex** | `npm i -g @agentclientprotocol/codex-acp` (binary `codex-acp`) |
+| **Custom** | Any ACP agent: set command and args (or a full path) in Settings |
 
 ## How it works
 
 Meuxe is an [Agent Client Protocol](https://agentclientprotocol.com) client. Before each turn it writes persona, memory, and relationship context into `companion-home/` in the app data directory and uses that tree as the agent's working directory. See [`docs/companion-home.md`](docs/companion-home.md) and [`docs/acp-agents.md`](docs/acp-agents.md) for details.
 
-For voice, Meuxe ships built-in TTS with no API key required. You can optionally add ElevenLabs and OpenAI voices in Settings → Voice.
+For voice, Meuxe TTS is the default (free, no API key). You can switch to this computer’s system speech, or add ElevenLabs and OpenAI in Settings → Voice. Microphone input uses on-device Whisper after a one-time model download.
 
 ## Development
 
@@ -132,7 +143,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how we handle issues, pull requests, 
 
 ## Migrating from MeuxCompanion
 
-The desktop app identifier is now `com.meuxe.app` (product name **Meuxe**). Local data no longer lives under `com.meuxcompanion.app`. To keep existing sessions, memory, and config, copy your old app data directory into the new path (for example macOS `~/Library/Application Support/com.meuxe.app`).
+The desktop app identifier is now `com.meuxe.app` (product name **Meuxe**). Local data no longer lives under `com.meuxcompanion.app`.
+
+Quit both apps, then copy the old app data directory into the new path (replace, do not merge piecemeal):
+
+| OS | Old → new |
+|----|-----------|
+| macOS | `~/Library/Application Support/com.meuxcompanion.app` → `~/Library/Application Support/com.meuxe.app` |
+| Linux | `~/.local/share/com.meuxcompanion.app` → `~/.local/share/com.meuxe.app` |
+
+Copy `config.json`, `data/`, `characters/`, `models/`, and `companion-home/` if they exist.
 
 ## Releases
 

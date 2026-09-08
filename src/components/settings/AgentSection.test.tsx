@@ -40,4 +40,10 @@ describe("AgentSection", () => {
       auto_approve_tools: false,
     });
   });
+
+  it("hides tool permissions when showToolPermissions is false", () => {
+    render(<AgentSection value={baseValue} onChange={vi.fn()} showToolPermissions={false} />);
+    expect(screen.queryByText("Allow automatically")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ask me each time")).not.toBeInTheDocument();
+  });
 });

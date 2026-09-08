@@ -20,6 +20,7 @@ interface AudioPayload {
   request_id: string;
   index: number;
   data: string;
+  engine?: string;
 }
 
 interface DonePayload {
@@ -135,6 +136,7 @@ export function useChat() {
   const [timeline, setTimeline] = useState<ChatTimelineItem[]>([]);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const displayTextRef = useRef("");
   const lastExpressionRef = useRef("neutral");
@@ -282,6 +284,7 @@ export function useChat() {
     async (characterId: string, message: string, requestId: string) => {
       if (isStreaming) return;
 
+      setError(null);
       activeRequestIdRef.current = requestId;
       segmentCounterRef.current = 0;
       displayTextRef.current = "";
@@ -318,6 +321,7 @@ export function useChat() {
       const handleError = (payload: ChatErrorPayload) => {
         if (payload.request_id !== requestId) return;
         console.error("Chat error:", payload.message);
+        setError(payload.message);
         onErrorRef.current?.(requestId);
         flushStreamingText();
         commitStreamingSegment();
@@ -471,11 +475,15 @@ export function useChat() {
     onErrorRef.current = cb;
   }, []);
 
+  const clearError = useCallback(() => setError(null), []);
+
   return {
     setMessages,
     timeline,
     streamingText,
     isStreaming,
+    error,
+    clearError,
     send,
     cancel,
     setOnSentence,
