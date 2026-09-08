@@ -114,7 +114,7 @@ For voice, Meuxe TTS is the default (free, no API key). You can switch to this c
 
 - **Node.js** 22 (see [`.nvmrc`](.nvmrc))
 - **Rust** 1.88.0 with **Cargo** (pinned in [`rust-toolchain.toml`](rust-toolchain.toml); see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
-- **Linux:** WebKitGTK and related dev packages (the same set [used in the release workflow](.github/workflows/release.yml) is a good reference)
+- **Linux:** WebKitGTK and related dev packages (the same set [used in CI](.github/actions/setup-desktop-build/action.yml) is a good reference)
 - **An ACP agent** for chat (see [Pick an agent](#pick-an-agent))
 - Network access during `npm run build` / `npm run tauri dev` to fetch Live2D Cubism Core (not committed; see `scripts/fetch-cubism-core.mjs`)
 

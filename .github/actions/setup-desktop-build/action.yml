@@ -1,0 +1,86 @@
+# Shared setup for tagged releases and the cache-warm job on main.
+# Keep env vars identical across callers — rust-cache keys on RUSTFLAGS / CC / CXX.
+name: Setup desktop build
+description: Node, Rust, Linux deps, and shared Cargo cache for Tauri release builds
+
+inputs:
+  save-cache:
+    description: Save the Rust cache (true on main; false on tags — GitHub cannot restore tag caches from later tags)
+    required: false
+    default: "false"
+  rust-target:
+    description: Extra rustup target triple (e.g. aarch64-apple-darwin). Leave empty for the host triple.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          g++ \
+          cmake \
+          pkg-config \
+          libssl-dev \
+          libclang-dev \
+          clang \
+          libwebkit2gtk-4.1-dev \
+          libappindicator3-dev \
+          librsvg2-dev \
+          patchelf \
+          libgtk-3-dev \
+          libgdk-pixbuf-2.0-dev \
+          libglib2.0-dev \
+          libcairo2-dev \
+          libpango1.0-dev \
+          libsoup-3.0-dev \
+          mold
+
+    - name: Cargo and compiler env
+      shell: bash
+      run: |
+        {
+          echo "CARGO_INCREMENTAL=0"
+          echo "CARGO_TERM_COLOR=always"
+          echo "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1"
+        } >> "$GITHUB_ENV"
+        if [ "${RUNNER_OS}" = "Linux" ]; then
+          gcc_dir=$(dirname "$(gcc -print-file-name=libstdc++.so)")
+          {
+            echo "CC=gcc"
+            echo "CXX=g++"
+            echo "RUSTFLAGS=-C link-arg=-L${gcc_dir} -C link-arg=-fuse-ld=mold"
+          } >> "$GITHUB_ENV"
+        fi
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+
+    - uses: dtolnay/rust-toolchain@master
+      if: ${{ inputs.rust-target == '' }}
+      with:
+        toolchain: "1.88.0"
+
+    - uses: dtolnay/rust-toolchain@master
+      if: ${{ inputs.rust-target != '' }}
+      with:
+        toolchain: "1.88.0"
+        targets: ${{ inputs.rust-target }}
+
+    - uses: swatinem/rust-cache@v2
+      with:
+        workspaces: ". -> target"
+        shared-key: desktop-release
+        save-if: ${{ inputs.save-cache == 'true' }}
+        cache-on-failure: true
+
+    - name: Install frontend dependencies
+      shell: bash
+      run: npm ci

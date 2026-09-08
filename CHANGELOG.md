@@ -6,6 +6,9 @@ The GitHub Release workflow uses the version in `package.json` / `src-tauri/taur
 
 ## [Unreleased]
 
+### Changed
+- Release CI restores a shared Rust compile cache from `main` (weekly cache-warm job) instead of rebuilding whisper.cpp from scratch on every tag, and only packages the bundles each OS needs.
+
 ## [0.1.2] - 2026-09-08
 
 Patch for the 0.1.1 macOS and Linux prerelease.

@@ -13,7 +13,7 @@ Prerequisites:
 
 - **Node.js** 22 recommended (see [`.nvmrc`](.nvmrc))
 - **Rust** 1.88.0 with **Cargo** (pinned in [`rust-toolchain.toml`](rust-toolchain.toml); see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
-- On **Linux**, install WebKitGTK and related packages (see the [release workflow](.github/workflows/release.yml) for package lists)
+- On **Linux**, install WebKitGTK and related packages (see [`.github/actions/setup-desktop-build/action.yml`](.github/actions/setup-desktop-build/action.yml) for the list used in CI)
 - `npm run build` / `npm run tauri dev` fetch Live2D Cubism Core over the network (`scripts/fetch-cubism-core.mjs`); it is not committed
 
 Clone and run in development mode:

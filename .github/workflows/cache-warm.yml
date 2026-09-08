@@ -1,0 +1,59 @@
+# Populate GitHub Actions caches on `main` so tagged releases can restore them.
+#
+# Tag-triggered jobs cannot reuse caches created by other tags. They *can*
+# restore caches from the default branch. GitHub also evicts unused caches
+# after 7 days, so this runs weekly even when lockfiles are unchanged.
+#
+# Does not run tests or clippy (those stay local). Not triggered on pull requests.
+name: Warm release caches
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - Cargo.lock
+      - Cargo.toml
+      - rust-toolchain.toml
+      - src-tauri/Cargo.toml
+      - crates/meuxe-core/Cargo.toml
+      - .github/actions/setup-desktop-build/action.yml
+      - .github/workflows/cache-warm.yml
+      - .github/workflows/release.yml
+
+concurrency:
+  group: cache-warm-${{ github.ref }}
+  # Do not cancel: interrupting the rust-cache post step leaves main without a warm cache.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  warm:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            rust_target: aarch64-apple-darwin
+            cargo_args: --target aarch64-apple-darwin
+          - platform: ubuntu-22.04
+            rust_target: ""
+            cargo_args: ""
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-desktop-build
+        with:
+          save-cache: "true"
+          rust-target: ${{ matrix.rust_target }}
+
+      - name: Compile release binary
+        run: cargo build --release -p meuxe-desktop ${{ matrix.cargo_args }}
