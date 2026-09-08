@@ -1,4 +1,4 @@
-/* Meuxe landing: latest-release downloads + rendered changelog.
+/* Meuxe landing: tabbed views, OS-detected downloads, rendered changelog.
  * No build step - plain script loaded by index.html. */
 (function () {
   "use strict";
@@ -9,6 +9,8 @@
   var CHANGELOG_RAW =
     "https://raw.githubusercontent.com/" + REPO + "/main/CHANGELOG.md";
   var CHANGELOG_BLOB = "https://github.com/" + REPO + "/blob/main/CHANGELOG.md";
+
+  /* ── Helpers ── */
 
   function fmtSize(bytes) {
     if (typeof bytes !== "number" || !isFinite(bytes)) return "";
@@ -28,6 +30,13 @@
     } catch (e) {
       return "";
     }
+  }
+
+  function pickAsset(assets, test) {
+    for (var i = 0; i < assets.length; i++) {
+      if (test(assets[i].name)) return assets[i];
+    }
+    return null;
   }
 
   function setBtn(id, asset, label) {
@@ -50,52 +59,100 @@
     return true;
   }
 
-  function pickAsset(assets, test) {
-    for (var i = 0; i < assets.length; i++) {
-      if (test(assets[i].name)) return assets[i];
-    }
-    return null;
+  /* ── OS detection ── */
+
+  function detectOS() {
+    var ua = (navigator.userAgent || "") + " " + (navigator.platform || "");
+    if (/Mac|iPhone|iPad|iPod/i.test(ua)) return "mac";
+    if (/Linux|X11/i.test(ua) && !/Android/i.test(ua)) return "linux";
+    return "other";
   }
 
+  /* ── Release fetching (shared: hero button + downloads tab) ── */
+
+  var releaseData = null;
+
   function loadRelease() {
-    var lead = document.getElementById("download-lead");
-    var grid = document.getElementById("dl-grid");
-    var fallback = document.getElementById("dl-fallback");
     fetch(API_LATEST, { headers: { Accept: "application/vnd.github+json" } })
       .then(function (res) {
         if (!res.ok) throw new Error("release API " + res.status);
         return res.json();
       })
       .then(function (rel) {
-        var assets = Array.isArray(rel.assets) ? rel.assets : [];
-        var dmg = pickAsset(assets, function (n) {
-          return /\.dmg$/i.test(n);
-        });
-        var deb = pickAsset(assets, function (n) {
-          return /\.deb$/i.test(n);
-        });
-        var appimage = pickAsset(assets, function (n) {
-          return /\.AppImage$/i.test(n) && !/\.zsync/i.test(n);
-        });
-        var version = rel.tag_name || rel.name || "latest";
-        var date = rel.published_at ? fmtDate(rel.published_at) : "";
-        var pre = rel.prerelease ? " · prerelease" : "";
-        if (lead) lead.textContent = version + (date ? " · " + date : "") + pre;
-        setBtn("dl-mac", dmg, dmg ? "Download for Mac" : null);
-        setBtn("dl-deb", deb, deb ? "Download .deb" : null);
-        setBtn("dl-appimage", appimage, appimage ? "Download .AppImage" : null);
-        if (grid) grid.hidden = false;
-        if (fallback) fallback.hidden = true;
+        releaseData = rel;
+        updateHeroButton();
+        updateDownloadsTab();
       })
       .catch(function () {
-        if (grid) grid.hidden = true;
-        if (fallback) fallback.hidden = false;
-        if (lead) lead.textContent = "Grab the newest build from GitHub Releases.";
+        showDownloadFallback();
       });
   }
 
-  /* Minimal markdown subset for CHANGELOG.md:
-   * ## version headings, ### groups, - lists, `code`, **bold**, [links]. */
+  function updateHeroButton() {
+    var btn = document.getElementById("hero-download");
+    if (!btn || !releaseData) return;
+    var assets = Array.isArray(releaseData.assets) ? releaseData.assets : [];
+    var os = detectOS();
+    var asset = null;
+    var label = "Download";
+    if (os === "mac") {
+      asset = pickAsset(assets, function (n) {
+        return /\.dmg$/i.test(n);
+      });
+      label = "Download for Mac";
+    } else if (os === "linux") {
+      asset = pickAsset(assets, function (n) {
+        return /\.deb$/i.test(n);
+      });
+      label = "Download for Linux";
+    }
+    var labelEl = btn.querySelector(".hero-dl-label");
+    if (asset) {
+      btn.href = asset.browser_download_url;
+      if (labelEl) labelEl.textContent = label;
+    } else {
+      btn.href = RELEASES_URL;
+      if (labelEl) labelEl.textContent = "Download";
+    }
+  }
+
+  function updateDownloadsTab() {
+    var lead = document.getElementById("download-lead");
+    var grid = document.getElementById("dl-grid");
+    var fallback = document.getElementById("dl-fallback");
+    if (!releaseData) return;
+    var assets = Array.isArray(releaseData.assets) ? releaseData.assets : [];
+    var dmg = pickAsset(assets, function (n) {
+      return /\.dmg$/i.test(n);
+    });
+    var deb = pickAsset(assets, function (n) {
+      return /\.deb$/i.test(n);
+    });
+    var appimage = pickAsset(assets, function (n) {
+      return /\.AppImage$/i.test(n) && !/\.zsync/i.test(n);
+    });
+    var version = releaseData.tag_name || releaseData.name || "latest";
+    var date = releaseData.published_at ? fmtDate(releaseData.published_at) : "";
+    var pre = releaseData.prerelease ? " · prerelease" : "";
+    if (lead) lead.textContent = version + (date ? " · " + date : "") + pre;
+    setBtn("dl-mac", dmg, dmg ? "Download for Mac" : null);
+    setBtn("dl-deb", deb, deb ? "Download .deb" : null);
+    setBtn("dl-appimage", appimage, appimage ? "Download .AppImage" : null);
+    if (grid) grid.hidden = false;
+    if (fallback) fallback.hidden = true;
+  }
+
+  function showDownloadFallback() {
+    var grid = document.getElementById("dl-grid");
+    var fallback = document.getElementById("dl-fallback");
+    var lead = document.getElementById("download-lead");
+    if (grid) grid.hidden = true;
+    if (fallback) fallback.hidden = false;
+    if (lead) lead.textContent = "Grab the newest build from GitHub Releases.";
+  }
+
+  /* ── Minimal markdown subset for CHANGELOG.md ── */
+
   function inlineMd(text) {
     var esc = text
       .replace(/&/g, "&amp;")
@@ -112,11 +169,10 @@
     return esc;
   }
 
-  function renderChangelog(md) {
-    var host = document.getElementById("changelog-body");
-    if (!host) return;
+  /* Parse CHANGELOG.md into an array of version entries.
+   * Each entry: { heading: string, lines: string[] } */
+  function mdToEntries(md) {
     var lines = md.replace(/\r\n/g, "\n").split("\n");
-    // Drop the "# Changelog" title + maintainer intro; start at first ## version.
     var start = 0;
     for (var i = 0; i < lines.length; i++) {
       if (/^##\s/.test(lines[i])) {
@@ -125,7 +181,27 @@
       }
     }
     lines = lines.slice(start);
-    var html = "";
+    var entries = [];
+    var current = null;
+    for (var j = 0; j < lines.length; j++) {
+      var match = lines[j].match(/^##\s+(.*)$/);
+      if (match) {
+        if (current) entries.push(current);
+        current = { heading: match[1].trim(), lines: [] };
+      } else if (current) {
+        current.lines.push(lines[j]);
+      }
+    }
+    if (current) entries.push(current);
+    return entries;
+  }
+
+  /* Render a single changelog entry as an HTML card. */
+  function renderEntry(entry) {
+    var html =
+      '<article class="cl-card ring-hairline"><h3>' +
+      inlineMd(entry.heading) +
+      "</h3>";
     var inList = false;
     var inCode = false;
     function closeList() {
@@ -134,8 +210,8 @@
         inList = false;
       }
     }
-    for (var j = 0; j < lines.length; j++) {
-      var line = lines[j];
+    for (var j = 0; j < entry.lines.length; j++) {
+      var line = entry.lines[j];
       if (/^```/.test(line)) {
         closeList();
         html += inCode ? "</code></pre>" : "<pre><code>";
@@ -143,17 +219,7 @@
         continue;
       }
       if (inCode) {
-        html +=
-          line.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "\n";
-        continue;
-      }
-      var h2 = line.match(/^##\s+(.*)$/);
-      if (h2) {
-        closeList();
-        html +=
-          '</article><article class="cl-card ring-hairline"><h3>' +
-          inlineMd(h2[1].trim()) +
-          "</h3>";
+        html += line.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "\n";
         continue;
       }
       var h3 = line.match(/^###\s+(.*)$/);
@@ -180,29 +246,47 @@
     }
     closeList();
     html += "</article>";
-    // Remove the empty article opened before the first card.
-    html = html.replace(/^<\/article>/, "");
-    host.innerHTML = html || '<p class="muted">No entries yet.</p>';
+    return html;
   }
 
+  /* Fetch changelog once, render into both preview (latest) and full view. */
   function loadChangelog() {
-    var host = document.getElementById("changelog-body");
     fetch(CHANGELOG_RAW)
       .then(function (res) {
         if (!res.ok) throw new Error("changelog " + res.status);
         return res.text();
       })
-      .then(renderChangelog)
-      .catch(function () {
-        if (host) {
-          host.innerHTML =
-            '<p class="muted">Could not load the changelog here. ' +
-            '<a href="' +
-            CHANGELOG_BLOB +
-            '" rel="noopener noreferrer">Read it on GitHub →</a></p>';
+      .then(function (md) {
+        var entries = mdToEntries(md);
+        var fullHost = document.getElementById("changelog-body");
+        var previewHost = document.getElementById("changelog-preview-body");
+
+        if (entries.length === 0) {
+          if (fullHost)
+            fullHost.innerHTML = '<p class="muted">No entries yet.</p>';
+          if (previewHost)
+            previewHost.innerHTML = '<p class="muted">No entries yet.</p>';
+          return;
         }
+
+        if (fullHost)
+          fullHost.innerHTML = entries.map(renderEntry).join("");
+        if (previewHost)
+          previewHost.innerHTML = renderEntry(entries[0]);
+      })
+      .catch(function () {
+        var fullHost = document.getElementById("changelog-body");
+        var previewHost = document.getElementById("changelog-preview-body");
+        var errHtml =
+          '<p class="muted">Could not load the changelog. <a href="' +
+          CHANGELOG_BLOB +
+          '" rel="noopener noreferrer">Read it on GitHub →</a></p>';
+        if (fullHost) fullHost.innerHTML = errHtml;
+        if (previewHost) previewHost.innerHTML = errHtml;
       });
   }
+
+  /* ── Copy-to-clipboard buttons ── */
 
   function setupCopyButtons() {
     document.addEventListener("click", function (ev) {
@@ -234,7 +318,61 @@
     });
   }
 
+  /* ── Tab / view switching ── */
+
+  var VALID_VIEWS = ["home", "changelog", "downloads"];
+
+  function switchView(view, push) {
+    var views = document.querySelectorAll("[data-view]");
+    for (var i = 0; i < views.length; i++) {
+      var v = views[i];
+      if (v.getAttribute("data-view") === view) {
+        v.classList.add("view-active");
+        v.removeAttribute("hidden");
+      } else {
+        v.classList.remove("view-active");
+        v.setAttribute("hidden", "");
+      }
+    }
+    var navLinks = document.querySelectorAll("[data-tab]");
+    for (var j = 0; j < navLinks.length; j++) {
+      if (navLinks[j].getAttribute("data-tab") === view) {
+        navLinks[j].classList.add("nav-active");
+      } else {
+        navLinks[j].classList.remove("nav-active");
+      }
+    }
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    if (push !== false) {
+      var url = view === "home" ? "./" : "#" + view;
+      history.pushState({ view: view }, "", url);
+    }
+  }
+
+  function getViewFromHash() {
+    var hash = (window.location.hash || "").replace("#", "");
+    if (VALID_VIEWS.indexOf(hash) !== -1) return hash;
+    return "home";
+  }
+
+  function initTabs() {
+    document.addEventListener("click", function (ev) {
+      var link = ev.target.closest("[data-tab]");
+      if (!link) return;
+      ev.preventDefault();
+      switchView(link.getAttribute("data-tab"));
+    });
+    window.addEventListener("popstate", function () {
+      switchView(getViewFromHash(), false);
+    });
+    switchView(getViewFromHash(), false);
+  }
+
+  /* ── Init ── */
+
   document.addEventListener("DOMContentLoaded", function () {
+    initTabs();
     setupCopyButtons();
     loadRelease();
     loadChangelog();

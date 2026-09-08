@@ -477,42 +477,29 @@ main {
   color: var(--ink);
 }
 
-/* ── Onboarding ── */
+/* ── Onboarding (text callout, no screenshot) ── */
 .onboarding {
   padding: 96px 0;
   border-top: 1px solid var(--line);
   text-align: center;
 }
 
-.onboarding-figure {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.onboarding-shot-wrap {
+.onboarding-callout {
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 40px 48px;
   background: var(--surface);
   border-radius: var(--radius-panel);
   corner-shape: squircle;
-  padding: 6px;
-  margin-bottom: 20px;
-  width: 100%;
-  max-width: none;
 }
 
-.onboarding-shot-wrap img {
-  width: 100%;
-  border-radius: calc(var(--radius-panel) - 4px);
-  corner-shape: squircle;
-}
-
-.onboarding-figure figcaption {
-  font-size: 15px;
+.onboarding-callout p {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
   color: var(--ink-2);
-  max-width: 48ch;
-  line-height: 1.55;
-  text-align: center;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
 }
 
 /* ── Download ── */
@@ -788,6 +775,90 @@ main {
   font-size: 14px;
 }
 
+/* ── View switching (tabs) ── */
+.view {
+  animation: view-fade-in 0.3s var(--ease-soft);
+}
+
+.view[hidden] {
+  display: none;
+}
+
+@keyframes view-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.view > .section:first-child {
+  border-top: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view {
+    animation: none;
+  }
+}
+
+/* ── Nav active state ── */
+.nav-links a.nav-active {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nav-links .nav-cta.nav-active {
+  background: var(--ink-2);
+}
+
+/* ── Changelog preview (home) ── */
+.cl-preview {
+  padding: 96px 0;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.cl-preview h2 {
+  margin: 0 0 14px;
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+#changelog-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: left;
+  max-width: 760px;
+  margin: 0 auto 28px;
+}
+
+.see-all-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-soft);
+}
+
+.see-all-link:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
 /* ── Footer ── */
 .site-footer {
   border-top: 1px solid var(--line);
@@ -875,6 +946,7 @@ main {
   .moments,
   .agents,
   .onboarding,
+  .cl-preview,
   .download,
   .changelog {
     padding: 56px 0;
@@ -929,6 +1001,14 @@ main {
   .hero-mascot {
     width: 56px;
     height: 56px;
+  }
+
+  .onboarding-callout {
+    padding: 28px 24px;
+  }
+
+  .onboarding-callout p {
+    font-size: 15px;
   }
 
   .agent-row {
