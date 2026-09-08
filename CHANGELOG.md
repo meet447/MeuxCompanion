@@ -8,6 +8,7 @@ The GitHub Release workflow uses the version in `package.json` / `src-tauri/taur
 
 ### Fixed
 - Live2D (Haru) in the packaged app: PixiJS now uses `@pixi/unsafe-eval` so shader compilation works under Tauri CSP without allowing `'unsafe-eval'`.
+- Marketplace look cards: Arweave thumbnail redirects to `*.arweave.net` gateways are allowed in `img-src`, so preview images load in the packaged app.
 
 ## [0.1.1] - 2026-09-08
 
