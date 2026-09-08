@@ -144,6 +144,8 @@ struct AudioEvent {
     request_id: String,
     index: u32,
     data: String, // base64-encoded audio
+    #[serde(default)]
+    engine: String,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -348,6 +350,19 @@ fn spawn_tts_for_sentence(
     let app_tts = app.clone();
     let request_id = request_id.to_string();
 
+    if meuxe_core::tts::is_system_speech_provider(&tts_cfg.provider) {
+        let _ = app_tts.emit(
+            "chat:audio",
+            AudioEvent {
+                request_id,
+                index,
+                data: String::new(),
+                engine: "system".to_string(),
+            },
+        );
+        return;
+    }
+
     tokio::spawn(async move {
         let tts_text = clean_for_tts(&text);
         let outcome = await_tts_outcome(cancel, TTS_SENTENCE_TIMEOUT, async {
@@ -367,6 +382,7 @@ fn spawn_tts_for_sentence(
                         request_id,
                         index,
                         data: b64,
+                        engine: String::new(),
                     },
                 );
             }

@@ -6,18 +6,21 @@ import { ChatPanel } from "./components/ChatPanel";
 import { HistoryDrawer } from "./components/chat/HistoryDrawer";
 import { FloatingChatInput } from "./components/chat/FloatingChatInput";
 import { Sidebar } from "./components/shell/Sidebar";
-import { Button, Dots, Mascot, Pill } from "./components/ui";
+import { Button, Dots, Mascot, Notice, Pill } from "./components/ui";
 import { AddCharacterModal } from "./components/AddCharacterModal";
 import { CharacterSelect } from "./components/CharacterSelect";
 import { Onboarding } from "./components/Onboarding";
 import { Settings } from "./components/Settings";
 import { MiniWidget } from "./components/MiniWidget";
+import { StageEmptyState } from "./components/stage/StageEmptyState";
+import { WhisperDownloadCard } from "./components/voice/WhisperDownloadCard";
 import { useChat, cleanCompanionDisplayText } from "./hooks/useChat";
 import { unlockAudioPlayback, useAudioQueue } from "./hooks/useAudioQueue";
 import { useVoice } from "./hooks/useVoice";
 import { useWindow } from "./hooks/useWindow";
 import {
   getConfig,
+  getAgentSetupStatus,
   setActiveCharacter,
   listCharacters,
   listModels,
@@ -29,7 +32,7 @@ import {
   resolveLive2DModelUrl,
 } from "./api/tauri";
 import { sessionMessagesToChat } from "./lib/sessionHistory";
-import type { Character, ModelInfo } from "./types";
+import type { AppConfig, Character, ModelInfo } from "./types";
 
 const Live2DCanvas = lazy(() =>
   import("./components/Live2DCanvas").then((m) => ({ default: m.Live2DCanvas }))
@@ -191,6 +194,7 @@ function App() {
   const [expressionsConfigured, setExpressionsConfigured] = useState<boolean | null>(null);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [userTyping, setUserTyping] = useState(false);
+  const [agentReady, setAgentReady] = useState(true);
 
   const {
     setMessages,
@@ -206,8 +210,20 @@ function App() {
     toolCalls,
     handleConfirm,
     cancel,
+    error: chatError,
+    clearError: clearChatError,
   } = useChat();
-  const { listening, startListening, stopListening } = useVoice();
+  const {
+    listening,
+    startListening,
+    stopListening,
+    error: voiceError,
+    clearError: clearVoiceError,
+    needsWhisperDownload,
+    downloadProgress,
+    downloading,
+    downloadWhisper,
+  } = useVoice();
   const {
     speaking,
     speakingSentence,
@@ -225,6 +241,17 @@ function App() {
   } = useAudioQueue();
 
   const selectedCharRef = useRef<Character | undefined>(undefined);
+
+  const refreshAgentReady = useCallback(async (cfg?: AppConfig) => {
+    try {
+      const config = cfg ?? (await getConfig());
+      const preset = config.agent?.preset || "opencode";
+      const status = await getAgentSetupStatus(preset, config.agent?.program);
+      setAgentReady(status.agent.ready);
+    } catch {
+      setAgentReady(false);
+    }
+  }, []);
 
   const loadHistory = useCallback(
     async (characterId: string) => {
@@ -285,7 +312,12 @@ function App() {
       addSentence(payload.request_id, payload);
     });
     setOnAudio((payload) => {
-      addAudio(payload.request_id, payload.index, payload.data);
+      addAudio(
+        payload.request_id,
+        payload.index,
+        payload.data,
+        payload.engine === "system" ? "system" : "remote",
+      );
     });
     setOnAudioFailed((payload) => {
       failAudio(payload.request_id, payload.index);
@@ -345,23 +377,21 @@ function App() {
   useEffect(() => {
     getConfig()
       .then((data) => {
-        console.log("[App] config loaded:", JSON.stringify(data));
-        const cfg = data as Record<string, unknown>;
-        const complete = !!(cfg.onboarding_complete ?? cfg.onboardingComplete ?? false);
-        console.log("[App] onboardingComplete =", complete);
+        const complete = !!data.onboarding_complete;
         setOnboardingComplete(complete);
-        const activeChar = ((cfg.active_character ?? cfg.activeCharacter ?? "") as string);
+        const activeChar = data.active_character ?? "";
         if (miniCharacterId) {
           setSelectedCharId(miniCharacterId);
         } else if (activeChar) {
           setSelectedCharId(activeChar);
         }
+        void refreshAgentReady(data);
       })
       .catch((err) => {
         console.error("[App] config load error:", err);
         setOnboardingComplete(avatarPreview ? true : false);
       });
-  }, [miniCharacterId, avatarPreview]);
+  }, [miniCharacterId, avatarPreview, refreshAgentReady]);
 
   const selectedChar = useMemo(
     () => characters.find((c) => c.id === selectedCharId),
@@ -473,6 +503,7 @@ function App() {
   const handleSettingsClose = useCallback(() => {
     setSettingsOpen(false);
     refreshCharacters();
+    void refreshAgentReady();
     if (selectedCharId) {
       loadHistory(selectedCharId);
     }
@@ -485,17 +516,22 @@ function App() {
     loadHistory,
     expressionModelId,
     refreshExpressionConfiguration,
+    refreshAgentReady,
   ]);
 
   const handleSend = useCallback(
     async (text: string) => {
       if (!selectedCharId || !expressionsConfigured) return;
+      if (!agentReady) {
+        setSettingsOpen(true);
+        return;
+      }
       unlockAudioPlayback();
       const requestId = crypto.randomUUID();
       beginRequest(requestId);
       await send(selectedCharId, text, requestId);
     },
-    [selectedCharId, expressionsConfigured, send, beginRequest]
+    [selectedCharId, expressionsConfigured, agentReady, send, beginRequest]
   );
 
   useEffect(() => {
@@ -759,6 +795,47 @@ function App() {
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center px-4 pb-6 pt-16">
+              {timeline.length === 0 && !streamingText && !isStreaming && (
+                <div className="mb-6">
+                  <StageEmptyState
+                    characterName={charName}
+                    agentReady={agentReady}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                  />
+                </div>
+              )}
+              {needsWhisperDownload && (
+                <div className="pointer-events-auto mb-3 w-full max-w-xl">
+                  <WhisperDownloadCard
+                    progress={downloadProgress}
+                    error={voiceError}
+                    downloading={downloading}
+                    onDownload={() => {
+                      void downloadWhisper();
+                    }}
+                  />
+                </div>
+              )}
+              {(chatError || (voiceError && !needsWhisperDownload)) && (
+                <div className="pointer-events-auto mb-3 w-full max-w-xl">
+                  <Notice
+                    tone="danger"
+                    title={chatError ? "Could not send that" : "Microphone"}
+                  >
+                    <p>{chatError || voiceError}</p>
+                    <button
+                      type="button"
+                      className="mt-2 text-xs font-semibold underline"
+                      onClick={() => {
+                        clearChatError();
+                        clearVoiceError();
+                      }}
+                    >
+                      Dismiss
+                    </button>
+                  </Notice>
+                </div>
+              )}
               <FloatingChatInput
                 isProcessing={isStreaming}
                 isStreaming={isStreaming}
@@ -770,6 +847,7 @@ function App() {
                 inputRef={fullChatInputRef}
                 caption={spokenCaption}
                 captionSpeaker={spokenCaption ? charName : undefined}
+                placeholder={agentReady ? `Say hello to ${charName}` : "Set up an assistant in Settings to chat"}
               />
             </div>
           </>

@@ -1,3 +1,4 @@
+use crate::bundled_assets::copy_dir_recursive;
 use crate::commands::require_id;
 use crate::AppState;
 use meuxe_core::character::slugify;
@@ -74,7 +75,13 @@ pub fn characters_create(
 
 #[tauri::command]
 pub fn models_list(state: State<Arc<AppState>>) -> Result<Vec<ModelInfo>, String> {
-    meuxe_core::character::list_models(&state.data_dir).map_err(|e| e.to_string())
+    let extra_roots = state
+        .resource_dir
+        .as_ref()
+        .map(|resource_dir| vec![resource_dir.join("models")])
+        .unwrap_or_default();
+    meuxe_core::character::list_models_with_roots(&state.data_dir, &extra_roots)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -247,27 +254,6 @@ fn unique_dir_path(root: &Path, base_name: &str) -> PathBuf {
     }
 
     candidate
-}
-
-fn copy_dir_recursive(source: &Path, target: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(target)?;
-
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let path = entry.path();
-        let destination = target.join(entry.file_name());
-
-        if path.is_dir() {
-            copy_dir_recursive(&path, &destination)?;
-        } else {
-            if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::copy(&path, &destination)?;
-        }
-    }
-
-    Ok(())
 }
 
 fn contains_live2d_model(dir: &Path) -> bool {

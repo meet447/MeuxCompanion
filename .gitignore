@@ -11,6 +11,7 @@ artifacts/
 
 # Node
 node_modules/
+public/vendor/
 dist/
 coverage/
 public/vendor/

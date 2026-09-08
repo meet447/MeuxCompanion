@@ -1,6 +1,8 @@
 mod acp;
+mod bundled_assets;
 mod commands;
 mod tray;
+mod whisper;
 mod window;
 
 use meuxe_core::character::CharacterLoader;
@@ -14,16 +16,15 @@ use std::sync::{Arc, Mutex};
 
 use crate::acp::AcpConnectionManager;
 use tauri::Manager;
-use whisper_rs::{WhisperContext, WhisperContextParameters};
 
 pub struct AppState {
     pub data_dir: PathBuf,
+    pub resource_dir: Option<PathBuf>,
     pub config: ConfigManager,
     pub characters: CharacterLoader,
     pub sessions: SessionStore,
     pub memory: CompanionMemory,
     pub expressions: ExpressionManager,
-    pub whisper_ctx: Option<Arc<WhisperContext>>,
     pub chat_cancel: std::sync::Mutex<Option<tokio_util::sync::CancellationToken>>,
     pub chat_permission_responders:
         std::sync::Mutex<HashMap<String, tokio::sync::oneshot::Sender<bool>>>,
@@ -44,12 +45,19 @@ fn get_data_dir(state: tauri::State<Arc<AppState>>) -> String {
 }
 
 // Command to resolve a relative asset path to a convertFileSrc-compatible URL
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+struct ResolvedAssetPath {
+    path: String,
+    root: String,
+}
+
 #[tauri::command]
 fn resolve_asset_path(
     app: tauri::AppHandle,
     state: tauri::State<Arc<AppState>>,
     path: String,
-) -> Result<String, String> {
+) -> Result<ResolvedAssetPath, String> {
     let clean = path.trim_start_matches('/');
     if clean.is_empty() {
         return Err("Asset path is empty".into());
@@ -64,14 +72,26 @@ fn resolve_asset_path(
         return Err(format!("Asset path must not contain '..': {clean}"));
     }
 
-    let mut roots: Vec<PathBuf> = vec![state.data_dir.clone()];
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        roots.push(resource_dir);
+    if let Some(resolved) = resolve_under_root(&state.data_dir, clean) {
+        return Ok(ResolvedAssetPath {
+            path: resolved.to_string_lossy().to_string(),
+            root: "app_data".to_string(),
+        });
     }
 
-    for root in &roots {
-        if let Some(resolved) = resolve_under_root(root, clean) {
-            return Ok(resolved.to_string_lossy().to_string());
+    if let Some(resource_dir) = &state.resource_dir {
+        if let Some(resolved) = resolve_under_root(resource_dir, clean) {
+            return Ok(ResolvedAssetPath {
+                path: resolved.to_string_lossy().to_string(),
+                root: "resources".to_string(),
+            });
+        }
+    } else if let Ok(resource_dir) = app.path().resource_dir() {
+        if let Some(resolved) = resolve_under_root(&resource_dir, clean) {
+            return Ok(ResolvedAssetPath {
+                path: resolved.to_string_lossy().to_string(),
+                root: "resources".to_string(),
+            });
         }
     }
 
@@ -80,7 +100,10 @@ fn resolve_asset_path(
         for candidate in dev_candidates {
             if candidate.is_file() {
                 let resolved = std::path::absolute(&candidate).unwrap_or(candidate);
-                return Ok(resolved.to_string_lossy().to_string());
+                return Ok(ResolvedAssetPath {
+                    path: resolved.to_string_lossy().to_string(),
+                    root: "dev".to_string(),
+                });
             }
         }
     }
@@ -95,7 +118,8 @@ fn read_asset_text(
     path: String,
 ) -> Result<String, String> {
     let resolved = resolve_asset_path(app, state, path)?;
-    std::fs::read_to_string(&resolved).map_err(|e| format!("Failed to read {resolved}: {e}"))
+    std::fs::read_to_string(&resolved.path)
+        .map_err(|e| format!("Failed to read {}: {e}", resolved.path))
 }
 
 fn resolve_under_root(root: &Path, relative: &str) -> Option<PathBuf> {
@@ -126,33 +150,6 @@ fn resolve_under_root(root: &Path, relative: &str) -> Option<PathBuf> {
     }
 }
 
-fn load_whisper_model(data_dir: &Path) -> Option<Arc<WhisperContext>> {
-    // Search for model in multiple locations
-    let candidates = [
-        data_dir.join("models/whisper/ggml-tiny.bin"),
-        PathBuf::from("models/whisper/ggml-tiny.bin"),
-        PathBuf::from("../models/whisper/ggml-tiny.bin"),
-    ];
-
-    for path in &candidates {
-        if path.exists() {
-            let path_str = path.to_string_lossy().to_string();
-            match WhisperContext::new_with_params(&path_str, WhisperContextParameters::default()) {
-                Ok(ctx) => {
-                    println!("Whisper model loaded from: {path_str}");
-                    return Some(Arc::new(ctx));
-                }
-                Err(e) => {
-                    eprintln!("Failed to load whisper model from {path_str}: {e}");
-                }
-            }
-        }
-    }
-
-    eprintln!("Whisper model not found. Local transcription disabled.");
-    None
-}
-
 fn allow_webview_autoplay(app: &mut tauri::App) {
     #[cfg(target_os = "linux")]
     {
@@ -170,6 +167,8 @@ fn allow_webview_autoplay(app: &mut tauri::App) {
 }
 
 pub fn run() {
+    std::env::set_var("PATH", commands::agent_setup::augmented_path_env());
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -183,16 +182,28 @@ pub fn run() {
                 eprintln!("[acp] failed to create companion-home: {err}");
             }
 
-            let whisper_ctx = load_whisper_model(&data_dir);
+            whisper::load_whisper_model(&data_dir);
+
+            let resource_dir = app.path().resource_dir().ok();
+            if let Some(resource_dir) = resource_dir.as_ref() {
+                if let Err(err) = bundled_assets::seed_bundled_models(resource_dir, &data_dir) {
+                    eprintln!("[bundled_assets] failed to seed bundled models: {err}");
+                }
+            }
+
+            let bundled_expression_root = resource_dir.as_ref().map(|dir| dir.join("models"));
 
             let state = AppState {
                 data_dir: data_dir.clone(),
+                resource_dir,
                 config: ConfigManager::new(&data_dir),
                 characters: CharacterLoader::new(&data_dir),
                 sessions: SessionStore::new(&data_dir),
                 memory: CompanionMemory::new(&data_dir),
-                expressions: ExpressionManager::new(&data_dir),
-                whisper_ctx,
+                expressions: ExpressionManager::new_with_bundled_root(
+                    &data_dir,
+                    bundled_expression_root,
+                ),
                 chat_cancel: std::sync::Mutex::new(None),
                 chat_permission_responders: std::sync::Mutex::new(HashMap::new()),
                 acp: Mutex::new(AcpConnectionManager::default()),
@@ -201,7 +212,9 @@ pub fn run() {
             app.manage(Arc::new(state));
 
             // Setup system tray
-            tray::setup_tray(app.handle()).expect("Failed to setup tray");
+            if let Err(err) = tray::setup_tray(app.handle()) {
+                eprintln!("[tray] disabled: {err}");
+            }
 
             allow_webview_autoplay(app);
 
@@ -241,6 +254,8 @@ pub fn run() {
             commands::tts::tts_preview,
             commands::voice::voice_transcribe,
             commands::voice::voice_transcribe_local,
+            commands::voice::voice_whisper_status,
+            commands::voice::voice_whisper_download,
             window::window_toggle_mini,
             window::window_expand,
             get_data_dir,

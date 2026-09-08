@@ -10,22 +10,25 @@ export function toAssetUrl(relativePath: string): string {
   return `/static/${clean}`;
 }
 
+export interface ResolvedAssetPath {
+  path: string;
+  root: "app_data" | "resources" | "dev";
+}
+
 export async function resolveAssetUrl(relativePath: string): Promise<string> {
   const clean = relativePath.replace(/^\/+/, "");
   if (isViteDevHost()) {
     return withCacheBust(toAssetUrl(clean));
   }
   try {
-    const [absolutePath, dataDir] = await Promise.all([
-      invoke<string>("resolve_asset_path", { path: clean }),
-      invoke<string>("get_data_dir"),
-    ]);
-    const normalizedDataDir = dataDir.replace(/\\/g, "/").replace(/\/$/, "");
-    const normalizedAbsolute = absolutePath.replace(/\\/g, "/");
-    if (normalizedAbsolute.startsWith(`${normalizedDataDir}/`)) {
-      return convertFileSrc(absolutePath);
+    const resolved = await invoke<ResolvedAssetPath>("resolve_asset_path", { path: clean });
+    if (resolved.root === "app_data" || resolved.root === "resources") {
+      return convertFileSrc(resolved.path);
     }
-    console.warn("[assets] Model is outside app data; using /static/ fallback:", clean);
+    if (resolved.root === "dev") {
+      return toAssetUrl(clean);
+    }
+    console.warn("[assets] Unknown asset root; using /static/ fallback:", clean, resolved.root);
     return toAssetUrl(clean);
   } catch (err) {
     console.warn("[assets] Falling back to /static/ URL for", clean, err);
@@ -40,12 +43,12 @@ export async function resolveLive2DModelUrl(relativePath: string): Promise<strin
     return withCacheBust(toAssetUrl(clean));
   }
   try {
-    const [absolutePath, json] = await Promise.all([
-      invoke<string>("resolve_asset_path", { path: clean }),
+    const [resolved, json] = await Promise.all([
+      invoke<ResolvedAssetPath>("resolve_asset_path", { path: clean }),
       invoke<string>("read_asset_text", { path: clean }),
     ]);
     const settings = JSON.parse(json) as Parameters<typeof rewriteLive2DFileReferences>[0];
-    const dir = dirnamePath(absolutePath);
+    const dir = dirnamePath(resolved.path);
     const rewritten = rewriteLive2DFileReferences(settings, (rel) =>
       convertFileSrc(joinDir(dir, rel)),
     );
@@ -95,8 +98,11 @@ export interface AgentSetupStatusResponse {
   };
 }
 
-export async function getAgentSetupStatus(preset: string) {
-  return invoke<AgentSetupStatusResponse>("agent_setup_status", { preset });
+export async function getAgentSetupStatus(preset: string, program?: string | null) {
+  return invoke<AgentSetupStatusResponse>("agent_setup_status", {
+    preset,
+    program: program ?? null,
+  });
 }
 
 export async function installAgentSetup(preset: string) {
