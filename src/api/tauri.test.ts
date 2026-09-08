@@ -72,6 +72,67 @@ describe('tauri api utilities', () => {
       const url = await tauriApi.resolveAssetUrl('models/vrm/demo/model.vrm');
       expect(url).toBe('/static/models/vrm/demo/model.vrm');
     });
+
+    it('uses /static/ on the Vite tauri-dev origin without convertFileSrc', async () => {
+      const original = window.location;
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { hostname: "localhost", port: "1420" },
+      });
+      try {
+        const url = await tauriApi.resolveAssetUrl("models/live2d/haru/Haru.model3.json");
+        expect(url.startsWith("/static/models/live2d/haru/Haru.model3.json")).toBe(true);
+        expect(invoke).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(window, "location", { configurable: true, value: original });
+      }
+    });
+  });
+
+  describe('resolveLive2DModelUrl', () => {
+    it('rewrites moc/texture refs using ResolvedAssetPath.path', async () => {
+      const createObjectURL = vi.fn((_blob: Blob) => 'blob:live2d-settings');
+      const originalCreateObjectURL = URL.createObjectURL;
+      URL.createObjectURL = createObjectURL;
+      vi.mocked(invoke).mockImplementation(async (command: string) => {
+        if (command === 'resolve_asset_path') {
+          return {
+            path: '/data/com.meuxe.app/models/live2d/haru/Haru.model3.json',
+            root: 'app_data',
+          };
+        }
+        if (command === 'read_asset_text') {
+          return JSON.stringify({
+            FileReferences: {
+              Moc: 'Haru.moc3',
+              Textures: ['Haru.2048/texture_00.png'],
+            },
+          });
+        }
+        return null;
+      });
+
+      try {
+        const url = await tauriApi.resolveLive2DModelUrl('models/live2d/haru/Haru.model3.json');
+        expect(url).toBe('blob:live2d-settings');
+        const blob = createObjectURL.mock.calls[0][0] as Blob;
+        const parsed = JSON.parse(await blob.text());
+        expect(parsed.FileReferences.Moc).toBe(
+          `asset://localhost/${encodeURIComponent('/data/com.meuxe.app/models/live2d/haru/Haru.moc3')}`,
+        );
+        expect(parsed.FileReferences.Textures[0]).toBe(
+          `asset://localhost/${encodeURIComponent('/data/com.meuxe.app/models/live2d/haru/Haru.2048/texture_00.png')}`,
+        );
+      } finally {
+        URL.createObjectURL = originalCreateObjectURL;
+      }
+    });
+
+    it('falls back to /static/ when Live2D rewrite invokes fail', async () => {
+      vi.mocked(invoke).mockRejectedValueOnce(new Error('missing'));
+      const url = await tauriApi.resolveLive2DModelUrl('models/live2d/haru/Haru.model3.json');
+      expect(url.startsWith('/static/models/live2d/haru/Haru.model3.json')).toBe(true);
+    });
   });
 
   describe('Config functions', () => {
