@@ -13,6 +13,7 @@ artifacts/
 node_modules/
 dist/
 coverage/
+public/vendor/
 .vite/
 *.tsbuildinfo
 npm-debug.log*

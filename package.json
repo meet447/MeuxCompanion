@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/fetch-cubism-core.mjs",
+    "prebuild": "node scripts/fetch-cubism-core.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "tauri": "tauri",

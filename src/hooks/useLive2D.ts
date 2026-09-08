@@ -459,8 +459,13 @@ export function useLive2D(hostRef: React.RefObject<HTMLElement | null>) {
       }
 
       try {
+        // Probe Cubism + the model URL so a silent PIXI failure isn't a blank stage.
         const loadUrl = withCacheBust(modelPath);
         console.log("[Live2D] Loading from URL:", loadUrl);
+        const cubism = (window as Window & { Live2DCubismCore?: unknown }).Live2DCubismCore;
+        if (!cubism) {
+          throw new Error("Live2D Cubism Core did not load. Check /vendor/live2d/live2dcubismcore.min.js");
+        }
         const model = await Live2DModel.from(loadUrl, {
           motionPreload: "IDLE" as any,
         });
@@ -546,6 +551,7 @@ export function useLive2D(hostRef: React.RefObject<HTMLElement | null>) {
         startIdleAnimations(model);
       } catch (err) {
         console.error("Failed to load Live2D model:", err);
+        throw err;
       }
     },
     [hostRef, ensureCanvas, startIdleAnimations]

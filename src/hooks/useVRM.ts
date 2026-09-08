@@ -8,7 +8,7 @@ import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from "@pixiv/three-v
 import { mixamoVRMRigMap } from "../utils/mixamoRigMap";
 import { resolveAssetUrl } from "../api/tauri";
 import { withCacheBust } from "../lib/assetUrls";
-import { withHtmlImageTextures } from "../lib/gltfTextures";
+import { withHtmlImageTextures, patchGltfImageBitmapLoader } from "../lib/gltfTextures";
 import { resolveVrmExpressionName } from "../utils/vrmExpressions";
 import {
   createBlinkScheduler,
@@ -696,6 +696,7 @@ export function useVRM(
       }
 
       // Load VRM
+      patchGltfImageBitmapLoader();
       const gltfLoader = new GLTFLoader();
       gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
 
