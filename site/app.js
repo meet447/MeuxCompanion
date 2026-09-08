@@ -186,13 +186,15 @@
     for (var j = 0; j < lines.length; j++) {
       var match = lines[j].match(/^##\s+(.*)$/);
       if (match) {
-        if (current) entries.push(current);
+        if (current && !/\[Unreleased\]/i.test(current.heading))
+          entries.push(current);
         current = { heading: match[1].trim(), lines: [] };
       } else if (current) {
         current.lines.push(lines[j]);
       }
     }
-    if (current) entries.push(current);
+    if (current && !/\[Unreleased\]/i.test(current.heading))
+      entries.push(current);
     return entries;
   }
 
