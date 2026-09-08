@@ -73,11 +73,13 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: "Meuxe v__VERSION__"
           releaseBody: |
-            macOS and Linux prerelease builds.
+            macOS and Linux builds with in-app auto-update support.
 
             macOS builds are unsigned; Gatekeeper may block the app until you allow it in System Settings.
 

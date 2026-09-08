@@ -18,6 +18,7 @@ import {
 import { AgentSection } from "./settings/AgentSection";
 import { AvatarViewportSettings } from "./settings/AvatarViewportSettings";
 import { TtsSection } from "./settings/TtsSection";
+import { UpdatesSection } from "./settings/UpdatesSection";
 import { WhisperDownloadCard } from "./voice/WhisperDownloadCard";
 import { useVoice } from "../hooks/useVoice";
 import type { AcpAgentPresetId } from "../lib/agentPresets";
@@ -500,6 +501,7 @@ export function Settings({
               "Your chat assistant, and anything that assistant does online",
               "ElevenLabs or OpenAI voices, only if you turn them on",
               "One-time speech model download from Hugging Face when you first use the mic",
+              "Optional in-app updates from GitHub Releases",
             ]}
             tone="accent"
           />
@@ -511,6 +513,8 @@ export function Settings({
             ]}
             tone="honey"
           />
+
+          <UpdatesSection />
 
           <Surface tone="well" elevation="none" className="p-5">
             <h3 className="text-sm font-semibold text-ink">Run onboarding again</h3>

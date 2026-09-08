@@ -30,5 +30,5 @@ First public **macOS and Linux** prerelease.
 ### Known limits
 - macOS builds are unsigned; Gatekeeper needs a right-click Open (or removing quarantine) until signing is added.
 - Windows is not built for this release.
-- There is no in-app auto-updater.
+- In-app auto-updates via GitHub Releases (Settings → Privacy & data, or the launch banner when an update is available). See `docs/UPDATES.md`.
 - Chat requires a separately installed ACP agent (OpenCode, Claude Code, Codex, or custom).
