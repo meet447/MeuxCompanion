@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { installMarketplaceModel } from "../../api/tauri";
 import {
   filterMarketplaceListings,
@@ -40,6 +40,45 @@ export interface ModelMarketplaceProps {
 
 function typeLabel(type: string) {
   return type === "vrm" ? "VRM" : "Live2D";
+}
+
+function ListingThumbnail({
+  url,
+  type,
+  bundled,
+}: {
+  url?: string;
+  type: string;
+  bundled?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [url]);
+
+  if (!url || failed) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-ink-3">
+        <span className="text-xs font-semibold uppercase tracking-wide">{typeLabel(type)}</span>
+        {bundled && (
+          <Pill tone="accent" size="xs">
+            Bundled
+          </Pill>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={url}
+      alt=""
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 function ListingCard({
@@ -95,19 +134,7 @@ function ListingCard({
           compact ? "aspect-[4/3]" : "aspect-[5/4]",
         )}
       >
-        {listing.thumbnailUrl ? (
-          <img
-            src={listing.thumbnailUrl}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-ink-3">
-            <span className="text-xs font-semibold uppercase tracking-wide">{typeLabel(listing.type)}</span>
-            {listing.bundled && <Pill tone="accent" size="xs">Bundled</Pill>}
-          </div>
-        )}
+        <ListingThumbnail url={listing.thumbnailUrl} type={listing.type} bundled={listing.bundled} />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2">

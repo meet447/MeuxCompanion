@@ -4,6 +4,12 @@ All notable changes to Meuxe are documented here.
 
 The GitHub Release workflow uses the version in `package.json` / `src-tauri/tauri.conf.json` and the matching `## [version]` section below as the release title and notes. Write that section before tagging.
 
+## [Unreleased]
+
+### Fixed
+- Live2D (Haru) in the packaged app: PixiJS now uses `@pixi/unsafe-eval` so shader compilation works under Tauri CSP without allowing `'unsafe-eval'`.
+- Marketplace look cards: Arweave thumbnail redirects to `*.arweave.net` gateways are allowed in `img-src`, so preview images load in the packaged app.
+
 ## [0.1.1] - 2026-09-08
 
 First public **macOS and Linux** prerelease.

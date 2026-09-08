@@ -103,7 +103,11 @@ export default defineConfig({
           ) {
             return "three-vrm";
           }
-          if (id.includes("node_modules/pixi.js") || id.includes("pixi-live2d-display")) {
+          if (
+            id.includes("node_modules/pixi.js") ||
+            id.includes("node_modules/@pixi/unsafe-eval") ||
+            id.includes("pixi-live2d-display")
+          ) {
             return "live2d-pixi";
           }
         },

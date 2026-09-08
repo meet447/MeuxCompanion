@@ -20,6 +20,7 @@
   "dependencies": {
     "@fontsource/figtree": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
+    "@pixi/unsafe-eval": "^6.5.10",
     "@pixiv/three-vrm": "^3.5.5",
     "@pixiv/three-vrm-animation": "^3.5.5",
     "@tauri-apps/api": "^2.11.0",

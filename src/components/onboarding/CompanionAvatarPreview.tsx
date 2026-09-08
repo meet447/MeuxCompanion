@@ -44,6 +44,7 @@ export function CompanionAvatarPreview({
   const [url, setUrl] = useState<string | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   const vrmAnimations = useMemo(
     () => (model?.type === "vrm" ? previewAnimations(model) : undefined),
@@ -60,6 +61,7 @@ export function CompanionAvatarPreview({
     setUrl(null);
     setCanvasReady(false);
     setResolveError(null);
+    setThumbnailFailed(false);
     const resolver = model.type === "live2d" ? resolveLive2DModelUrl : resolveAssetUrl;
     resolver(model.path)
       .then((resolved) => {
@@ -76,6 +78,10 @@ export function CompanionAvatarPreview({
       cancelled = true;
     };
   }, [model?.path, model?.type, model?.id]);
+
+  useEffect(() => {
+    setThumbnailFailed(false);
+  }, [thumbnailUrl]);
 
   useEffect(() => {
     if (!model || !url) {
@@ -124,11 +130,12 @@ export function CompanionAvatarPreview({
           Loading avatar…
         </div>
       )}
-      {model?.type === "vrm" && thumbnailUrl && showCanvas && (
+      {model?.type === "vrm" && thumbnailUrl && showCanvas && !thumbnailFailed && (
         <img
           src={thumbnailUrl}
           alt=""
           className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover opacity-40"
+          onError={() => setThumbnailFailed(true)}
         />
       )}
       {showCanvas && (
