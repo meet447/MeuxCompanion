@@ -34,6 +34,9 @@ jobs:
       - name: Check Tauri JS/Rust versions
         run: npm run check:tauri-versions
 
+      - name: Check release notes match the app version
+        run: npm run check:release-notes
+
       - name: Typecheck and production build
         run: npm run build
 

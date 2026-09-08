@@ -2,15 +2,9 @@
 
 All notable changes to Meuxe are documented here.
 
+The GitHub Release workflow uses the version in `package.json` / `src-tauri/tauri.conf.json` and the matching `## [version]` section below as the release title and notes. Write that section before tagging.
+
 ## [0.1.1] - 2026-09-08
-
-### Fixed
-- Release and CI Tauri builds failed immediately because `@tauri-apps/api` 2.11 did not match the Rust `tauri` crate 2.10. Both sides now stay on 2.11.
-
-### Changed
-- App version is `0.1.1` so a `v0.1.1` tag publishes that release instead of reusing `v0.1.0`.
-
-## [0.1.0] - 2026-09-07
 
 First public **macOS and Linux** prerelease.
 
@@ -21,6 +15,7 @@ First public **macOS and Linux** prerelease.
 - Chat, microphone, and missing-assistant errors shown in the UI.
 - Main-stage “say hello” empty state and a one-time mini-widget hover hint.
 - Agent lookup on Homebrew, nvm, fnm, Volta, pnpm, and Bun paths so Dock-launched macOS builds can find CLIs.
+- In-app auto-updates from GitHub Releases (Settings → Privacy & data, or the launch banner). See `docs/UPDATES.md`.
 - `THIRD_PARTY_NOTICES.md` and Haru’s Live2D Free Material License file.
 
 ### Changed
@@ -38,5 +33,4 @@ First public **macOS and Linux** prerelease.
 ### Known limits
 - macOS builds are unsigned; Gatekeeper needs a right-click Open (or removing quarantine) until signing is added.
 - Windows is not built for this release.
-- In-app auto-updates via GitHub Releases (Settings → Privacy & data, or the launch banner when an update is available). See `docs/UPDATES.md`.
 - Chat requires a separately installed ACP agent (OpenCode, Claude Code, Codex, or custom).
