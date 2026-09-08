@@ -89,8 +89,8 @@ export function AgentSetupPanel({
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap gap-2">
             <StatusPill ok={agent.ready} label={agent.ready ? `${title} ready` : `${title} needed`} />
-            {usingSystem && <StatusPill ok label="System PATH" />}
-            {usingNpx && <StatusPill ok label="On demand" />}
+            {usingSystem && <StatusPill ok label="Found on this computer" />}
+            {usingNpx && <StatusPill ok label="Runs through Node.js" />}
             <StatusPill ok={status.prerequisites.node_available} label="Node.js" />
             {status.prerequisites.node_version && (
               <span className="text-[11px] text-ink-3">{status.prerequisites.node_version}</span>
@@ -101,7 +101,7 @@ export function AgentSetupPanel({
 
           {friendly && !agent.ready && (
             <p className="text-sm leading-snug text-ink-3">
-              Install the CLI globally now, or tap Finish and Meuxe will run the same global npm install for you.
+              Install {title} here, or install it yourself and click the check again after.
             </p>
           )}
 
@@ -118,7 +118,7 @@ export function AgentSetupPanel({
             )}
             {status.prerequisites.node_available && !agent.ready && (
               <Button size="sm" variant="primary" loading={installing} onClick={runInstall}>
-                Install globally (npm)
+                Install {title}
               </Button>
             )}
             {status.prerequisites.node_available && agent.ready && usingSystem && (
@@ -126,7 +126,7 @@ export function AgentSetupPanel({
             )}
             {status.prerequisites.node_available && agent.ready && !usingSystem && (
               <Button size="sm" variant="soft" loading={installing} onClick={runInstall}>
-                Install globally (npm)
+                Install {title}
               </Button>
             )}
           </div>

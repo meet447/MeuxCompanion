@@ -12,8 +12,8 @@ Phases are ordered; later work assumes earlier product polish unless noted.
 ## Phase 1 - Feel like a shipped app
 
 - [ ] One default character + avatar demo path polished (pick primary: VRM or Live2D)
-- [ ] Empty states and copy audit (no “vault” or harness jargon in first-run UI)
-- [ ] Chat empty state: invitation to talk, not feature list
+- [x] Empty states and copy audit (no “vault” or harness jargon in first-run UI)
+- [x] Chat empty state: invitation to talk, not feature list
 - [ ] Mini widget as hero demo asset (recording script + README GIF)
 - [x] Ordered TTS merge + expression tags on ACP chat path
 - [x] Light flat stage UI, speech subtitles, mini hover chat bar, settings avatar framing
