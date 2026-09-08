@@ -26,6 +26,7 @@ import {
   getChatHistory,
   clearChat,
   resolveAssetUrl,
+  resolveLive2DModelUrl,
 } from "./api/tauri";
 import { sessionMessagesToChat } from "./lib/sessionHistory";
 import type { Character, ModelInfo } from "./types";
@@ -404,7 +405,9 @@ function App() {
     }
 
     let cancelled = false;
-    resolveAssetUrl(selectedModel.path)
+    const resolver =
+      selectedModel.type === "live2d" ? resolveLive2DModelUrl : resolveAssetUrl;
+    resolver(selectedModel.path)
       .then((url) => {
         if (!cancelled) {
           setResolvedModelPath(url);
@@ -420,7 +423,15 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedModel?.path]);
+  }, [selectedModel?.path, selectedModel?.type]);
+
+  useEffect(() => {
+    return () => {
+      if (resolvedModelPath?.startsWith("blob:")) {
+        URL.revokeObjectURL(resolvedModelPath);
+      }
+    };
+  }, [resolvedModelPath]);
 
   const modelPath = resolvedModelPath;
   const modelType = selectedModel?.type === "vrm" ? "vrm" : "live2d";
