@@ -29,10 +29,14 @@ The public key committed in this repo matches a keypair generated during the aut
 ## Publishing a release
 
 ```bash
-# Bump version in package.json, src-tauri/tauri.conf.json, and src-tauri/Cargo.toml
+# Bump version in package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml,
+# and crates/meuxe-core/Cargo.toml so they match the tag. `tauri-action` uses
+# the version from tauri.conf.json (`tagName: v__VERSION__`).
 git tag v0.2.0
 git push origin v0.2.0
 ```
+
+The Tauri CLI will not build if the Rust `tauri` crate and npm `@tauri-apps/api` differ on major.minor (for example 2.10 vs 2.11). After changing Tauri plugins, run `npm run check:tauri-versions` and keep `Cargo.lock` / `package-lock.json` on the same 2.x minor.
 
 When CI finishes, review the draft release on GitHub, edit release notes if needed, and publish. Users on an older signed build will see the update in-app after the release is public.
 
@@ -57,3 +61,5 @@ Updater checks are disabled in the Vite browser dev server (`npm run dev`). To t
 - **"Could not check for updates"** — confirm CSP allows GitHub (`connect-src` in `tauri.conf.json`) and the release is published (not draft).
 - **Signature verification failed** — `TAURI_SIGNING_PRIVATE_KEY` in CI does not match `plugins.updater.pubkey`.
 - **No update offered** — `latest.json` version must be greater than the installed app version (semver).
+- **`Found version mismatched Tauri packages`** — `@tauri-apps/api` and the Rust `tauri` crate are on different major.minor versions. Align them (see above) and re-run the release.
+- **Release created for the wrong tag** — the git tag (`v0.1.1`) must match `version` in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`. The workflow names the GitHub Release from the config version, not the git tag name.
