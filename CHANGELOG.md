@@ -21,7 +21,7 @@ First public **macOS and Linux** prerelease.
 ### Changed
 - Default voice is **Meuxe TTS** (free, no API key). System speech on this computer, ElevenLabs, and OpenAI remain optional.
 - Onboarding cannot finish until an assistant is actually ready. Tool permissions stay in Settings.
-- Release workflow builds macOS (arm64 + x64) and Linux only; drafts are marked prerelease.
+- Release workflow builds macOS (Apple Silicon) and Linux only; drafts are marked prerelease.
 - `config.json` is written owner-only (`0600`) on macOS and Linux.
 - Linux `.deb` declares WebKitGTK 4.1 and AppIndicator runtime depends. macOS minimum version is 11.0.
 
@@ -32,5 +32,5 @@ First public **macOS and Linux** prerelease.
 
 ### Known limits
 - macOS builds are unsigned; Gatekeeper needs a right-click Open (or removing quarantine) until signing is added.
-- Windows is not built for this release.
+- Intel Macs and Windows are not built for this release.
 - Chat requires a separately installed ACP agent (OpenCode, Claude Code, Codex, or custom).

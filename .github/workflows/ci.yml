@@ -104,4 +104,5 @@ jobs:
         run: cargo test --workspace
 
       - name: Tauri build (smoke)
-        run: npm run tauri build
+        # Compile only: updater artifacts need TAURI_SIGNING_PRIVATE_KEY, which CI does not have.
+        run: npm run tauri build -- --no-bundle

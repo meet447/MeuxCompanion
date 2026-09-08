@@ -52,7 +52,7 @@ Meuxe is a character on your screen who remembers past conversations, speaks wit
 
 ### Download (macOS and Linux)
 
-Pre-built installers are on [GitHub Releases](https://github.com/meet447/Meuxe/releases). This first release is a **prerelease** for **macOS 11+** (separate arm64 and Intel DMGs) and **Linux** (`.deb` for Ubuntu 22.04+ and AppImage). Windows is not built yet.
+Pre-built installers are on [GitHub Releases](https://github.com/meet447/Meuxe/releases). This first release is a **prerelease** for **macOS 11+ (Apple Silicon)** and **Linux** (`.deb` for Ubuntu 22.04+ and AppImage). Intel Macs and Windows are not built yet.
 
 1. Download the asset that matches your machine.
 2. **macOS:** these builds are unsigned. If Gatekeeper blocks Meuxe, right-click the app → Open, or run `xattr -dr com.apple.quarantine /Applications/Meuxe.app`.
