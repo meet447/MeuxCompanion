@@ -73,24 +73,19 @@ jobs:
       - name: Check Tauri JS/Rust versions
         run: npm run check:tauri-versions
 
+      - name: Load release notes from CHANGELOG
+        id: notes
+        run: node scripts/release-notes.mjs --github-output >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: "Meuxe v__VERSION__"
-          releaseBody: |
-            macOS and Linux builds with in-app auto-update support.
-
-            macOS builds are unsigned; Gatekeeper may block the app until you allow it in System Settings.
-
-            Chat requires an ACP agent (Claude Code, Codex, or OpenCode) installed separately.
-
-            TTS defaults to Meuxe TTS. System speech, ElevenLabs, and OpenAI are optional.
-
-            Whisper speech-to-text downloads its model (~75MB) on first microphone use.
+          tagName: ${{ steps.notes.outputs.tag }}
+          releaseName: ${{ steps.notes.outputs.name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: true
           args: ${{ matrix.args }}

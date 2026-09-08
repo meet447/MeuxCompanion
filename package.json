@@ -12,6 +12,8 @@
     "tauri": "tauri",
     "test": "vitest run",
     "check:tauri-versions": "node scripts/check-tauri-versions.mjs",
+    "check:release-notes": "node scripts/release-notes.mjs --check",
+    "release-notes": "node scripts/release-notes.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "record:onboarding": "node scripts/record-onboarding-demo.mjs"
   },
