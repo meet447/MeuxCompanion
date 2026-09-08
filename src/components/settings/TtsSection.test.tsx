@@ -15,12 +15,13 @@ describe("TtsSection", () => {
       <TtsSection
         value={baseValue}
         onChange={vi.fn()}
-        voices={[{ id: "en_us_001", name: "Default" }]}
+        voices={[{ id: "en_us_001", name: "Jessie" }]}
         presets={TTS_PRESETS_UI}
       />,
     );
     expect(screen.getByText("Meuxe TTS")).toBeInTheDocument();
-    expect(screen.getByText("Default")).toBeInTheDocument();
+    expect(screen.getByText("System voice")).toBeInTheDocument();
+    expect(screen.getByText("Jessie")).toBeInTheDocument();
   });
 
   it("calls onChange when provider changes", () => {
@@ -29,7 +30,7 @@ describe("TtsSection", () => {
       <TtsSection
         value={baseValue}
         onChange={onChange}
-        voices={[{ id: "en_us_001", name: "Default" }]}
+        voices={[{ id: "en_us_001", name: "Jessie" }]}
         presets={TTS_PRESETS_UI}
       />,
     );
@@ -47,7 +48,7 @@ describe("TtsSection", () => {
       <TtsSection
         value={baseValue}
         onChange={vi.fn()}
-        voices={[{ id: "en_us_001", name: "Default" }]}
+        voices={[{ id: "en_us_001", name: "Jessie" }]}
         presets={TTS_PRESETS_UI}
         compactGrid
       />,

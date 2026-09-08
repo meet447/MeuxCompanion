@@ -5,6 +5,7 @@ import { useWindow } from "../hooks/useWindow";
 import { ChatComposer } from "./chat/ChatComposer";
 import { MiniToolPills } from "./MiniToolPill";
 import type { ToolCallStatus } from "../types";
+import { hasSeenHint, markHintSeen } from "../lib/firstRunHints";
 import {
   Button,
   ExpandIcon,
@@ -64,6 +65,7 @@ export function MiniWidget({
   const [sizePresetIndex, setSizePresetIndex] = useState(1);
   const [bottomDockHover, setBottomDockHover] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [showHint, setShowHint] = useState(() => !hasSeenHint("miniChat"));
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync preset with actual window size on mount
@@ -250,11 +252,25 @@ export function MiniWidget({
         </div>
       )}
 
+      {showHint && !showBottomChrome && (
+        <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-20 flex justify-center">
+          <p className="rounded-full bg-surface-2/90 px-3 py-1.5 text-[11px] font-medium text-ink-2 shadow-soft">
+            Hover the bottom edge to chat
+          </p>
+        </div>
+      )}
+
       {/* Bottom hover zone: input + utilities appear on hover (or while typing / focused) */}
       <div
         className="absolute bottom-0 left-0 right-0 z-30 flex justify-center pb-3 pt-12"
         data-mini-interactive="true"
-        onMouseEnter={() => setBottomDockHover(true)}
+        onMouseEnter={() => {
+          setBottomDockHover(true);
+          if (showHint) {
+            markHintSeen("miniChat");
+            setShowHint(false);
+          }
+        }}
         onMouseLeave={() => {
           if (!inputFocused && !input.trim()) setBottomDockHover(false);
         }}
