@@ -61,7 +61,7 @@ Builds are **not signed or notarized**, so Gatekeeper treats the download as qua
 3. Clear the quarantine flag (required once):
 
 ```bash
-xattr -cr /Applications/Meuxe.app
+xattr -c /Applications/Meuxe.app
 ```
 
 4. Open Meuxe from Applications or Spotlight.
