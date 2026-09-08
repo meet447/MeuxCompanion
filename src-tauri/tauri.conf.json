@@ -68,7 +68,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU2MDQ2MTY2QjFDNzNBMjYKUldRbU9zZXhabUVFVnZxc1ZsYTA3aVIyTmp0bDlFaEhxelRmYkwwaXVkcXBJNVpGYm1Zb0c3RzcK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRCNTgxQ0FEQ0NGQjM1QzAKUldUQU5mdk1yUnhZUy9yRGQrQS91N0Jnck13enRSaGkxWUJpaDliOWY2bHk5VTM1SmxlVXIzRW0K",
       "endpoints": [
         "https://github.com/meet447/Meuxe/releases/latest/download/latest.json"
       ]
