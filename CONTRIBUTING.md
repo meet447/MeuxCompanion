@@ -13,7 +13,7 @@ Prerequisites:
 
 - **Node.js** 22 recommended (see [`.nvmrc`](.nvmrc))
 - **Rust** 1.88.0 with **Cargo** (pinned in [`rust-toolchain.toml`](rust-toolchain.toml); see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
-- On **Linux**, install WebKitGTK and related packages (see the [CI workflow](.github/workflows/ci.yml) or [release workflow](.github/workflows/release.yml) for package lists)
+- On **Linux**, install WebKitGTK and related packages (see the [release workflow](.github/workflows/release.yml) for package lists)
 - `npm run build` / `npm run tauri dev` fetch Live2D Cubism Core over the network (`scripts/fetch-cubism-core.mjs`); it is not committed
 
 Clone and run in development mode:
@@ -33,7 +33,7 @@ npm run tauri build
 
 ### Checks before you open a PR
 
-Match what [CI](.github/workflows/ci.yml) runs:
+Run these checks locally:
 
 ```bash
 npm ci

@@ -25,7 +25,7 @@ The full desktop app (`npm run tauri dev`) requires a display. In a headless Clo
 
 ### Lint, test, and build commands
 
-See `package.json` scripts and the CI workflow at `.github/workflows/ci.yml`.
+See `package.json` scripts.
 
 - **Frontend tests:** `npm test` (Vitest, 85 tests)
 - **Frontend build:** `npm run build` (tsc + vite build)
@@ -43,7 +43,7 @@ Durable fix - install the dev package for the GCC version Clang selected, then p
 sudo apt-get install -y libstdc++-14-dev
 ```
 
-Alternative (what CI does) - force GCC and point the Rust linker at its `libstdc++`:
+Alternative - force GCC and point the Rust linker at its `libstdc++`:
 
 ```bash
 export CC=gcc CXX=g++

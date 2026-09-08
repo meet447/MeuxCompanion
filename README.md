@@ -66,7 +66,7 @@ You can also build and run from source:
 
 - **Node.js** 22 (see [`.nvmrc`](.nvmrc))
 - **Rust** 1.88.0 with **Cargo** (pinned in [`rust-toolchain.toml`](rust-toolchain.toml); see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for OS-specific packages)
-- **Linux:** WebKitGTK and related dev packages (the same set [used in CI](.github/workflows/ci.yml) is a good reference)
+- **Linux:** WebKitGTK and related dev packages (the same set [used in the release workflow](.github/workflows/release.yml) is a good reference)
 - **An ACP agent** for chat (see [Pick an agent](#pick-an-agent) below)
 - Network access during `npm run build` / `npm run tauri dev` to fetch Live2D Cubism Core (not committed; see `scripts/fetch-cubism-core.mjs`)
 
@@ -112,9 +112,9 @@ npm run build        # typecheck + production frontend build
 npm run icons        # regenerate app icons from src-tauri/icons/source/icon.svg
 ```
 
-### Rust (Linux / CI parity)
+### Rust (Linux)
 
-`whisper-rs-sys` needs CMake and g++. On Linux CI images, link against GCC's `libstdc++`:
+`whisper-rs-sys` needs CMake and g++. On Linux, link against GCC's `libstdc++`:
 
 ```bash
 export CC=gcc CXX=g++
