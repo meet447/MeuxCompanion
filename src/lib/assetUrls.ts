@@ -7,6 +7,16 @@ export function isTauriAssetProtocolUrl(url: string): boolean {
   );
 }
 
+/** Vite `tauri dev` / `npm run dev` — same-origin /static/ middleware. */
+export function isViteDevHost(
+  location: Pick<Location, "hostname" | "port"> | undefined = typeof window === "undefined"
+    ? undefined
+    : window.location,
+): boolean {
+  if (!location) return false;
+  return location.hostname === "localhost" && location.port === "1420";
+}
+
 /** Cache-bust Vite /static/ URLs only. Asset-protocol URLs break with ?t=. */
 export function withCacheBust(url: string, now = Date.now()): string {
   if (isTauriAssetProtocolUrl(url)) {

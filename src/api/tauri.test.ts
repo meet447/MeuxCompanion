@@ -57,6 +57,21 @@ describe('tauri api utilities', () => {
       const url = await tauriApi.resolveAssetUrl('models/vrm/demo/model.vrm');
       expect(url).toBe('/static/models/vrm/demo/model.vrm');
     });
+
+    it('uses /static/ on the Vite tauri-dev origin without convertFileSrc', async () => {
+      const original = window.location;
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { hostname: "localhost", port: "1420" },
+      });
+      try {
+        const url = await tauriApi.resolveAssetUrl("models/live2d/haru/Haru.model3.json");
+        expect(url.startsWith("/static/models/live2d/haru/Haru.model3.json")).toBe(true);
+        expect(invoke).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(window, "location", { configurable: true, value: original });
+      }
+    });
   });
 
   describe('Config functions', () => {

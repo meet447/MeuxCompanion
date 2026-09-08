@@ -1,8 +1,10 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import type { AppConfig, MemoryFact, MemorySnapshot, ModelInfo, SessionMessage } from "../types";
+import { isViteDevHost, withCacheBust } from "../lib/assetUrls";
+import { dirnamePath, joinDir, rewriteLive2DFileReferences } from "../lib/live2dSettings";
 
 // Asset paths: in the Tauri app, resolve to convertFileSrc URLs via the backend.
-// In browser-only dev (npm run dev), fall back to Vite /static/ middleware.
+// In browser-only / tauri-dev Vite, use /static/ middleware (same origin, relative URLs work).
 export function toAssetUrl(relativePath: string): string {
   const clean = relativePath.replace(/^\/+/, "");
   return `/static/${clean}`;
@@ -10,6 +12,9 @@ export function toAssetUrl(relativePath: string): string {
 
 export async function resolveAssetUrl(relativePath: string): Promise<string> {
   const clean = relativePath.replace(/^\/+/, "");
+  if (isViteDevHost()) {
+    return withCacheBust(toAssetUrl(clean));
+  }
   try {
     const [absolutePath, dataDir] = await Promise.all([
       invoke<string>("resolve_asset_path", { path: clean }),
@@ -25,6 +30,29 @@ export async function resolveAssetUrl(relativePath: string): Promise<string> {
   } catch (err) {
     console.warn("[assets] Falling back to /static/ URL for", clean, err);
     return toAssetUrl(clean);
+  }
+}
+
+/** Live2D settings JSON plus moc/textures must share a directory in the URL path. */
+export async function resolveLive2DModelUrl(relativePath: string): Promise<string> {
+  const clean = relativePath.replace(/^\/+/, "");
+  if (isViteDevHost()) {
+    return withCacheBust(toAssetUrl(clean));
+  }
+  try {
+    const [absolutePath, json] = await Promise.all([
+      invoke<string>("resolve_asset_path", { path: clean }),
+      invoke<string>("read_asset_text", { path: clean }),
+    ]);
+    const settings = JSON.parse(json) as Parameters<typeof rewriteLive2DFileReferences>[0];
+    const dir = dirnamePath(absolutePath);
+    const rewritten = rewriteLive2DFileReferences(settings, (rel) =>
+      convertFileSrc(joinDir(dir, rel)),
+    );
+    return URL.createObjectURL(new Blob([JSON.stringify(rewritten)], { type: "application/json" }));
+  } catch (err) {
+    console.warn("[assets] Live2D rewrite failed; using /static/ fallback:", clean, err);
+    return withCacheBust(toAssetUrl(clean));
   }
 }
 
