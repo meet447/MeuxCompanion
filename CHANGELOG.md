@@ -2,6 +2,14 @@
 
 All notable changes to Meuxe are documented here.
 
+## [0.1.1] - 2026-09-08
+
+### Fixed
+- Release and CI Tauri builds failed immediately because `@tauri-apps/api` 2.11 did not match the Rust `tauri` crate 2.10. Both sides now stay on 2.11.
+
+### Changed
+- App version is `0.1.1` so a `v0.1.1` tag publishes that release instead of reusing `v0.1.0`.
+
 ## [0.1.0] - 2026-09-07
 
 First public **macOS and Linux** prerelease.

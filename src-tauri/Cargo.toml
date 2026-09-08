@@ -1,14 +1,14 @@
 [package]
 name = "meuxe-desktop"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.6", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset", "macos-private-api", "tray-icon"] }
+tauri = { version = "2.11", features = ["protocol-asset", "macos-private-api", "tray-icon"] }
 tauri-plugin-shell = "2"
 tauri-plugin-global-shortcut = "2"
 meuxe-core = { path = "../crates/meuxe-core" }

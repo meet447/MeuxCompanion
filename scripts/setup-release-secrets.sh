@@ -60,5 +60,5 @@ gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo "${REPO}" --body ""
 echo "Done. Secrets configured:"
 gh secret list --repo "${REPO}" | grep -E 'TAURI_SIGNING|^NAME' || true
 echo ""
-echo "Next: tag a release to trigger CI, e.g."
+echo "Next: bump version fields to match the tag, then:"
 echo "  git tag v0.1.1 && git push origin v0.1.1"
