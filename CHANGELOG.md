@@ -6,6 +6,24 @@ The GitHub Release workflow uses the version in `package.json` / `src-tauri/taur
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-09
+
+### Added
+- Dedicated Settings → App updates page with a 30-second check timeout, clear up-to-date and error messages, and a manual downloads link that stays available during checks.
+- Shared VRM animation library: five idle loops, a talking loop, and seven emotes. Models use their own idle/talking animations when available and shared defaults for missing behaviors.
+- Expression mapping lists facial expressions, model-specific animations, and shared VRM defaults separately, with previews and saved selections.
+
+### Fixed
+- Claude and Codex setup now distinguishes a detected CLI from the ACP connection adapter. Optional adapter installation no longer appears as a request to reinstall the CLI.
+- ACP model discovery allows up to three minutes for first-time adapter startup, reuses cached adapters, and distinguishes startup timeouts from model-list timeouts.
+- New-character marketplace VRM previews use shared idle cycles when a model has none, instead of mistaking a default emote for an idle animation.
+- VRM playback returns from one-shot emotes to idle or talking and preserves speech that starts while animations are loading.
+
+### Known limits
+- macOS builds are not signed or notarized. After dragging the app to Applications, run `xattr -c /Applications/Meuxe.app`.
+- Intel Macs and Windows are not built for this release.
+- Chat requires an ACP-compatible agent. Model selection depends on the models the agent exposes and its sign-in state.
+
 ## [0.1.3] - 2026-09-09
 
 ### Added
