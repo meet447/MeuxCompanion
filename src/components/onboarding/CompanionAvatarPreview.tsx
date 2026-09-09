@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { resolveAssetUrl, resolveLive2DModelUrl } from "../../api/tauri";
+import { vrmPreviewAnimations } from "../../lib/vrmPreviewAnimations";
 import { Mascot } from "../ui";
 import { cn } from "../ui/cn";
 
@@ -15,18 +16,6 @@ export type { PreviewModel };
 const noop = () => undefined;
 const previewBg = "#eef1f6";
 const CANVAS_MOUNT_DELAY_MS = 300;
-
-/** Prefer a single idle clip for preview so the mesh isn't stuck in T-pose. */
-function previewAnimations(model: PreviewModel) {
-  const animations = model.animations;
-  if (!animations?.length) return undefined;
-  const exactIdle = animations.find((anim) => anim.name.toLowerCase() === "idle");
-  if (exactIdle) return [exactIdle];
-  const idleLike = animations.find((anim) =>
-    /idle|breathing|standing|default/i.test(anim.name),
-  );
-  return [idleLike ?? animations[0]];
-}
 
 export function CompanionAvatarPreview({
   model,
@@ -47,7 +36,7 @@ export function CompanionAvatarPreview({
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   const vrmAnimations = useMemo(
-    () => (model?.type === "vrm" ? previewAnimations(model) : undefined),
+    () => (model?.type === "vrm" ? vrmPreviewAnimations(model.animations) : undefined),
     [model],
   );
 
