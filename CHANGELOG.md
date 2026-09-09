@@ -6,7 +6,27 @@ The GitHub Release workflow uses the version in `package.json` / `src-tauri/taur
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-09
+
+### Added
+- Settings → Agent now lists the models advertised by the selected ACP agent. Choose a model or use the agent default; saved selections are applied before chat starts.
+
+### Fixed
+- Tool auto-approval is now opt-in and grants permission for one request at a time instead of persisting approval for the session.
+- Chat handles duplicate sends, event-listener setup races, timeouts, errors, and cancellation more reliably, and clears active speech when a response is cancelled or fails.
+- Development asset middleware rejects parent-directory traversal and symlinks that escape the allowed asset root.
+
 ### Changed
+- Companion-session and global-shortcut logic now live in dedicated hooks, and memory deduplication and mood rules have separate modules.
+- Character and model IPC types are generated from Rust and checked for drift.
+- Added coverage for ACP session lifecycle, permission handling, model discovery and selection, and frontend streaming chat.
+
+### Known limits
+- macOS builds are not signed or notarized. After dragging the app to Applications, run `xattr -c /Applications/Meuxe.app`.
+- Intel Macs and Windows are not built for this release.
+- Chat requires a separately installed ACP agent (OpenCode, Claude Code, Codex, or custom). Model selection depends on the models that agent exposes through ACP.
+
+### Build improvements
 - Release CI restores a shared Rust compile cache from `main` (weekly cache-warm job) instead of rebuilding whisper.cpp from scratch on every tag, and only packages the bundles each OS needs.
 
 ## [0.1.2] - 2026-09-08
