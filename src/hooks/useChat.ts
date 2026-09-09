@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { listen, UnlistenFn, type Event } from "@tauri-apps/api/event";
 import { sendChat, cancelChat, confirmToolCall } from "../api/tauri";
 import type { ChatTimelineItem, MemorySnapshot, ToolCallStatus } from "../types";
 
@@ -112,8 +112,7 @@ function stripTrailingTurnNotesJson(text: string): string {
 
 export function cleanCompanionDisplayText(text: string) {
   return stripTrailingTurnNotesJson(
-    cleanExpressionTags(text)
-      .replace(/<<<meuxe[\s\S]*?(>>>|$)/g, "")
+    cleanExpressionTags(text.replace(/<<<meuxe[\s\S]*?(>>>|$)/g, ""))
       .trim(),
   ).trim();
 }
@@ -141,6 +140,7 @@ export function useChat() {
   const displayTextRef = useRef("");
   const lastExpressionRef = useRef("neutral");
   const segmentCounterRef = useRef(0);
+  const listenerGenerationRef = useRef(0);
   const activeRequestIdRef = useRef<string | null>(null);
 
   const onSentenceRef = useRef<((data: SentencePayload) => void) | null>(null);
@@ -282,8 +282,9 @@ export function useChat() {
 
   const send = useCallback(
     async (characterId: string, message: string, requestId: string) => {
-      if (isStreaming) return;
+      if (activeRequestIdRef.current !== null) return;
 
+      const generation = ++listenerGenerationRef.current;
       setError(null);
       activeRequestIdRef.current = requestId;
       segmentCounterRef.current = 0;
@@ -301,6 +302,7 @@ export function useChat() {
 
       const handleCancelled = (payload: CancelledPayload) => {
         if (payload.request_id !== requestId) return;
+        onErrorRef.current?.(requestId);
         flushStreamingText();
         commitStreamingSegment();
         setIsStreaming(false);
@@ -330,118 +332,145 @@ export function useChat() {
         tearDownListeners();
       };
 
-      const [
-        unlistenText,
-        unlistenSentence,
-        unlistenAudio,
-        unlistenAudioFailed,
-        unlistenToolStart,
-        unlistenToolResult,
-        unlistenToolConfirm,
-        unlistenDone,
-        unlistenError,
-        unlistenCancelled,
-      ] = await Promise.all([
-        listen<TextChunkPayload>("chat:text-chunk", (event) => {
-          if (event.payload.request_id !== requestId) return;
-          displayTextRef.current += event.payload.text;
-          scheduleStreamingTextUpdate();
-        }),
-        listen<SentencePayload>("chat:sentence", (event) => {
-          if (event.payload.request_id !== requestId) return;
-          lastExpressionRef.current = event.payload.expression;
-          onSentenceRef.current?.(event.payload);
-        }),
-        listen<AudioPayload>("chat:audio", (event) => {
-          if (event.payload.request_id !== requestId) return;
-          onAudioRef.current?.(event.payload);
-        }),
-        listen<AudioFailedPayload>("chat:audio-failed", (event) => {
-          if (event.payload.request_id !== requestId) return;
-          onAudioFailedRef.current?.(event.payload);
-        }),
-        listen<ToolCallStartPayload>("chat:tool-call-start", (event) => {
-          const { request_id, tool_call_id, tool_name, arguments: args } = event.payload;
-          if (request_id !== requestId) return;
-          commitStreamingSegment();
-          upsertToolCall({
-            requestId: request_id,
-            toolCallId: tool_call_id,
-            toolName: tool_name,
-            arguments: args,
-            status: "running",
-          });
-        }),
-        listen<ToolCallResultPayload>("chat:tool-call-result", (event) => {
-          const { request_id, tool_call_id, result, success } = event.payload;
-          if (request_id !== requestId) return;
-          setTimeline((prev) =>
-            prev.map((item) => {
-              if (item.kind !== "tool" || item.call.toolCallId !== tool_call_id) return item;
-              return {
-                ...item,
-                call: {
-                  ...item.call,
-                  status: success ? "completed" : "failed",
-                  result,
-                },
-              };
-            }),
-          );
-        }),
-        listen<ToolConfirmPayload>("chat:tool-confirm", (event) => {
-          const {
-            request_id,
-            tool_call_id,
-            permission_id,
-            tool_name,
-            arguments: args,
-            description,
-          } = event.payload;
-          if (request_id !== requestId) return;
-          commitStreamingSegment();
-          upsertToolCall({
-            requestId: request_id,
-            toolCallId: tool_call_id,
-            permissionId: permission_id,
-            toolName: tool_name,
-            arguments: args,
-            description,
-            status: "awaiting_confirmation",
-          });
-        }),
-        listen<DonePayload>("chat:done", (event) => handleDone(event.payload)),
-        listen<ChatErrorPayload>("chat:error", (event) => handleError(event.payload)),
-        listen<CancelledPayload>("chat:cancelled", (event) => handleCancelled(event.payload)),
-      ]);
-
-      unlistenersRef.current = [
-        unlistenText,
-        unlistenSentence,
-        unlistenDone,
-        unlistenError,
-        unlistenToolStart,
-        unlistenToolResult,
-        unlistenToolConfirm,
-        unlistenCancelled,
-      ];
-      audioUnlistenersRef.current = [unlistenAudio, unlistenAudioFailed];
+      const requestListeners: UnlistenFn[] = [];
+      let setupFailed = false;
+      const subscribe = async <T,>(name: string, handler: (event: Event<T>) => void) => {
+        const unlisten = await listen<T>(name, (event) => {
+          if (!setupFailed && generation === listenerGenerationRef.current) handler(event);
+        });
+        let removed = false;
+        const remove = () => {
+          if (removed) return;
+          removed = true;
+          unlisten();
+        };
+        if (setupFailed || generation !== listenerGenerationRef.current) remove();
+        else {
+          requestListeners.push(remove);
+          unlistenersRef.current.push(remove);
+        }
+        return remove;
+      };
 
       try {
+        const [
+          unlistenText,
+          unlistenSentence,
+          unlistenAudio,
+          unlistenAudioFailed,
+          unlistenToolStart,
+          unlistenToolResult,
+          unlistenToolConfirm,
+          unlistenDone,
+          unlistenError,
+          unlistenCancelled,
+        ] = await Promise.all([
+          subscribe<TextChunkPayload>("chat:text-chunk", (event) => {
+            if (event.payload.request_id !== requestId) return;
+            displayTextRef.current += event.payload.text;
+            scheduleStreamingTextUpdate();
+          }),
+          subscribe<SentencePayload>("chat:sentence", (event) => {
+            if (event.payload.request_id !== requestId) return;
+            lastExpressionRef.current = event.payload.expression;
+            onSentenceRef.current?.(event.payload);
+          }),
+          subscribe<AudioPayload>("chat:audio", (event) => {
+            if (event.payload.request_id !== requestId) return;
+            onAudioRef.current?.(event.payload);
+          }),
+          subscribe<AudioFailedPayload>("chat:audio-failed", (event) => {
+            if (event.payload.request_id !== requestId) return;
+            onAudioFailedRef.current?.(event.payload);
+          }),
+          subscribe<ToolCallStartPayload>("chat:tool-call-start", (event) => {
+            const { request_id, tool_call_id, tool_name, arguments: args } = event.payload;
+            if (request_id !== requestId) return;
+            commitStreamingSegment();
+            upsertToolCall({
+              requestId: request_id,
+              toolCallId: tool_call_id,
+              toolName: tool_name,
+              arguments: args,
+              status: "running",
+            });
+          }),
+          subscribe<ToolCallResultPayload>("chat:tool-call-result", (event) => {
+            const { request_id, tool_call_id, result, success } = event.payload;
+            if (request_id !== requestId) return;
+            setTimeline((prev) =>
+              prev.map((item) => {
+                if (item.kind !== "tool" || item.call.toolCallId !== tool_call_id) return item;
+                return {
+                  ...item,
+                  call: {
+                    ...item.call,
+                    status: success ? "completed" : "failed",
+                    result,
+                  },
+                };
+              }),
+            );
+          }),
+          subscribe<ToolConfirmPayload>("chat:tool-confirm", (event) => {
+            const {
+              request_id,
+              tool_call_id,
+              permission_id,
+              tool_name,
+              arguments: args,
+              description,
+            } = event.payload;
+            if (request_id !== requestId) return;
+            commitStreamingSegment();
+            upsertToolCall({
+              requestId: request_id,
+              toolCallId: tool_call_id,
+              permissionId: permission_id,
+              toolName: tool_name,
+              arguments: args,
+              description,
+              status: "awaiting_confirmation",
+            });
+          }),
+          subscribe<DonePayload>("chat:done", (event) => handleDone(event.payload)),
+          subscribe<ChatErrorPayload>("chat:error", (event) => handleError(event.payload)),
+          subscribe<CancelledPayload>("chat:cancelled", (event) => handleCancelled(event.payload)),
+        ]);
+
+        if (generation !== listenerGenerationRef.current) return;
+
+        unlistenersRef.current = [
+          unlistenText,
+          unlistenSentence,
+          unlistenDone,
+          unlistenError,
+          unlistenToolStart,
+          unlistenToolResult,
+          unlistenToolConfirm,
+          unlistenCancelled,
+        ];
+        audioUnlistenersRef.current = [unlistenAudio, unlistenAudioFailed];
         await sendChat(characterId, message, requestId);
       } catch (err) {
-        // The command itself failed (no chat:error will follow), so unwind here.
+        // A setup or IPC failure may have no backend event. Remove even partially
+        // registered listeners; late registrations see setupFailed and remove themselves.
+        setupFailed = true;
+        for (const unlisten of requestListeners) unlisten();
+        if (generation !== listenerGenerationRef.current) return;
         handleError({
           request_id: requestId,
           message: err instanceof Error ? err.message : String(err),
         });
       }
     },
-    [isStreaming, commitStreamingSegment, upsertToolCall, tearDownListeners, scheduleStreamingTextUpdate, flushStreamingText],
+    [commitStreamingSegment, upsertToolCall, tearDownListeners, scheduleStreamingTextUpdate, flushStreamingText],
   );
 
   useEffect(() => {
     return () => {
+      listenerGenerationRef.current += 1;
+      activeRequestIdRef.current = null;
       if (streamingRafRef.current !== null) {
         cancelAnimationFrame(streamingRafRef.current);
       }
