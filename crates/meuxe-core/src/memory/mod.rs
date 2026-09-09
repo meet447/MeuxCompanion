@@ -1,3 +1,5 @@
+mod dedup;
+mod mood_rules;
 mod notes;
 mod prompt;
 mod store;
