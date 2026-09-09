@@ -27,6 +27,14 @@ complete list of transitive dependencies and their licenses, see
   `static/animations/*.vrma`)
 - **Details:** `models/vrm/utsuwa/README.md`
 
+## Shared VRM animations
+
+- **Location:** `models/animations/vrm/` (13 VRMA files).
+- Identical to Utsuwa's `static/animations/` files, checked 2026-09-09.
+- **Original source:** https://github.com/aikeyaorg/aikeya/tree/640fd29b411ed3ace5725c124eb3dbd5a467d2b2/static/animations
+- **License:** MIT; Copyright (c) 2026 Charles Dyas. Full notice in `models/animations/vrm/LICENSE`.
+- The existing bundled files were moved without modification; no Utsuwa application code was copied.
+
 ## Fonts
 
 ### Figtree

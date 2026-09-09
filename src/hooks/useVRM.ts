@@ -9,6 +9,8 @@ import { mixamoVRMRigMap } from "../utils/mixamoRigMap";
 import { resolveAssetUrl } from "../api/tauri";
 import { withCacheBust } from "../lib/assetUrls";
 import { withHtmlImageTextures, patchGltfImageBitmapLoader } from "../lib/gltfTextures";
+import { VrmAnimationPlayer } from "../lib/vrmAnimations";
+import { ANIMATION_MAPPING_PREFIX } from "../lib/vrmAnimationOptions";
 import { resolveVrmExpressionName } from "../utils/vrmExpressions";
 import {
   createBlinkScheduler,
@@ -99,9 +101,7 @@ export function useVRM(
 
   // Animation mixer
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
-  const clipsRef = useRef<Map<string, THREE.AnimationClip>>(new Map());
-  const currentActionRef = useRef<THREE.AnimationAction | null>(null);
-  const currentClipNameRef = useRef("");
+  const animationPlayerRef = useRef<VrmAnimationPlayer | null>(null);
 
   // Lip sync / expression state
   const lipSyncActiveRef = useRef(false);
@@ -159,9 +159,8 @@ export function useVRM(
     pivotRef.current = null;
     clockRef.current = null;
     mixerRef.current = null;
-    clipsRef.current.clear();
-    currentActionRef.current = null;
-    currentClipNameRef.current = "";
+    animationPlayerRef.current?.dispose();
+    animationPlayerRef.current = null;
     headBaseRotationRef.current = null;
   }, []);
 
@@ -548,33 +547,6 @@ export function useVRM(
     animFrameRef.current = requestAnimationFrame(tick);
   }, []);
 
-  const playAnimation = useCallback((name: string, loop = true, crossFadeDuration = 0.5) => {
-    const mixer = mixerRef.current;
-    if (!mixer) return;
-
-    const clip = clipsRef.current.get(name);
-    if (!clip) {
-      console.warn(`[VRM] Animation "${name}" not found`);
-      return;
-    }
-
-    const newAction = mixer.clipAction(clip);
-    newAction.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
-    if (!loop) newAction.clampWhenFinished = true;
-
-    if (currentActionRef.current && currentClipNameRef.current !== name) {
-      // Cross-fade from current to new
-      currentActionRef.current.fadeOut(crossFadeDuration);
-      newAction.reset().fadeIn(crossFadeDuration).play();
-    } else if (!currentActionRef.current) {
-      newAction.reset().play();
-    }
-
-    currentActionRef.current = newAction;
-    currentClipNameRef.current = name;
-    console.log(`[VRM] Playing animation: "${name}"`);
-  }, []);
-
   const loadModel = useCallback(
     async (modelPath: string, animations?: AnimationInfo[], background = "transparent") => {
       if (!canvasRef.current) return;
@@ -608,9 +580,8 @@ export function useVRM(
         vrmRef.current = null;
       }
       mixerRef.current = null;
-      clipsRef.current.clear();
-      currentActionRef.current = null;
-      currentClipNameRef.current = "";
+      animationPlayerRef.current?.dispose();
+      animationPlayerRef.current = null;
       headBaseRotationRef.current = null;
       currentEmotionRef.current = "";
       blinkSchedulerRef.current.reset(Date.now());
@@ -730,6 +701,9 @@ export function useVRM(
         // Create animation mixer
         const mixer = new THREE.AnimationMixer(vrm.scene);
         mixerRef.current = mixer;
+        const animationPlayer = new VrmAnimationPlayer(mixer);
+        animationPlayer.setSpeaking(speakingRef.current);
+        animationPlayerRef.current = animationPlayer;
 
         clockRef.current = new THREE.Clock();
         availableExpressionsRef.current = Object.keys(vrm.expressionManager?.expressionMap || {});
@@ -762,8 +736,8 @@ export function useVRM(
                 }
 
                 if (clip) {
-                  clipsRef.current.set(anim.name, clip);
-                  availableMotionGroupsRef.current = [...clipsRef.current.keys()];
+                  animationPlayer.clips.set(anim.name, clip);
+                  availableMotionGroupsRef.current = [...animationPlayer.clips.keys()];
                   console.log(`[VRM] Loaded animation: "${anim.name}" (${clip.duration.toFixed(1)}s)`);
                 }
               } catch (err) {
@@ -775,22 +749,8 @@ export function useVRM(
               return;
             }
 
-            const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
-            let matchFound = false;
-            for (const name of idleNames) {
-              for (const k of clipsRef.current.keys()) {
-                if (k.toLowerCase().includes(name)) {
-                  playAnimation(k);
-                  matchFound = true;
-                  break;
-                }
-              }
-              if (matchFound) break;
-            }
-            if (!currentActionRef.current && clipsRef.current.size > 0) {
-              playAnimation(clipsRef.current.keys().next().value!);
-            }
-            availableMotionGroupsRef.current = [...clipsRef.current.keys()];
+            animationPlayer.start();
+            availableMotionGroupsRef.current = [...animationPlayer.clips.keys()];
             console.log("[VRM] Animations:", availableMotionGroupsRef.current);
           });
         }
@@ -815,7 +775,6 @@ export function useVRM(
       canvasRef,
       startAnimationLoop,
       retargetAnimation,
-      playAnimation,
       resetOrbitRotation,
       loadVrmaClip,
       readCanvasSize,
@@ -861,22 +820,16 @@ export function useVRM(
 
   const setExpression = useCallback((expressionName: string) => {
     const vrm = vrmRef.current;
-    if (!vrm?.expressionManager) return;
+    if (!vrm) return;
 
-    const preset = resolveVrmExpressionName(expressionName, availableExpressionsRef.current);
+    const preset = expressionName.startsWith(ANIMATION_MAPPING_PREFIX)
+      ? "" : resolveVrmExpressionName(expressionName, availableExpressionsRef.current);
     currentEmotionRef.current = preset;
     applyEmotion(vrm, preset);
-
-    // Try to play matching animation if available
-    for (const k of clipsRef.current.keys()) {
-      if (k.toLowerCase().includes(expressionName.toLowerCase())) {
-        playAnimation(k);
-        break;
-      }
-    }
+    animationPlayerRef.current?.setExpression(expressionName);
 
     console.log(`[VRM] Expression: "${expressionName}"${preset && preset !== expressionName ? ` → "${preset}"` : ""}`);
-  }, [playAnimation]);
+  }, []);
 
   const startLipSync = useCallback((getAudioLevels?: () => AudioLevels) => {
     lipSyncActiveRef.current = true;
@@ -885,14 +838,8 @@ export function useVRM(
     headBaseRotationRef.current = null;
     if (getAudioLevels) audioLevelsGetterRef.current = getAudioLevels;
 
-    // Play talking animation if available
-    for (const k of clipsRef.current.keys()) {
-      if (k.toLowerCase().includes("talk")) {
-        playAnimation(k);
-        break;
-      }
-    }
-  }, [playAnimation]);
+    animationPlayerRef.current?.setSpeaking(true);
+  }, []);
 
   const stopLipSync = useCallback(() => {
     lipSyncActiveRef.current = false;
@@ -908,20 +855,8 @@ export function useVRM(
     }
     headBaseRotationRef.current = null;
 
-    // Return to idle animation
-    const idleNames = ["idle", "breathingidle", "breathing_idle", "standing", "default"];
-    let matchFound = false;
-    for (const name of idleNames) {
-      for (const k of clipsRef.current.keys()) {
-        if (k.toLowerCase().includes(name)) {
-          playAnimation(k);
-          matchFound = true;
-          break;
-        }
-      }
-      if (matchFound) break;
-    }
-  }, [playAnimation]);
+    animationPlayerRef.current?.setSpeaking(false);
+  }, []);
 
   const setViewport = useCallback((zoom: number, framing: "full" | "half", offsetX: number = 0, offsetY: number = 0) => {
     viewportRef.current = { zoom, framing, offsetX, offsetY };

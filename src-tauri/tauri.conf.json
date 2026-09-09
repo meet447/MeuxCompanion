@@ -55,6 +55,7 @@
     "resources": {
       "../models/live2d/haru": "models/live2d/haru",
       "../models/vrm/utsuwa": "models/vrm/utsuwa",
+      "../models/animations/vrm": "models/animations/vrm",
       "../models/expression_mappings": "models/expression_mappings"
     },
     "linux": {

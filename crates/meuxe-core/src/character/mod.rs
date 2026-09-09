@@ -633,6 +633,31 @@ pub fn list_models_with_roots(
         }
     }
 
+    let roots: Vec<_> = model_scan_roots(data_dir)
+        .into_iter()
+        .chain(extra_model_roots.iter().cloned())
+        .collect();
+    let mut defaults = Vec::new();
+    let mut default_names = std::collections::HashSet::new();
+    for root in roots {
+        for animation in scan_vrm_animations(
+            &root.join("animations/vrm"),
+            "models/animations/vrm",
+            "default:",
+        ) {
+            if default_names.insert(animation.name.clone()) {
+                defaults.push(animation);
+            }
+        }
+    }
+    for model in &mut models {
+        if model.model_type == "vrm" && !defaults.is_empty() {
+            model
+                .animations
+                .get_or_insert_with(Vec::new)
+                .extend(defaults.clone());
+        }
+    }
     models.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(models)
 }
@@ -724,41 +749,45 @@ fn scan_models_dir(
 }
 
 fn list_vrm_animations(model_dir: &Path, model_id: &str) -> Option<Vec<AnimationInfo>> {
-    let anim_dir = model_dir.join("animations");
-    if !anim_dir.is_dir() {
-        return None;
+    let animations = scan_vrm_animations(
+        &model_dir.join("animations"),
+        &format!("models/vrm/{model_id}/animations"),
+        "",
+    );
+    if animations.is_empty() {
+        None
+    } else {
+        Some(animations)
     }
+}
 
+fn scan_vrm_animations(directory: &Path, relative: &str, prefix: &str) -> Vec<AnimationInfo> {
     let mut animations = Vec::new();
-    let Ok(entries) = fs::read_dir(&anim_dir) else {
-        return None;
+    let Ok(entries) = fs::read_dir(directory) else {
+        return animations;
     };
-
     for entry in entries.flatten() {
         let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        if !path
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("vrma"))
+        if !path.is_file()
+            || !path.extension().is_some_and(|ext| {
+                ext.eq_ignore_ascii_case("vrma") || ext.eq_ignore_ascii_case("fbx")
+            })
         {
             continue;
         }
-        let file_name = path.file_name()?.to_string_lossy().to_string();
-        let stem = path.file_stem()?.to_string_lossy().to_string();
+        let Some(file_name) = path.file_name() else {
+            continue;
+        };
+        let Some(stem) = path.file_stem() else {
+            continue;
+        };
         animations.push(AnimationInfo {
-            name: stem,
-            path: format!("models/vrm/{model_id}/animations/{file_name}"),
+            name: format!("{prefix}{}", stem.to_string_lossy()),
+            path: format!("{relative}/{}", file_name.to_string_lossy()),
         });
     }
-
-    if animations.is_empty() {
-        return None;
-    }
-
     animations.sort_by(|a, b| a.name.cmp(&b.name));
-    Some(animations)
+    animations
 }
 
 /// Read the available expression names from a Live2D model's model3.json file
@@ -1006,6 +1035,37 @@ mod tests {
                 .map(|model| model.model_file.as_str()),
             Some("avatar.vrm")
         );
+    }
+
+    #[test]
+    fn shared_vrm_animations_are_listed_for_flat_and_custom_models_without_hiding_own_clips() {
+        let data = TempDir::new().unwrap();
+        let resources = TempDir::new().unwrap();
+        let own = data.path().join("models/vrm/custom/animations");
+        fs::create_dir_all(&own).unwrap();
+        fs::write(own.parent().unwrap().join("model.vrm"), b"vrm").unwrap();
+        fs::write(own.join("idle.vrma"), b"own idle").unwrap();
+        fs::write(data.path().join("models/vrm/flat.vrm"), b"vrm").unwrap();
+        let shared = resources.path().join("animations/vrm");
+        fs::create_dir_all(&shared).unwrap();
+        fs::write(shared.join("idle.vrma"), b"default idle").unwrap();
+        fs::write(shared.join("talking.vrma"), b"default talk").unwrap();
+        let models = list_models_with_roots(data.path(), &[resources.path().into()]).unwrap();
+        let custom = models.iter().find(|m| m.id == "custom").unwrap();
+        let clips = custom.animations.as_ref().unwrap();
+        assert!(clips
+            .iter()
+            .any(|c| c.name == "idle" && c.path == "models/vrm/custom/animations/idle.vrma"));
+        assert!(clips
+            .iter()
+            .any(|c| c.name == "default:idle" && c.path == "models/animations/vrm/idle.vrma"));
+        let flat = models.iter().find(|m| m.id == "flat").unwrap();
+        assert!(flat
+            .animations
+            .as_ref()
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "default:talking"));
     }
 
     #[test]

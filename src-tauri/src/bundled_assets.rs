@@ -34,6 +34,10 @@ pub fn seed_bundled_models(resource_dir: &Path, data_dir: &Path) -> std::io::Res
         &resource_dir.join("models/vrm/utsuwa"),
         &data_dir.join("models/vrm/utsuwa"),
     )?;
+    seed_dir_if_missing(
+        &resource_dir.join("models/animations/vrm"),
+        &data_dir.join("models/animations/vrm"),
+    )?;
     seed_expression_mappings(
         &resource_dir.join("models/expression_mappings"),
         &data_dir.join("models/expression_mappings"),
@@ -101,6 +105,11 @@ mod tests {
         fs::write(haru_source.join("Haru.model3.json"), b"{}").unwrap();
         fs::write(haru_source.join("expressions/F01.exp3.json"), b"{}").unwrap();
 
+        let shared = resource.path().join("models/animations/vrm");
+        fs::create_dir_all(&shared).unwrap();
+        fs::write(shared.join("idle.vrma"), b"default idle").unwrap();
+        fs::write(shared.join("LICENSE"), b"MIT License").unwrap();
+
         let utsuwa_source = resource.path().join("models/vrm/utsuwa");
         fs::create_dir_all(&utsuwa_source).unwrap();
         fs::write(utsuwa_source.join("utsuwa.vrm"), b"vrm").unwrap();
@@ -127,6 +136,11 @@ mod tests {
             .join("models/live2d/haru/expressions/F01.exp3.json")
             .is_file());
         assert!(data.path().join("models/vrm/utsuwa/utsuwa.vrm").is_file());
+        assert!(data
+            .path()
+            .join("models/animations/vrm/idle.vrma")
+            .is_file());
+        assert!(data.path().join("models/animations/vrm/LICENSE").is_file());
         assert!(data
             .path()
             .join("models/expression_mappings/haru.json")

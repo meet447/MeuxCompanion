@@ -73,7 +73,7 @@ const PAGE_META: Record<SettingsPage, { title: string; description: string }> = 
   },
   expressions: {
     title: "Expressions",
-    description: "Map global emotions to your model's expression files.",
+    description: "Map emotions to model expressions and animations, including shared VRM defaults.",
   },
   memory: {
     title: "Memory",

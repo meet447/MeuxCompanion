@@ -1,6 +1,7 @@
 import { useState, useEffect, memo } from "react";
 import {
   getExpressions,
+  listModels,
   getModelExpressions,
   getSupportedExpressions,
   saveExpressions,
@@ -16,6 +17,9 @@ import {
   Select,
   Notice,
 } from "./ui";
+
+import type { AnimationInfo } from "../types";
+import { animationLabel, animationMappingValue, DEFAULT_ANIMATION_PREFIX } from "../lib/vrmAnimationOptions";
 
 interface Props {
   modelId: string;
@@ -45,6 +49,7 @@ export const ModelSettings = memo(function ModelSettings({
 }: Props) {
   const [globalExpressions, setGlobalExpressions] = useState<string[]>([]);
   const [modelExpressions, setModelExpressions] = useState<string[]>([]);
+  const [animations, setAnimations] = useState<AnimationInfo[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -52,33 +57,55 @@ export const ModelSettings = memo(function ModelSettings({
 
   useEffect(() => {
     if (!modelId) return;
+    let cancelled = false;
+    setModelExpressions([]);
+    setAnimations([]);
+    setMapping({});
+    setSaveError(null);
+    setActivePreview(null);
+
+    listModels().then((models) => {
+      if (!cancelled) setAnimations(models.find((model) => model.id === modelId && model.type === "vrm")?.animations ?? []);
+    }).catch((err) => {
+      if (!cancelled) setSaveError(`Could not load animation choices: ${String(err)}`);
+    });
 
     getSupportedExpressions()
-      .then((exprs) => setGlobalExpressions(exprs.length > 0 ? exprs : FALLBACK_EXPRESSIONS))
+      .then((exprs) => { if (!cancelled) setGlobalExpressions(exprs.length > 0 ? exprs : FALLBACK_EXPRESSIONS); })
       .catch((err) => {
         console.error("Failed to load supported expressions:", err);
-        setGlobalExpressions(FALLBACK_EXPRESSIONS);
+        if (!cancelled) setGlobalExpressions(FALLBACK_EXPRESSIONS);
       });
 
     getModelExpressions(modelId)
       .then((exprs) => {
-        setModelExpressions(exprs);
+        if (!cancelled) setModelExpressions(exprs);
       })
       .catch((err) => {
         console.error("Failed to load model expressions:", err);
-        setModelExpressions([]);
+        if (!cancelled) setModelExpressions([]);
       });
 
     getExpressions(modelId)
       .then((saved) => {
-        setMapping(saved || {});
+        if (!cancelled) setMapping(saved || {});
       })
-      .catch(() => setMapping({}));
+      .catch(() => { if (!cancelled) setMapping({}); });
+    return () => { cancelled = true; };
   }, [modelId]);
 
+  const groups = [
+    { label: "Model expressions", options: modelExpressions.map((name) => ({ value: name, label: name })) },
+    { label: "Model animations", options: animations.filter((animation) => !animation.name.startsWith(DEFAULT_ANIMATION_PREFIX))
+      .map((animation) => ({ value: animationMappingValue(animation.name), label: animationLabel(animation.name) })) },
+    { label: "Default VRM animations", options: animations.filter((animation) => animation.name.startsWith(DEFAULT_ANIMATION_PREFIX))
+      .map((animation) => ({ value: animationMappingValue(animation.name), label: animationLabel(animation.name) })) },
+  ].filter((group) => group.options.length > 0);
+
   const handlePreview = (expr: string) => {
-    setActivePreview(activePreview === expr ? null : expr);
-    onPreviewExpression(expr);
+    const next = activePreview === expr ? null : expr;
+    setActivePreview(next);
+    onPreviewExpression(next ?? "neutral");
   };
 
   const handleMappingChange = (globalName: string, modelExpr: string) => {
@@ -108,30 +135,29 @@ export const ModelSettings = memo(function ModelSettings({
         Model: <span className="font-mono text-ink-2">{modelId || "none"}</span>
       </p>
 
-      <div>
-        <SectionTitle>Model expressions ({modelExpressions.length})</SectionTitle>
-        <div className="flex flex-wrap gap-2">
-          {modelExpressions.map((expr) => (
-            <button
-              key={expr}
-              type="button"
-              onClick={() => handlePreview(expr)}
-              className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition ${
-                activePreview === expr
-                  ? "bg-ink text-white shadow-soft"
-                  : "bg-well text-ink-2 hover:bg-well-2"
-              }`}
-            >
-              {expr}
-            </button>
-          ))}
-          {modelExpressions.length === 0 && <Pill>No expressions found</Pill>}
+      {groups.map((group) => (
+        <div key={group.label}>
+          <SectionTitle>{group.label} ({group.options.length})</SectionTitle>
+          <div className="flex flex-wrap gap-2">
+            {group.options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handlePreview(option.value)}
+                className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition ${
+                  activePreview === option.value ? "bg-ink text-white shadow-soft" : "bg-well text-ink-2 hover:bg-well-2"
+                }`}
+              >{option.label}</button>
+            ))}
+          </div>
         </div>
-        <Hint className="mt-3 flex items-center gap-1">
-          <InfoIcon className="h-3.5 w-3.5" />
-          Click a badge above to preview it on the model
-        </Hint>
-      </div>
+      ))}
+      {groups.length === 0 && <Pill>No expressions or animations found</Pill>}
+      <Hint className="flex items-center gap-1">
+        <InfoIcon className="h-3.5 w-3.5" />
+        Click a badge to preview it on the model.
+        {animations.length > 0 && " Model idle and talking animations take priority; shared defaults fill in when missing."}
+      </Hint>
 
       <div>
         <SectionTitle>Global to model mapping</SectionTitle>
@@ -147,17 +173,23 @@ export const ModelSettings = memo(function ModelSettings({
               </div>
               <span className="text-sm text-ink-4">{"\u2192"}</span>
               <Select
-                wrapperClassName="flex-1"
+                aria-label={`${globalName} mapping`}
+                wrapperClassName="min-w-0 flex-1"
                 className="py-2 text-[13px]"
                 value={mapping[globalName] || ""}
                 onChange={(e) => handleMappingChange(globalName, e.target.value)}
               >
                 <option value="">-- select --</option>
-                {modelExpressions.map((expr) => (
-                  <option key={expr} value={expr}>
-                    {expr}
-                  </option>
+                {groups.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.options.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </optgroup>
                 ))}
+                {mapping[globalName] && !groups.some((group) => group.options.some((option) => option.value === mapping[globalName])) && (
+                  <option value={mapping[globalName]}>{mapping[globalName]} (saved)</option>
+                )}
               </Select>
               {mapping[globalName] && (
                 <IconButton
