@@ -234,3 +234,13 @@ fn only_successful_turns_keep_their_session_context() {
         assert!(live.lock().unwrap().contains("luna"));
     }
 }
+
+#[test]
+fn changing_selected_model_invalidates_connection_identity() {
+    let default = AgentConfig::default();
+    let selected = AgentConfig {
+        model: "another-model".into(),
+        ..default.clone()
+    };
+    assert_ne!(agent_config_key(&default), agent_config_key(&selected));
+}

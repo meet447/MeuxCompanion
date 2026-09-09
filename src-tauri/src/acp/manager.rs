@@ -14,6 +14,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
+use super::models::{apply_selected_model, SessionModelCapture};
 use crate::acp::run::{
     companion_home_dir, ensure_companion_home, pick_companion_permission, resolve_acp_agent,
 };
@@ -241,13 +242,14 @@ impl AcpConnectionManager {
 }
 
 pub fn agent_config_key(config: &AgentConfig) -> String {
-    format!(
-        "{}|{}|{}|{}",
-        config.preset,
-        config.program,
-        config.args.join("\x1f"),
-        config.auto_approve_tools
-    )
+    serde_json::to_string(&(
+        config.preset.as_str(),
+        config.program.as_str(),
+        &config.args,
+        config.auto_approve_tools,
+        config.model.as_str(),
+    ))
+    .expect("agent key contains only strings and a boolean")
 }
 
 fn acp_internal_error(message: impl Into<String>) -> agent_client_protocol::Error {
@@ -284,8 +286,12 @@ async fn run_connection_loop(
     let active_cancel_perm = Arc::clone(&active_cancel);
     let auto_approve_tools = agent_config.auto_approve_tools;
 
+    let model_capture = SessionModelCapture::default();
+    let selected_agent_model = agent_config.model.clone();
+
     Client
         .builder()
+        .with_handler(model_capture.clone())
         .name("meuxe")
         .on_receive_request(
             async move |request: RequestPermissionRequest, responder, _connection| {
@@ -363,6 +369,8 @@ async fn run_connection_loop(
         )
         .connect_with(agent, move |connection: ConnectionTo<Agent>| {
             let companion_home = companion_home.clone();
+            let model_capture = model_capture.clone();
+            let selected_agent_model = selected_agent_model.clone();
             let session_characters = Arc::clone(&session_characters);
             let active_request_id = Arc::clone(&active_request_id);
             let active_cancel = Arc::clone(&active_cancel);
@@ -415,30 +423,27 @@ async fn run_connection_loop(
                         .unwrap_or_else(|p| p.into_inner())
                         .contains(&character_id);
 
-                    if sessions.is_none() {
+                    if sessions.is_none() || needs_new_session {
                         let session = connection
                             .build_session(&companion_home)
                             .block_task()
                             .start_session()
                             .await?;
-                        sessions = Some(HashMap::from([(character_id.clone(), session)]));
-                        session_characters
-                            .lock()
-                            .unwrap_or_else(|p| p.into_inner())
-                            .insert(character_id.clone());
-                    } else if needs_new_session {
-                        let session = connection
-                            .build_session(&companion_home)
-                            .block_task()
-                            .start_session()
-                            .await?;
-                        sessions
-                            .as_mut()
-                            .expect("sessions map must exist")
+                        let catalog = model_capture.take(&session.session_id().to_string());
+                        if let Err(err) = apply_selected_model(
+                            &connection,
+                            &session.session_id().to_string(),
+                            &catalog,
+                            &selected_agent_model,
+                        ).await {
+                            *active_request_id.lock().unwrap_or_else(|p| p.into_inner()) = None;
+                            *active_cancel.lock().unwrap_or_else(|p| p.into_inner()) = None;
+                            let _ = job.result_tx.send(Err(err));
+                            continue;
+                        }
+                        sessions.get_or_insert_with(HashMap::new)
                             .insert(character_id.clone(), session);
-                        session_characters
-                            .lock()
-                            .unwrap_or_else(|p| p.into_inner())
+                        session_characters.lock().unwrap_or_else(|p| p.into_inner())
                             .insert(character_id.clone());
                     }
 

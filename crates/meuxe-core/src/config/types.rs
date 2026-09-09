@@ -34,6 +34,9 @@ pub struct AgentConfig {
     /// companion can help without interruptions. When false, each request is shown in the UI.
     #[serde(default)]
     pub auto_approve_tools: bool,
+    /// Empty keeps the agent default; otherwise select this ACP model before prompting.
+    #[serde(default)]
+    pub model: String,
 }
 
 fn default_agent_preset() -> String {
@@ -47,6 +50,7 @@ impl Default for AgentConfig {
             program: String::new(),
             args: Vec::new(),
             auto_approve_tools: false,
+            model: String::new(),
         }
     }
 }
@@ -143,5 +147,22 @@ mod permission_defaults_tests {
                 .unwrap()
                 .auto_approve_tools
         );
+    }
+}
+
+#[cfg(test)]
+mod agent_model_tests {
+    use super::*;
+    #[test]
+    fn agent_model_defaults_and_round_trips() {
+        let config: AgentConfig = serde_json::from_str("{}").unwrap();
+        assert!(config.model.is_empty());
+        let configured = AgentConfig {
+            model: "provider/model-id".into(),
+            ..config
+        };
+        let loaded: AgentConfig =
+            serde_json::from_str(&serde_json::to_string(&configured).unwrap()).unwrap();
+        assert_eq!(loaded.model, "provider/model-id");
     }
 }

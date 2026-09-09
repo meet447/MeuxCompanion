@@ -694,3 +694,12 @@ mod tests {
         }
     }
 }
+
+/// Query the selected (including unsaved) agent configuration without a chat prompt.
+#[tauri::command]
+pub async fn agent_models_list(
+    state: tauri::State<'_, std::sync::Arc<crate::AppState>>,
+    config: meuxe_core::config::AgentConfig,
+) -> Result<crate::acp::AgentModels, String> {
+    crate::acp::discover_models(&config, &state.data_dir).await
+}

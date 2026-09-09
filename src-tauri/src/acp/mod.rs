@@ -4,8 +4,11 @@
 //! CLI agent (Claude Code, Codex, etc.) and bridge session events to the React UI.
 
 mod manager;
+mod models;
 mod run;
 mod tools;
 
 pub use manager::{invalidate_acp, invalidate_acp_if_agent_changed, AcpConnectionManager};
 pub use run::{ensure_companion_home, run_acp_chat_stream, RunAcpChatStreamParams};
+
+pub use models::{discover_models, AgentModels};

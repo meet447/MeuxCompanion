@@ -209,6 +209,7 @@ export function Settings({
   const [agentPreset, setAgentPreset] = useState("opencode");
   const [agentProgram, setAgentProgram] = useState("");
   const [agentArgs, setAgentArgs] = useState("");
+  const [agentModel, setAgentModel] = useState("");
   const [autoApproveTools, setAutoApproveTools] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -251,6 +252,7 @@ export function Settings({
         );
         setAgentPreset(cfg.agent?.preset || "opencode");
         setAgentProgram(cfg.agent?.program || "");
+        setAgentModel(cfg.agent?.model || "");
         setAgentArgs((cfg.agent?.args || []).join(" "));
         setAutoApproveTools(cfg.agent?.auto_approve_tools ?? false);
       })
@@ -279,6 +281,7 @@ export function Settings({
       tts: { provider: ttsProvider, voice: ttsVoice },
       agent: {
         preset: agentPreset,
+        model: agentModel,
         program: agentProgram,
         args: agentArgs.trim() ? agentArgs.trim().split(/\s+/) : [],
         auto_approve_tools: autoApproveTools,
@@ -425,12 +428,14 @@ export function Settings({
               preset: (agentPreset as AcpAgentPresetId) || "opencode",
               program: agentProgram,
               args: agentArgs,
+              model: agentModel,
               auto_approve_tools: autoApproveTools,
             }}
             onChange={(next) => {
               setAgentPreset(next.preset);
               setAgentProgram(next.program);
               setAgentArgs(next.args);
+              setAgentModel(next.model ?? "");
               setAutoApproveTools(next.auto_approve_tools);
             }}
           />

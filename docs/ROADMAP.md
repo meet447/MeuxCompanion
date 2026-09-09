@@ -21,6 +21,7 @@ Phases are ordered; later work assumes earlier product polish unless noted.
 ## Phase 2 - ACP companion session
 
 - [x] Spawn configured ACP agent subprocess
+- [x] Settings model selector populated by the chosen ACP agent, with saved selection applied before chat
 - [x] Map ACP stream → chat UI + avatar expressions
 - [x] Companion context bundle (persona + memory + relationship in prompt / `companion-home`)
 - [x] Companion home directory layout + `AGENTS.md` for agents

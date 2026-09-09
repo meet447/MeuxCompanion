@@ -1,5 +1,5 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import type { AppConfig, CharacterSummary, MemoryFact, MemorySnapshot, ModelInfo, SessionMessage } from "../types";
+import type { AgentConfig, AppConfig, CharacterSummary, MemoryFact, MemorySnapshot, ModelInfo, SessionMessage } from "../types";
 import { isViteDevHost, withCacheBust } from "../lib/assetUrls";
 import { dirnamePath, joinDir, rewriteLive2DFileReferences } from "../lib/live2dSettings";
 
@@ -107,6 +107,16 @@ export async function getAgentSetupStatus(preset: string, program?: string | nul
 
 export async function installAgentSetup(preset: string) {
   return invoke<AgentSetupStatusResponse>("agent_setup_install", { preset });
+}
+
+export interface AgentModelsResponse {
+  models: { id: string; name: string; description: string | null; group: string | null }[];
+  current_model: string | null;
+  supported: boolean;
+}
+
+export async function getAgentModels(config: AgentConfig) {
+  return invoke<AgentModelsResponse>("agent_models_list", { config });
 }
 
 // Characters

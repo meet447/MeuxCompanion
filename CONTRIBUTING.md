@@ -72,3 +72,10 @@ Character and model IPC response types are generated from Rust into
 `npm run types:generate`, commit the generated file, and run `npm run build`.
 `cargo test -p meuxe-core` rejects stale generated declarations. Keep view-only
 fields outside the generated wire types.
+
+ACP model selection is tested against an in-memory agent using both session
+configuration options and the older model API. To check discovery with a real
+installed, signed-in agent, set `MEUXE_ACP_SMOKE_DATA_DIR` to your app data directory
+and run `cargo test -p meuxe-desktop live_model_discovery_smoke -- --ignored --nocapture`.
+This check opens a temporary ACP connection, requests its model list, and closes
+it without sending a chat prompt or granting tool permissions.

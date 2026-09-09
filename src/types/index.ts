@@ -124,6 +124,8 @@ export interface UserConfig {
 }
 
 export interface AgentConfig {
+  /** Empty or absent uses the model chosen by the agent. */
+  model?: string;
   preset: string;
   program: string;
   args: string[];

@@ -46,4 +46,11 @@ describe("AgentSection", () => {
     expect(screen.queryByText("Allow automatically")).not.toBeInTheDocument();
     expect(screen.queryByText("Ask me each time")).not.toBeInTheDocument();
   });
+  it("resets the saved model when switching to a different agent", () => {
+    const onChange = vi.fn();
+    render(<AgentSection value={{ ...baseValue, model: "old-model" }} onChange={onChange} />);
+    fireEvent.click(screen.getByText("Codex"));
+    expect(onChange).toHaveBeenCalledWith({ ...baseValue, preset: "codex", model: "" });
+  });
+
 });

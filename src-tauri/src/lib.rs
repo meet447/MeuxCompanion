@@ -242,6 +242,7 @@ pub fn run() {
             commands::chat::chat_clear,
             commands::agent_setup::agent_setup_status,
             commands::agent_setup::agent_setup_install,
+            commands::agent_setup::agent_models_list,
             commands::memory::memory_snapshot,
             commands::memory::memory_add_fact,
             commands::memory::memory_update_fact,

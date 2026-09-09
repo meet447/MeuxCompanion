@@ -1,3 +1,4 @@
+import { AgentModelPicker } from "./AgentModelPicker";
 import type { AgentSetupStatusResponse } from "../../api/tauri";
 import { ACP_AGENT_PRESET_IDS, type AcpAgentPresetId } from "../../lib/agentPresets";
 import { AgentPresetCard } from "../agents/AgentPresetCard";
@@ -9,6 +10,7 @@ export interface AgentSectionValue {
   program: string;
   args: string;
   auto_approve_tools: boolean;
+  model?: string;
 }
 
 type Props = {
@@ -31,7 +33,7 @@ export function AgentSection({
   showToolPermissions = true,
 }: Props) {
   const patch = <K extends keyof AgentSectionValue>(field: K, fieldValue: AgentSectionValue[K]) => {
-    onChange({ ...value, [field]: fieldValue });
+    onChange({ ...value, [field]: fieldValue, ...(["preset", "program", "args"].includes(field) ? { model: "" } : {}) });
   };
 
   return (
@@ -80,6 +82,16 @@ export function AgentSection({
           preset={value.preset}
           onStatusChange={onAgentSetupStatus}
           friendly={friendly}
+        />
+      )}
+
+      {!friendly && (
+        <AgentModelPicker
+          preset={value.preset}
+          program={value.program}
+          args={value.args}
+          model={value.model ?? ""}
+          onChange={(model) => patch("model", model)}
         />
       )}
 
