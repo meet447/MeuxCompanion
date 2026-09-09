@@ -44,6 +44,14 @@ The Tauri CLI will not build if the Rust `tauri` crate and npm `@tauri-apps/api`
 
 When CI finishes, review the draft release on GitHub and publish. Users on an older signed build will see the update in-app after the release is public.
 
+## Faster release builds
+
+Most of a release job is compiling Rust, especially `whisper-rs-sys` (whisper.cpp via CMake). GitHub Actions caches are isolated per branch/tag: a cache saved on `v0.1.1` cannot be restored by `v0.1.2`. Tag jobs *can* restore caches created on `main`. Unused caches are also deleted after 7 days.
+
+`.github/workflows/cache-warm.yml` compiles the release binary on `main` (weekly, on lockfile/toolchain changes, or via workflow_dispatch) and saves a shared Cargo cache. The Release workflow restores that cache and does not save a tag-scoped copy. Linux linking uses [mold](https://github.com/rui314/mold); each OS only packages the bundles it ships (`app`+`dmg` on macOS, `deb`+`AppImage` on Linux).
+
+After merging a `Cargo.lock` bump, wait for **Warm release caches** to finish before tagging if you want the faster path. A cold tag build still works; it just compiles from scratch.
+
 ## Platforms
 
 | Platform | Update bundle | Notes |
