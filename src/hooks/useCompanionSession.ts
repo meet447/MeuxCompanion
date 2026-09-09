@@ -110,7 +110,7 @@ export function useCompanionSession({ selectedCharId, expressionsConfigured, age
       markTextDone(payload.request_id);
     });
     setOnError((requestId) => {
-      failRequest(requestId);
+      if (failRequest(requestId) === "accepted") clearQueue();
     });
   }, [
     setOnSentence,
@@ -123,6 +123,7 @@ export function useCompanionSession({ selectedCharId, expressionsConfigured, age
     failAudio,
     markTextDone,
     failRequest,
+    clearQueue,
   ]);
 
   const handleSend = useCallback(
