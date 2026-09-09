@@ -7,6 +7,7 @@ import {
   checkForAppUpdate,
   downloadAndInstallAppUpdate,
   relaunchApp,
+  updateErrorMessage,
 } from "../lib/appUpdater";
 import { isTauri } from "../lib/isTauri";
 
@@ -29,13 +30,13 @@ export function useAppUpdater({ autoCheck = false }: UseAppUpdaterOptions = {}) 
     try {
       const update = await checkForAppUpdate();
       if (!update) {
-        setState({ status: "idle" });
+        setState({ status: "up-to-date" });
         return null;
       }
       setState({ status: "available", update });
       return update;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not check for updates.";
+      const message = updateErrorMessage(err, "Could not check for updates.");
       setState({ status: "error", message });
       return null;
     }
@@ -52,12 +53,12 @@ export function useAppUpdater({ autoCheck = false }: UseAppUpdaterOptions = {}) 
       try {
         updateInfo = await checkForAppUpdate();
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Could not check for updates.";
+        const message = updateErrorMessage(err, "Could not check for updates.");
         setState({ status: "error", message });
         return;
       }
       if (!updateInfo) {
-        setState({ status: "idle" });
+        setState({ status: "up-to-date" });
         return;
       }
     }
@@ -65,18 +66,22 @@ export function useAppUpdater({ autoCheck = false }: UseAppUpdaterOptions = {}) 
     setState({ status: "downloading", update: updateInfo, progress: { downloaded: 0, total: null } });
 
     try {
-      await downloadAndInstallAppUpdate((progress: AppUpdateProgress) => {
+      const installedUpdate = await downloadAndInstallAppUpdate((progress: AppUpdateProgress) => {
         setState({ status: "downloading", update: updateInfo!, progress });
       });
-      setState({ status: "ready", update: updateInfo });
+      setState({ status: "ready", update: installedUpdate });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Update failed.";
+      const message = updateErrorMessage(err, "Update failed.");
       setState({ status: "error", message });
     }
   }, [state]);
 
   const restart = useCallback(async () => {
-    await relaunchApp();
+    try {
+      await relaunchApp();
+    } catch (err) {
+      setState({ status: "error", message: updateErrorMessage(err, "Could not restart Meuxe. Please close and reopen the app.") });
+    }
   }, []);
 
   useEffect(() => {

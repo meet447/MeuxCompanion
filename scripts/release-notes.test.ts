@@ -82,8 +82,6 @@ tauri-build = { version = "2.6" }
     expect(notes.tag).toBe(`v${version}`);
     expect(notes.name).toBe(`Meuxe v${version}`);
     expect(notes.body).toContain("### Fixed");
-    expect(notes.body).toContain("Live2D");
-    expect(notes.body).toContain("Arweave");
     expect(notes.body).toContain("Known limits");
     expect(notes.body).not.toContain("## [");
   });

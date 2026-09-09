@@ -32,8 +32,6 @@ export function UpdatesSection() {
     );
   }
 
-  const isBusy = state.status === "checking" || state.status === "downloading";
-
   return (
     <Surface tone="well" elevation="none" className="p-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -44,56 +42,66 @@ export function UpdatesSection() {
         Meuxe checks GitHub Releases for signed updates. Your chat, memories, and settings stay on this device.
       </p>
 
-      {state.status === "error" && (
-        <Notice tone="danger" className="mt-4">
-          {state.message}
-        </Notice>
-      )}
+      <div role="status" aria-live="polite">
+        {state.status === "checking" && (
+          <p className="mt-4 text-sm text-ink-2">Checking GitHub Releases… This can take up to 30 seconds.</p>
+        )}
 
-      {state.status === "available" && (
-        <Notice tone="info" className="mt-4">
-          Meuxe {state.update.version} is available.
-          {state.update.notes ? (
-            <span className="mt-2 block whitespace-pre-wrap text-ink-2">{state.update.notes}</span>
-          ) : null}
-        </Notice>
-      )}
+        {state.status === "up-to-date" && (
+          <Notice tone="success" className="mt-4">You’re up to date. Meuxe {appVersion} is the latest version.</Notice>
+        )}
 
-      {state.status === "downloading" && (
-        <Notice tone="info" className="mt-4">
-          Downloading Meuxe {state.update.version}…
-          {state.progress.total != null
-            ? ` ${formatBytes(state.progress.downloaded)} / ${formatBytes(state.progress.total)}`
-            : state.progress.downloaded > 0
-              ? ` ${formatBytes(state.progress.downloaded)} downloaded`
-              : null}
-        </Notice>
-      )}
+        {state.status === "error" && (
+          <Notice tone="danger" className="mt-4">
+            {state.message}
+          </Notice>
+        )}
 
-      {state.status === "ready" && (
-        <Notice tone="success" className="mt-4">
-          Meuxe {state.update.version} is installed. Restart to finish.
-        </Notice>
-      )}
+        {state.status === "available" && (
+          <Notice tone="info" className="mt-4">
+            Meuxe {state.update.version} is available.
+            {state.update.notes ? (
+              <span className="mt-2 block whitespace-pre-wrap text-ink-2">{state.update.notes}</span>
+            ) : null}
+          </Notice>
+        )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+        {state.status === "downloading" && (
+          <Notice tone="info" className="mt-4">
+            Downloading Meuxe {state.update.version}…
+            {state.progress.total != null
+              ? ` ${formatBytes(state.progress.downloaded)} / ${formatBytes(state.progress.total)}`
+              : state.progress.downloaded > 0
+                ? ` ${formatBytes(state.progress.downloaded)} downloaded`
+                : null}
+          </Notice>
+        )}
+
+        {state.status === "ready" && (
+          <Notice tone="success" className="mt-4">
+            Meuxe {state.update.version} is installed. Restart to finish.
+          </Notice>
+        )}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         {state.status === "ready" ? (
-          <Button variant="primary" onClick={() => void restart()}>
+          <Button className="shrink-0" variant="primary" onClick={() => void restart()}>
             Restart Meuxe
           </Button>
         ) : state.status === "available" || state.status === "downloading" ? (
-          <Button variant="primary" loading={state.status === "downloading"} onClick={() => void install()}>
+          <Button className="shrink-0" variant="primary" loading={state.status === "downloading"} onClick={() => void install()}>
             {state.status === "downloading" ? "Downloading…" : "Install update"}
           </Button>
         ) : (
-          <Button variant="secondary" loading={state.status === "checking"} onClick={() => void check()}>
-            Check for updates
+          <Button className="shrink-0" variant="secondary" loading={state.status === "checking"} onClick={() => void check()}>
+            {state.status === "checking" ? "Checking…" : "Check for updates"}
           </Button>
         )}
 
         <Button
           variant="ghost"
-          disabled={isBusy}
+          className="shrink-0"
           onClick={() => void openExternalUrl(RELEASES_URL)}
         >
           View releases

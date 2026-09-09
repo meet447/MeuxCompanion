@@ -23,6 +23,7 @@ import { WhisperDownloadCard } from "./voice/WhisperDownloadCard";
 import { useVoice } from "../hooks/useVoice";
 import type { AcpAgentPresetId } from "../lib/agentPresets";
 import {
+  AppWindowIcon,
   AsciiAccent,
   Button,
   CloseIcon,
@@ -48,7 +49,7 @@ import {
 } from "./ui";
 import type { AppConfig, Voice } from "../types";
 
-type SettingsPage = "profile" | "llm" | "tts" | "privacy" | "expressions" | "memory" | "avatar";
+type SettingsPage = "profile" | "llm" | "tts" | "privacy" | "updates" | "expressions" | "memory" | "avatar";
 
 const SETTINGS_TTS_PRESETS: Record<string, { name: string; needs_key: boolean; hint?: string }> = {
   tiktok: TTS_PRESETS_UI.tiktok,
@@ -82,6 +83,10 @@ const PAGE_META: Record<SettingsPage, { title: string; description: string }> = 
     title: "Your profile",
     description: "Name and about yourself.",
   },
+  updates: {
+    title: "App updates",
+    description: "Keep Meuxe up to date with the latest improvements and fixes.",
+  },
   privacy: {
     title: "Privacy & data",
     description: "What stays on your device and what uses the network.",
@@ -101,6 +106,7 @@ const COMPANION_NAV: NavItem[] = [
 const YOU_NAV: NavItem[] = [
   { id: "profile", label: "Profile", icon: UserIcon },
   { id: "privacy", label: "Privacy & data", icon: ShieldIcon },
+  { id: "updates", label: "App updates", icon: AppWindowIcon },
 ];
 
 function PrivacyCard({
@@ -344,6 +350,8 @@ export function Settings({
   const meta = PAGE_META[page];
 
   const renderPageContent = () => {
+    if (page === "updates") return <UpdatesSection />;
+
     if (!config) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 py-16">
@@ -518,8 +526,6 @@ export function Settings({
             ]}
             tone="honey"
           />
-
-          <UpdatesSection />
 
           <Surface tone="well" elevation="none" className="p-5">
             <h3 className="text-sm font-semibold text-ink">Run onboarding again</h3>

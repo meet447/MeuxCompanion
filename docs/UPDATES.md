@@ -1,6 +1,6 @@
 # App updates (GitHub Releases)
 
-Meuxe uses [Tauri's built-in updater](https://v2.tauri.app/plugin/updater/) with releases published to GitHub. Installed apps check for updates on launch and from **Settings → Privacy & data → App updates**.
+Meuxe uses [Tauri's built-in updater](https://v2.tauri.app/plugin/updater/) with releases published to GitHub. Installed apps check for updates on launch and from **Settings → App updates → App updates**.
 
 ## How it works
 
