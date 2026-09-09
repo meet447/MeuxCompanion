@@ -1,7 +1,4 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, memo } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { ChatPanel } from "./components/ChatPanel";
 import { HistoryDrawer } from "./components/chat/HistoryDrawer";
 import { FloatingChatInput } from "./components/chat/FloatingChatInput";
@@ -15,9 +12,9 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { MiniWidget } from "./components/MiniWidget";
 import { StageEmptyState } from "./components/stage/StageEmptyState";
 import { WhisperDownloadCard } from "./components/voice/WhisperDownloadCard";
-import { useChat, cleanCompanionDisplayText } from "./hooks/useChat";
-import { unlockAudioPlayback, useAudioQueue } from "./hooks/useAudioQueue";
-import { useVoice } from "./hooks/useVoice";
+import { cleanCompanionDisplayText } from "./hooks/useChat";
+import { useCompanionSession } from "./hooks/useCompanionSession";
+import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
 import { useWindow } from "./hooks/useWindow";
 import {
   getConfig,
@@ -27,12 +24,9 @@ import {
   listModels,
   getExpressions,
   getModelExpressions,
-  getChatHistory,
-  clearChat,
   resolveAssetUrl,
   resolveLive2DModelUrl,
 } from "./api/tauri";
-import { sessionMessagesToChat } from "./lib/sessionHistory";
 import type { AppConfig, Character, ModelInfo } from "./types";
 
 const Live2DCanvas = lazy(() =>
@@ -100,86 +94,12 @@ function devAvatarPreview(): "haru" | "utsuwa" | null {
   return null;
 }
 
-const SHORTCUT_TOGGLE = "CommandOrControl+Shift+E";
-const SHORTCUT_TEXT = "CommandOrControl+Shift+Space";
-const SHORTCUT_MIC = "CommandOrControl+Shift+M";
-// Serializes global-shortcut (un)registration across effect runs.
-let shortcutQueue: Promise<void> = Promise.resolve();
-
 function App() {
   const avatarPreview = useMemo(() => devAvatarPreview(), []);
   const { isMiniMode, miniCharacterId, toggleMini } = useWindow();
 
   // Refs for global shortcut callbacks (so they always see latest state)
   const selectedCharIdRef = useRef("");
-  const historyGenerationRef = useRef(0);
-
-  // Trigger to open mini composer from global shortcut
-  const [miniComposerTrigger, setMiniComposerTrigger] = useState(0);
-  // Ref for focus chat input in full mode
-  const fullChatInputRef = useRef<HTMLInputElement>(null);
-  // Ref for mic toggle
-  const handleMicToggleRef = useRef<() => void>(() => {});
-
-  // Global shortcuts: registered once from main window, work in all modes
-  // Actions are dispatched via Tauri events so both windows can respond
-  const toggleMiniRef = useRef(toggleMini);
-  toggleMiniRef.current = toggleMini;
-  useEffect(() => {
-    if (isMiniMode) return;
-
-    let cancelled = false;
-    const broadcast = (event: string) => invoke("broadcast_event", { event }).catch(() => {});
-    const handlers: Array<[string, () => void]> = [
-      [SHORTCUT_TOGGLE, () => toggleMiniRef.current(selectedCharIdRef.current || undefined)],
-      [SHORTCUT_TEXT, () => broadcast("shortcut:text")],
-      [SHORTCUT_MIC, () => broadcast("shortcut:mic")],
-    ];
-
-    // Register/unregister are async and must be serialized: a remount (StrictMode
-    // in dev, or a real one) would otherwise race a fresh register() against the
-    // previous effect's still-pending unregister() and fail with "already registered".
-    shortcutQueue = shortcutQueue.then(async () => {
-      if (cancelled) return;
-      for (const [combo, run] of handlers) {
-        try {
-          await unregister(combo).catch(() => {});
-          await register(combo, (event) => {
-            if (event.state === "Pressed") run();
-          });
-        } catch (err) {
-          console.error(`Failed to register shortcut ${combo}:`, err);
-        }
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      shortcutQueue = shortcutQueue.then(async () => {
-        for (const [combo] of handlers) {
-          await unregister(combo).catch(() => {});
-        }
-      });
-    };
-  }, [isMiniMode]);
-
-  // Listen for shortcut events (both windows listen, only the active one acts)
-  useEffect(() => {
-    const unlistenText = listen("shortcut:text", () => {
-      if (isMiniMode) {
-        setMiniComposerTrigger((n) => n + 1);
-      } else {
-        fullChatInputRef.current?.focus();
-      }
-    });
-    const unlistenMic = listen("shortcut:mic", () => {
-      handleMicToggleRef.current();
-    });
-    return () => {
-      unlistenText.then((fn) => fn());
-      unlistenMic.then((fn) => fn());
-    };
-  }, [isMiniMode]);
 
   const [characters, setCharacters] = useState<Character[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -197,51 +117,16 @@ function App() {
   const [userTyping, setUserTyping] = useState(false);
   const [agentReady, setAgentReady] = useState(true);
 
-  const {
-    setMessages,
-    timeline,
-    isStreaming,
-    streamingText,
-    send,
-    setOnSentence,
-    setOnAudio,
-    setOnAudioFailed,
-    setOnDone,
-    setOnError,
-    toolCalls,
-    handleConfirm,
-    cancel,
-    error: chatError,
-    clearError: clearChatError,
-  } = useChat();
-  const {
-    listening,
-    startListening,
-    stopListening,
-    error: voiceError,
-    clearError: clearVoiceError,
-    needsWhisperDownload,
-    downloadProgress,
-    downloading,
-    downloadWhisper,
-  } = useVoice();
-  const {
-    speaking,
-    speakingSentence,
-    speechSessionActive,
-    beginRequest,
-    addSentence,
-    addAudio,
-    failAudio,
-    markTextDone,
-    failRequest,
-    clearQueue,
-    getAudioLevels,
-    setOnExpressionChange,
-    setNeutralExpression,
-  } = useAudioQueue();
 
-  const selectedCharRef = useRef<Character | undefined>(undefined);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const { setMessages, timeline, isStreaming, streamingText, toolCalls, handleConfirm, cancel,
+    chatError, clearChatError, listening, voiceError, clearVoiceError, needsWhisperDownload,
+    downloadProgress, downloading, downloadWhisper, speaking, speakingSentence, speechSessionActive,
+    clearQueue, getAudioLevels, setNeutralExpression, loadHistory, clearMessages,
+    handleSend, handleMicToggle, pendingToolConfirm } = useCompanionSession({ selectedCharId, expressionsConfigured, agentReady, openSettings, setCurrentExpression });
+  const { miniComposerTrigger, fullChatInputRef } = useGlobalShortcuts({
+    isMiniMode, selectedCharId, toggleMini, onMicToggle: handleMicToggle,
+  });
 
   const refreshAgentReady = useCallback(async (cfg?: AppConfig) => {
     try {
@@ -253,30 +138,6 @@ function App() {
       setAgentReady(false);
     }
   }, []);
-
-  const loadHistory = useCallback(
-    async (characterId: string) => {
-      const generation = ++historyGenerationRef.current;
-      try {
-        const history = await getChatHistory(characterId);
-        if (generation !== historyGenerationRef.current) return;
-        setMessages(sessionMessagesToChat(history));
-      } catch (err) {
-        console.error("History load error:", err);
-      }
-    },
-    [setMessages]
-  );
-
-  const clearMessages = useCallback(
-    async (characterId?: string) => {
-      if (characterId) {
-        await clearChat(characterId).catch(console.error);
-      }
-      setMessages([]);
-    },
-    [setMessages]
-  );
 
   const refreshCharacters = useCallback(async (preferredId?: string) => {
     try {
@@ -299,48 +160,6 @@ function App() {
       console.error("Character list load error:", err);
     }
   }, []);
-
-  // Wire audio queue events to model
-  useEffect(() => {
-    setOnExpressionChange((expr: string) => {
-      setCurrentExpression(expr);
-    });
-  }, [setOnExpressionChange]);
-
-  // Wire chat sentence events to audio queue
-  useEffect(() => {
-    setOnSentence((payload) => {
-      addSentence(payload.request_id, payload);
-    });
-    setOnAudio((payload) => {
-      addAudio(
-        payload.request_id,
-        payload.index,
-        payload.data,
-        payload.engine === "system" ? "system" : "remote",
-      );
-    });
-    setOnAudioFailed((payload) => {
-      failAudio(payload.request_id, payload.index);
-    });
-    setOnDone((payload) => {
-      markTextDone(payload.request_id);
-    });
-    setOnError((requestId) => {
-      failRequest(requestId);
-    });
-  }, [
-    setOnSentence,
-    setOnAudio,
-    setOnAudioFailed,
-    setOnDone,
-    setOnError,
-    addSentence,
-    addAudio,
-    failAudio,
-    markTextDone,
-    failRequest,
-  ]);
 
   useEffect(() => {
     if (avatarPreview) {
@@ -398,7 +217,6 @@ function App() {
     () => characters.find((c) => c.id === selectedCharId),
     [characters, selectedCharId]
   );
-  selectedCharRef.current = selectedChar;
 
   const selectedModel = useMemo(() => {
     if (avatarPreview === "haru") {
@@ -520,75 +338,12 @@ function App() {
     refreshAgentReady,
   ]);
 
-  const handleSend = useCallback(
-    async (text: string) => {
-      if (!selectedCharId || !expressionsConfigured) return;
-      if (!agentReady) {
-        setSettingsOpen(true);
-        return;
-      }
-      unlockAudioPlayback();
-      const requestId = crypto.randomUUID();
-      beginRequest(requestId);
-      await send(selectedCharId, text, requestId);
-    },
-    [selectedCharId, expressionsConfigured, agentReady, send, beginRequest]
-  );
-
-  useEffect(() => {
-    const unlock = () => unlockAudioPlayback();
-    document.addEventListener("pointerdown", unlock, { once: true });
-    document.addEventListener("keydown", unlock, { once: true });
-    return () => {
-      document.removeEventListener("pointerdown", unlock);
-      document.removeEventListener("keydown", unlock);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!selectedCharId) return;
-    const generation = ++historyGenerationRef.current;
-    setMessages([]);
-    void (async () => {
-      try {
-        const history = await getChatHistory(selectedCharId);
-        if (generation !== historyGenerationRef.current) return;
-        setMessages(sessionMessagesToChat(history));
-      } catch (err) {
-        console.error("History load error:", err);
-      }
-    })();
-  }, [selectedCharId, setMessages]);
-
-  // Reload chat history when switching from mini mode back to full mode
-  useEffect(() => {
-    const unlisten = listen<{ mode: string }>("app:mode-changed", (event) => {
-      if (event.payload.mode === "full" && selectedCharId) {
-        loadHistory(selectedCharId);
-      }
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, [selectedCharId, loadHistory]);
-
   const handleTypingChange = useCallback(
     (isTyping: boolean) => {
       setUserTyping(isTyping);
     },
     []
   );
-
-  const pendingToolConfirm = toolCalls.find((tc) => tc.status === "awaiting_confirmation") ?? null;
-
-  const handleMicToggle = useCallback(() => {
-    if (listening) {
-      stopListening();
-    } else {
-      startListening((transcript) => {
-        handleSend(transcript);
-      });
-    }
-  }, [listening, startListening, stopListening, handleSend]);
-  handleMicToggleRef.current = handleMicToggle;
 
   const handleCharacterChange = useCallback(
     (id: string) => {
