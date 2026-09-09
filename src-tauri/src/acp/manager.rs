@@ -34,41 +34,67 @@ pub async fn dispatch_turn(
     let agent_config = params.agent_config.clone();
 
     let (result_tx, result_rx) = oneshot::channel();
-    let mut job = Some(TurnJob { params, result_tx });
-
-    // The connection task can die between turns (agent crash, CLI removed). A
-    // closed channel means we must respawn, so allow one retry.
-    for attempt in 0..2 {
-        let turn_tx = {
+    send_with_retry(
+        TurnJob { params, result_tx },
+        || {
             let mut acp = state.acp.lock().unwrap_or_else(|p| p.into_inner());
             acp.ensure_connection(app.clone(), Arc::clone(&state), &agent_config)?;
             acp.turn_tx
                 .clone()
-                .ok_or_else(|| "ACP connection is not available".to_string())?
-        };
-
-        match turn_tx
-            .send(job.take().expect("job is present until sent"))
-            .await
-        {
-            Ok(()) => break,
-            Err(mpsc::error::SendError(returned)) => {
-                invalidate_acp(&state);
-                if attempt == 1 {
-                    return Err(
-                        "The agent connection closed before your message was sent. Try again."
-                            .to_string(),
-                    );
-                }
-                job = Some(returned);
-            }
-        }
-    }
+                .ok_or_else(|| "ACP connection is not available".to_string())
+        },
+        || invalidate_acp(&state),
+    )
+    .await?;
 
     result_rx.await.map_err(|_| {
         "The agent connection ended unexpectedly. Send your message again to restart it."
             .to_string()
     })?
+}
+
+/// Retry only a failed enqueue: once accepted, a turn must never be replayed.
+async fn send_with_retry<T>(
+    mut job: T,
+    mut connection: impl FnMut() -> Result<mpsc::Sender<T>, String>,
+    mut invalidate: impl FnMut(),
+) -> Result<(), String> {
+    for _ in 0..2 {
+        match connection()?.send(job).await {
+            Ok(()) => return Ok(()),
+            Err(mpsc::error::SendError(returned)) => {
+                invalidate();
+                job = returned;
+            }
+        }
+    }
+    Err("The agent connection closed before your message was sent. Try again.".into())
+}
+
+/// Cancellation wins even when an agent update or permission reply is already ready.
+async fn read_until_cancelled<T>(
+    cancel: &CancellationToken,
+    read: impl std::future::Future<Output = T>,
+) -> Option<T> {
+    tokio::select! {
+        biased;
+        () = cancel.cancelled() => None,
+        update = read => Some(update),
+    }
+}
+
+async fn wait_for_permission(
+    options: &[agent_client_protocol::schema::v1::PermissionOption],
+    cancel: Option<&CancellationToken>,
+    response: oneshot::Receiver<bool>,
+) -> RequestPermissionOutcome {
+    let Some(cancel) = cancel else {
+        return RequestPermissionOutcome::Cancelled;
+    };
+    match read_until_cancelled(cancel, response).await {
+        Some(Ok(approved)) => permission_outcome(options, approved),
+        _ => RequestPermissionOutcome::Cancelled,
+    }
 }
 
 pub(crate) struct TurnJob {
@@ -78,6 +104,23 @@ pub(crate) struct TurnJob {
 
 struct TurnOutcome {
     poison_session: bool,
+}
+
+fn retain_healthy_session<T>(
+    sessions: &mut Option<HashMap<String, T>>,
+    live: &Mutex<HashSet<String>>,
+    character: &str,
+    outcome: &Result<TurnOutcome, String>,
+) {
+    if outcome.as_ref().is_ok_and(|result| !result.poison_session) {
+        return;
+    }
+    if let Some(sessions) = sessions {
+        sessions.remove(character);
+    }
+    live.lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .remove(character);
 }
 
 pub struct AcpConnectionManager {
@@ -309,34 +352,9 @@ async fn run_connection_loop(
                     }),
                 );
 
-                let outcome = if let Some(cancel) = cancel {
-                    tokio::select! {
-                        () = cancel.cancelled() => {
-                            let mut lock = state_perm
-                                .chat_permission_responders
-                                .lock()
-                                .unwrap_or_else(|p| p.into_inner());
-                            lock.remove(&permission_id);
-                            RequestPermissionOutcome::Cancelled
-                        }
-                        result = rx => {
-                            let mut lock = state_perm
-                                .chat_permission_responders
-                                .lock()
-                                .unwrap_or_else(|p| p.into_inner());
-                            lock.remove(&permission_id);
-                            let approved = result.unwrap_or(false);
-                            permission_outcome(&request.options, approved)
-                        }
-                    }
-                } else {
-                    let mut lock = state_perm
-                        .chat_permission_responders
-                        .lock()
-                        .unwrap_or_else(|p| p.into_inner());
-                    lock.remove(&permission_id);
-                    RequestPermissionOutcome::Cancelled
-                };
+                let outcome = wait_for_permission(&request.options, cancel.as_ref(), rx).await;
+                state_perm.chat_permission_responders
+                    .lock().unwrap_or_else(|p| p.into_inner()).remove(&permission_id);
 
                 responder.respond(RequestPermissionResponse::new(outcome))?;
                 Ok(())
@@ -459,7 +477,7 @@ async fn run_connection_loop(
                             .map_err(|e| e.to_string())?;
 
                         loop {
-                            if cancel.is_cancelled() {
+                            let Some(update) = read_until_cancelled(cancel, session.read_update()).await else {
                                 cancelled = true;
                                 poison_session = true;
                                 let _ = connection.send_notification_to(
@@ -467,20 +485,8 @@ async fn run_connection_loop(
                                     CancelNotification::new(session.session_id().clone()),
                                 );
                                 break;
-                            }
-
-                            let update = tokio::select! {
-                                () = cancel.cancelled() => {
-                                    cancelled = true;
-                                    poison_session = true;
-                                    let _ = connection.send_notification_to(
-                                        Agent,
-                                        CancelNotification::new(session.session_id().clone()),
-                                    );
-                                    break;
-                                }
-                                res = session.read_update() => res.map_err(|e| e.to_string())?,
                             };
+                            let update = update.map_err(|e| e.to_string())?;
 
                             match update {
                                 SessionMessage::SessionMessage(dispatch) => {
@@ -684,27 +690,10 @@ async fn run_connection_loop(
                         *lock = None;
                     }
 
+                    retain_healthy_session(&mut sessions, &session_characters, &character_id, &turn_result);
                     let response = match turn_result {
-                        Ok(outcome) => {
-                            if outcome.poison_session {
-                                if let Some(map) = sessions.as_mut() {
-                                    map.remove(&character_id);
-                                }
-                                session_characters
-                                    .lock()
-                                    .unwrap_or_else(|p| p.into_inner())
-                                    .remove(&character_id);
-                            }
-                            Ok(())
-                        }
+                        Ok(_) => Ok(()),
                         Err(err) => {
-                            if let Some(map) = sessions.as_mut() {
-                                map.remove(&character_id);
-                            }
-                            session_characters
-                                .lock()
-                                .unwrap_or_else(|p| p.into_inner())
-                                .remove(&character_id);
                             let _ = app.emit(
                                 "chat:error",
                                 serde_json::json!({
@@ -753,3 +742,7 @@ pub fn invalidate_acp_if_agent_changed(
         invalidate_acp(state);
     }
 }
+
+#[cfg(test)]
+#[path = "manager_tests.rs"]
+mod tests;
