@@ -28,14 +28,16 @@ pub struct AcpPrerequisitesStatus {
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentPresetSetupStatus {
     pub preset: String,
+    /// A launch method is available; does not verify installation or sign-in.
     pub ready: bool,
-    /// Legacy field kept for frontend compatibility; always false (installs are global now).
     /// A CLI was found on the user/system PATH (or standard global locations).
     pub system_path: bool,
     pub needs_node: bool,
     pub detail: String,
     pub install_source: AgentInstallSource,
     pub system_command: Option<String>,
+    /// Regular Claude/Codex CLI, distinct from the ACP adapter Meuxe launches.
+    pub cli_command: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -220,29 +222,6 @@ pub async fn resolve_agent(_data_dir: &Path, preset: &str) -> AgentResolution {
     }
 }
 
-/// argv for spawning the agent (system install or bare name on PATH).
-pub async fn resolve_opencode_argv(data_dir: &Path) -> Vec<String> {
-    let resolution = resolve_agent(data_dir, "opencode").await;
-    match resolution.executable {
-        Some(path) => vec![path.to_string_lossy().into_owned(), "acp".into()],
-        None => vec!["opencode".into(), "acp".into()],
-    }
-}
-
-pub async fn resolve_claude_argv(data_dir: &Path) -> Option<Vec<String>> {
-    let resolution = resolve_agent(data_dir, "claude").await;
-    resolution
-        .executable
-        .map(|p| vec![p.to_string_lossy().into_owned()])
-}
-
-pub async fn resolve_codex_argv(data_dir: &Path) -> Option<Vec<String>> {
-    let resolution = resolve_agent(data_dir, "codex").await;
-    resolution
-        .executable
-        .map(|p| vec![p.to_string_lossy().into_owned()])
-}
-
 fn trim_version(stdout: &[u8]) -> Option<String> {
     let s = String::from_utf8_lossy(stdout);
     let trimmed = s.trim();
@@ -255,12 +234,17 @@ fn trim_version(stdout: &[u8]) -> Option<String> {
 
 async fn command_version(program: &str) -> Option<String> {
     let executable = find_executable_on_path(program)?;
-    let output = AsyncCommand::new(&executable)
-        .arg("--version")
-        .env("PATH", augmented_path_env())
-        .output()
-        .await
-        .ok()?;
+    let output = timeout(
+        Duration::from_secs(5),
+        AsyncCommand::new(&executable)
+            .arg("--version")
+            .env("PATH", augmented_path_env())
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await
+    .ok()?
+    .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -309,7 +293,7 @@ fn status_from_resolution(preset: &str, resolution: AgentResolution) -> AgentPre
                     system_command.clone().unwrap_or_default()
                 ),
                 AgentInstallSource::Npx => {
-                    "Will run on demand through Node.js.".into()
+                    "Meuxe can download and run the ACP connection adapter through Node.js. The first start may take a few minutes. Installing the adapter locally is optional and does not reinstall your CLI.".into()
                 }
                 AgentInstallSource::None => {
                     "Claude isn't set up yet. Install Node.js, then click Install, or install the adapter yourself and check again.".into()
@@ -325,7 +309,7 @@ fn status_from_resolution(preset: &str, resolution: AgentResolution) -> AgentPre
                     system_command.clone().unwrap_or_default()
                 ),
                 AgentInstallSource::Npx => {
-                    "Will run on demand through Node.js.".into()
+                    "Meuxe can download and run the ACP connection adapter through Node.js. The first start may take a few minutes. Installing the adapter locally is optional and does not reinstall your CLI.".into()
                 }
                 AgentInstallSource::None => {
                     "Codex isn't set up yet. Install Node.js, then click Install, or install the adapter yourself and check again.".into()
@@ -344,6 +328,12 @@ fn status_from_resolution(preset: &str, resolution: AgentResolution) -> AgentPre
         detail,
         install_source: resolution.source,
         system_command,
+        cli_command: match preset {
+            "claude" | "codex" => {
+                find_executable_on_path(preset).map(|path| path.to_string_lossy().into_owned())
+            }
+            _ => None,
+        },
     }
 }
 
@@ -400,6 +390,7 @@ pub async fn check_preset(
                 detail,
                 install_source: AgentInstallSource::None,
                 system_command,
+                cli_command: None,
             }
         }
         other => AgentPresetSetupStatus {
@@ -410,6 +401,7 @@ pub async fn check_preset(
             detail: format!("Unknown preset: {other}"),
             install_source: AgentInstallSource::None,
             system_command: None,
+            cli_command: None,
         },
     }
 }
@@ -457,6 +449,7 @@ async fn run_npm_global_install(package: &str) -> Result<(), String> {
         ])
         .env("NPM_CONFIG_PREFIX", &prefix_str)
         .env("PATH", augmented_path_env())
+        .kill_on_drop(true)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -488,7 +481,7 @@ async fn run_npm_global_install(package: &str) -> Result<(), String> {
     }
 }
 
-fn preset_npm_package(preset: &str) -> Result<&'static str, String> {
+pub(crate) fn preset_npm_package(preset: &str) -> Result<&'static str, String> {
     match preset {
         "opencode" => Ok("opencode-ai"),
         "claude" => Ok("@agentclientprotocol/claude-agent-acp"),
@@ -566,6 +559,24 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn npx_availability_does_not_claim_the_adapter_is_installed() {
+        for preset in ["claude", "codex"] {
+            let status = status_from_resolution(
+                preset,
+                AgentResolution {
+                    source: AgentInstallSource::Npx,
+                    executable: None,
+                },
+            );
+            assert!(status.ready); // launchable, not an authentication check
+            assert!(!status.system_path);
+            assert!(status.system_command.is_none());
+            assert!(status.detail.contains("first start may take a few minutes"));
+            assert!(status.detail.contains("does not reinstall your CLI"));
+        }
+    }
 
     #[test]
     fn find_executable_in_dirs_discovers_file() {

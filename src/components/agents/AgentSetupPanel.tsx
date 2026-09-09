@@ -20,6 +20,7 @@ export function AgentSetupPanel({
   const [status, setStatus] = useState<AgentSetupStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export function AgentSetupPanel({
       return;
     }
     let cancelled = false;
+    setStatus(null);
     setLoading(true);
     setError("");
     onStatusChange?.(null, true);
@@ -53,7 +55,7 @@ export function AgentSetupPanel({
     return () => {
       cancelled = true;
     };
-  }, [preset]);
+  }, [preset, revision]);
 
   const runInstall = async () => {
     setInstalling(true);
@@ -72,7 +74,7 @@ export function AgentSetupPanel({
   if (preset === "custom") return null;
 
   const title = ACP_AGENT_PRESETS[preset].title;
-  const agent = status?.agent;
+  const agent = status?.agent.preset === preset ? status.agent : undefined;
   const usingSystem = agent?.install_source === "system";
   const usingNpx = agent?.install_source === "npx";
 
@@ -88,9 +90,9 @@ export function AgentSetupPanel({
       {status && !loading && agent && (
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap gap-2">
-            <StatusPill ok={agent.ready} label={agent.ready ? `${title} ready` : `${title} needed`} />
+            <StatusPill ok={agent.ready} label={usingNpx ? "Adapter available on demand" : agent.ready ? `${title} found` : `${title} setup needed`} />
+            {agent.cli_command && <StatusPill ok label={`${title} CLI found`} />}
             {usingSystem && <StatusPill ok label="Found on this computer" />}
-            {usingNpx && <StatusPill ok label="Runs through Node.js" />}
             <StatusPill ok={status.prerequisites.node_available} label="Node.js" />
             {status.prerequisites.node_version && (
               <span className="text-[11px] text-ink-3">{status.prerequisites.node_version}</span>
@@ -101,12 +103,12 @@ export function AgentSetupPanel({
 
           {friendly && !agent.ready && (
             <p className="text-sm leading-snug text-ink-3">
-              Install {title} here, or install it yourself and click the check again after.
+              Set up the connection here, or install it yourself and click Check again.
             </p>
           )}
 
           <div className="flex flex-wrap gap-2">
-            {!status.prerequisites.node_available && (
+            {agent.needs_node && !status.prerequisites.node_available && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -118,17 +120,20 @@ export function AgentSetupPanel({
             )}
             {status.prerequisites.node_available && !agent.ready && (
               <Button size="sm" variant="primary" loading={installing} onClick={runInstall}>
-                Install {title}
+                {preset === "opencode" ? `Install ${title}` : "Install connection adapter"}
               </Button>
             )}
-            {status.prerequisites.node_available && agent.ready && usingSystem && (
-              <span className="text-xs font-semibold text-sage-700">Using your global install</span>
+            {agent.ready && usingSystem && (
+              <span className="text-xs font-semibold text-sage-700">Using the installed connection</span>
             )}
             {status.prerequisites.node_available && agent.ready && !usingSystem && (
               <Button size="sm" variant="soft" loading={installing} onClick={runInstall}>
-                Install {title}
+                Install adapter locally (optional)
               </Button>
             )}
+            <Button size="sm" variant="ghost" disabled={installing} onClick={() => setRevision((value) => value + 1)}>
+              Check again
+            </Button>
           </div>
         </div>
       )}

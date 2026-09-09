@@ -59,7 +59,9 @@ export function AgentModelPicker({ preset, program, args, model, onChange }: Pro
   const hint = !ready
     ? "Enter the agent command to load its models."
     : loading
-      ? "Loading models from your agent…"
+      ? (preset === "claude" || preset === "codex"
+        ? "Starting the connection adapter and loading models… The first start may download it and take up to 3 minutes."
+        : "Loading models from your agent…")
       : data && (!data.supported || data.models.length === 0)
         ? "This agent did not report selectable models. Its default model will be used."
         : "Models available to your signed-in agent. Save agent to use your choice for the next conversation turn.";

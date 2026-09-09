@@ -118,6 +118,6 @@ describe("Onboarding", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /finish/i })).toBeEnabled();
     });
-    expect(screen.getByText(/OpenCode ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/OpenCode found/i)).toBeInTheDocument();
   });
 });

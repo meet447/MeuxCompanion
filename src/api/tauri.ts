@@ -95,6 +95,7 @@ export interface AgentSetupStatusResponse {
     detail: string;
     install_source: "system" | "npx" | "none";
     system_command: string | null;
+    cli_command?: string | null;
   };
 }
 

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionId, PermissionOptionKind,
 };
-use agent_client_protocol::AcpAgent;
+use agent_client_protocol::{AcpAgent, AcpAgentConfig};
 use meuxe_core::config::types::AgentConfig;
 use meuxe_core::memory::MemorySnapshot;
 use tauri::AppHandle;
@@ -156,57 +156,52 @@ pub fn render_memory_brief(snapshot: &MemorySnapshot) -> String {
 }
 
 pub async fn resolve_acp_agent(config: &AgentConfig, data_dir: &Path) -> Result<AcpAgent, String> {
-    match config.preset.as_str() {
-        "opencode" => {
-            let resolution =
-                crate::commands::agent_setup::resolve_agent(data_dir, "opencode").await;
-            if resolution.source == crate::commands::agent_setup::AgentInstallSource::None {
-                return Err(
-                    "Agent CLI for preset `opencode` is not installed. Open Settings → Agent and click Install."
-                        .into(),
-                );
-            }
-            let args = crate::commands::agent_setup::resolve_opencode_argv(data_dir).await;
-            AcpAgent::from_args(args).map_err(|e| e.to_string())
-        }
-        "claude" => {
-            let resolution = crate::commands::agent_setup::resolve_agent(data_dir, "claude").await;
-            if resolution.source == crate::commands::agent_setup::AgentInstallSource::None {
-                return Err(
-                    "Agent CLI for preset `claude` is not installed. Open Settings → Agent and click Install."
-                        .into(),
-                );
-            }
-            if let Some(args) = crate::commands::agent_setup::resolve_claude_argv(data_dir).await {
-                AcpAgent::from_args(args).map_err(|e| e.to_string())
-            } else {
-                Ok(AcpAgent::claude_agent())
-            }
-        }
-        "codex" => {
-            let resolution = crate::commands::agent_setup::resolve_agent(data_dir, "codex").await;
-            if resolution.source == crate::commands::agent_setup::AgentInstallSource::None {
-                return Err(
-                    "Agent CLI for preset `codex` is not installed. Open Settings → Agent and click Install."
-                        .into(),
-                );
-            }
-            if let Some(args) = crate::commands::agent_setup::resolve_codex_argv(data_dir).await {
-                AcpAgent::from_args(args).map_err(|e| e.to_string())
-            } else {
-                Ok(AcpAgent::codex())
+    use crate::commands::agent_setup::{
+        augmented_path_env, find_executable_on_path, preset_npm_package, resolve_agent,
+        AgentInstallSource,
+    };
+
+    let launch = match config.preset.as_str() {
+        "opencode" | "claude" | "codex" => {
+            let resolution = resolve_agent(data_dir, &config.preset).await;
+            match resolution.source {
+                AgentInstallSource::System => {
+                    let executable = resolution.executable.ok_or("Missing agent executable")?;
+                    let launch = AcpAgentConfig::new(executable);
+                    if config.preset == "opencode" {
+                        launch.arg("acp")
+                    } else {
+                        launch
+                    }
+                }
+                AgentInstallSource::Npx => {
+                    let npx = find_executable_on_path("npx")
+                        .ok_or("Could not find npx. Check Node.js in Settings → Agent.")?;
+                    AcpAgentConfig::new(npx).args([
+                        "--yes",
+                        "--prefer-offline",
+                        preset_npm_package(&config.preset)?,
+                    ])
+                }
+                AgentInstallSource::None => {
+                    return Err(format!(
+                        "The {} ACP agent is not installed. Open Settings → Agent to set it up.",
+                        config.preset
+                    ))
+                }
             }
         }
         "custom" => {
-            if config.program.is_empty() {
+            if config.program.trim().is_empty() {
                 return Err("Custom ACP agent requires a command in Settings.".into());
             }
-            let mut parts = vec![config.program.clone()];
-            parts.extend(config.args.clone());
-            AcpAgent::from_args(parts).map_err(|e| e.to_string())
+            AcpAgentConfig::new(&config.program).args(config.args.clone())
         }
-        other => Err(format!("Unknown ACP preset: {other}")),
-    }
+        other => return Err(format!("Unknown ACP preset: {other}")),
+    };
+    Ok(AcpAgent::new(
+        launch.env("PATH", augmented_path_env().to_string_lossy()),
+    ))
 }
 
 pub async fn run_acp_chat_stream(params: RunAcpChatStreamParams) -> Result<(), String> {

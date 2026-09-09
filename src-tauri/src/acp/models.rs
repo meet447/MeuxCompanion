@@ -191,34 +191,128 @@ pub(super) async fn apply_selected_model(
     Ok(())
 }
 
+async fn discover_on_connection(
+    connection: ConnectionTo<Agent>,
+    cwd: &Path,
+    startup_timeout: Duration,
+    model_timeout: Duration,
+) -> Result<AgentModels, String> {
+    tokio::time::timeout(
+        startup_timeout,
+        connection.send_request(InitializeRequest::new(ProtocolVersion::V1)).block_task(),
+    ).await
+        .map_err(|_| "The ACP adapter did not start in time. Its first download may be slow. Check your connection, or install the connection adapter in Settings → Agent and retry.".to_string())?
+        .map_err(|err| format!("Could not initialize the ACP adapter: {err}"))?;
+    let request = UntypedMessage::new("session/new", json!({ "cwd": cwd, "mcpServers": [] }))
+        .map_err(|err| err.to_string())?;
+    let response = tokio::time::timeout(model_timeout, connection.send_request(request).block_task())
+        .await
+        .map_err(|_| "The adapter started, but the agent did not return its models in time. Check that the agent is signed in, then refresh.".to_string())?
+        .map_err(|err| format!("Could not load the agent's models: {err}"))?;
+    Ok(AgentModels::from_session(&response))
+}
+
 pub async fn discover_models(config: &AgentConfig, data_dir: &Path) -> Result<AgentModels, String> {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        let agent = resolve_acp_agent(config, data_dir).await?;
-        ensure_companion_home(data_dir).map_err(|err| err.to_string())?;
-        let cwd = companion_home_dir(data_dir);
-        let result = Arc::new(Mutex::new(None));
-        let result_out = Arc::clone(&result);
-        Client.builder().name("meuxe-model-picker")
+    let agent = tokio::time::timeout(Duration::from_secs(15), resolve_acp_agent(config, data_dir))
+        .await.map_err(|_| "Checking the agent installation timed out. Check Node.js and the agent command in Settings → Agent.".to_string())??;
+    let via_npx = agent
+        .config()
+        .command()
+        .file_stem()
+        .and_then(|name| name.to_str())
+        == Some("npx");
+    let startup_timeout = Duration::from_secs(if via_npx { 180 } else { 30 });
+    let model_timeout = Duration::from_secs(30);
+    ensure_companion_home(data_dir).map_err(|err| err.to_string())?;
+    let cwd = companion_home_dir(data_dir);
+    let result = Arc::new(Mutex::new(None));
+    let result_out = Arc::clone(&result);
+    tokio::time::timeout(
+        startup_timeout + model_timeout + Duration::from_secs(10),
+        Client
+            .builder()
+            .name("meuxe-model-picker")
             // Discovery never sends a prompt or authorizes an agent tool.
-            .on_receive_request(async |_request: RequestPermissionRequest, responder, _connection| {
-                responder.respond(RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled))?;
-                Ok(())
-            }, agent_client_protocol::on_receive_request!())
+            .on_receive_request(
+                async |_request: RequestPermissionRequest, responder, _connection| {
+                    responder.respond(RequestPermissionResponse::new(
+                        RequestPermissionOutcome::Cancelled,
+                    ))?;
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
             .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
-                connection.send_request(InitializeRequest::new(ProtocolVersion::V1)).block_task().await?;
-                let response = connection.send_request(UntypedMessage::new("session/new", json!({ "cwd": cwd, "mcpServers": [] }))?).block_task().await?;
-                *result_out.lock().unwrap_or_else(|p| p.into_inner()) = Some(AgentModels::from_session(&response));
+                let catalog =
+                    discover_on_connection(connection, &cwd, startup_timeout, model_timeout).await;
+                *result_out.lock().unwrap_or_else(|p| p.into_inner()) = Some(catalog);
                 Ok(())
-            }).await.map_err(|err| err.to_string())?;
-        let catalog = result.lock().unwrap_or_else(|p| p.into_inner()).take();
-        catalog.ok_or_else(|| "The agent did not return its model list.".into())
-    }).await.map_err(|_| "The agent timed out while loading models. Check that it is installed and signed in, then retry.".to_string())?
+            }),
+    )
+    .await
+    .map_err(|_| {
+        "The ACP connection did not finish in time. Check the agent setup and retry.".to_string()
+    })?
+    .map_err(|err| format!("Could not connect to the ACP adapter: {err}"))?;
+    let catalog = result.lock().unwrap_or_else(|p| p.into_inner()).take();
+    catalog.ok_or_else(|| "The agent did not return its model list.".to_string())?
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use agent_client_protocol::Channel;
+
+    #[tokio::test]
+    async fn discovery_reports_whether_startup_or_model_loading_stalled() {
+        for stall_method in ["initialize", "session/new"] {
+            let (client_transport, agent_transport) = Channel::duplex();
+            let agent = tokio::spawn(async move {
+                Agent
+                    .builder()
+                    .on_receive_request(
+                        async move |request: UntypedMessage, responder, _connection| {
+                            if request.method == stall_method {
+                                tokio::time::sleep(Duration::from_secs(5)).await;
+                            }
+                            let response = if request.method == "initialize" {
+                                json!({"protocolVersion":1, "agentCapabilities":{}})
+                            } else {
+                                legacy()
+                            };
+                            responder.respond(response)?;
+                            Ok(())
+                        },
+                        agent_client_protocol::on_receive_request!(),
+                    )
+                    .connect_to(agent_transport)
+                    .await
+            });
+            Client
+                .connect_with(client_transport, move |connection| async move {
+                    let error = discover_on_connection(
+                        connection,
+                        &std::env::temp_dir(),
+                        Duration::from_millis(50),
+                        Duration::from_millis(50),
+                    )
+                    .await
+                    .unwrap_err();
+                    assert!(
+                        error.contains(if stall_method == "initialize" {
+                            "adapter did not start"
+                        } else {
+                            "adapter started"
+                        }),
+                        "{error}"
+                    );
+                    Ok(())
+                })
+                .await
+                .unwrap();
+            agent.abort();
+        }
+    }
 
     fn modern() -> Value {
         json!({"sessionId":"session-1", "configOptions":[
