@@ -142,7 +142,7 @@ function App() {
   const refreshCharacters = useCallback(async (preferredId?: string) => {
     try {
       const data = await listCharacters();
-      const chars = data as Character[];
+      const chars = data;
       setCharacters(chars);
 
       if (preferredId && chars.some((char) => char.id === preferredId)) {
@@ -190,7 +190,7 @@ function App() {
   useEffect(() => {
     refreshCharacters();
     listModels()
-      .then((data) => setModels(data as ModelInfo[]))
+      .then((data) => setModels(data))
       .catch(console.error);
   }, [refreshCharacters]);
 
@@ -218,7 +218,7 @@ function App() {
     [characters, selectedCharId]
   );
 
-  const selectedModel = useMemo(() => {
+  const selectedModel = useMemo<ModelInfo | null>(() => {
     if (avatarPreview === "haru") {
       return {
         id: "haru",
@@ -361,7 +361,7 @@ function App() {
     async (characterId: string) => {
       try {
         const data = await listModels();
-        setModels(data as ModelInfo[]);
+        setModels(data);
       } catch (err) {
         console.error("Model list load error:", err);
       }
@@ -457,12 +457,11 @@ function App() {
           setOnboardingComplete(true);
           getConfig()
             .then((cfg) => {
-              const config = cfg as { active_character?: string };
-              refreshCharacters(config.active_character);
+              refreshCharacters(cfg.active_character);
             })
             .catch(() => refreshCharacters());
           listModels()
-            .then((data) => setModels(data as ModelInfo[]))
+            .then((data) => setModels(data))
             .catch(console.error);
         }}
       />

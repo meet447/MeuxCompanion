@@ -1,5 +1,5 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import type { AppConfig, MemoryFact, MemorySnapshot, ModelInfo, SessionMessage } from "../types";
+import type { AppConfig, CharacterSummary, MemoryFact, MemorySnapshot, ModelInfo, SessionMessage } from "../types";
 import { isViteDevHost, withCacheBust } from "../lib/assetUrls";
 import { dirnamePath, joinDir, rewriteLive2DFileReferences } from "../lib/live2dSettings";
 
@@ -111,7 +111,7 @@ export async function installAgentSetup(preset: string) {
 
 // Characters
 export async function listCharacters() {
-  return invoke<unknown[]>("characters_list");
+  return invoke<CharacterSummary[]>("characters_list");
 }
 
 export async function createCharacter(data: {
@@ -144,11 +144,11 @@ export async function listModels() {
 }
 
 export async function importLive2DModel() {
-  return invoke<any | null>("models_import_live2d_dialog");
+  return invoke<ModelInfo | null>("models_import_live2d_dialog");
 }
 
 export async function importVRMModel() {
-  return invoke<any | null>("models_import_vrm_dialog");
+  return invoke<ModelInfo | null>("models_import_vrm_dialog");
 }
 
 export async function installMarketplaceModel(modelId: string, url: string) {

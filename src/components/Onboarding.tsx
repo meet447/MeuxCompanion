@@ -103,7 +103,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
     listModels()
       .then((data) => {
-        const list = (data as ModelInfo[]).filter((model) => isDefaultLookId(model.id));
+        const list = data.filter((model) => isDefaultLookId(model.id));
         setModels(list);
       })
       .catch(console.error);

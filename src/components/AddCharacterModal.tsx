@@ -82,7 +82,7 @@ export function AddCharacterModal({
 
     listModels()
       .then((data) => {
-        const availableModels = data as ModelInfo[];
+        const availableModels = data;
         setModels(availableModels);
         if (availableModels.length > 0) {
           setModelId((current) =>
@@ -164,7 +164,7 @@ export function AddCharacterModal({
         return;
       }
 
-      const refreshed = (await listModels()) as ModelInfo[];
+      const refreshed = await listModels();
       setModels(refreshed);
       if (imported.id) {
         selectLook(imported.id);
@@ -287,7 +287,7 @@ export function AddCharacterModal({
                   selectedId={modelId}
                   onSelect={selectLook}
                   onInstalled={async (model) => {
-                    const refreshed = (await listModels()) as ModelInfo[];
+                    const refreshed = await listModels();
                     setModels(refreshed);
                     selectLook(model.id);
                     setImportMessage(`Installed "${model.id}" and selected it.`);

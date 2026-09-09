@@ -1,11 +1,7 @@
-export interface Character {
-  id: string;
-  name: string;
-  live2d_model: string;
-  voice: string;
-  default_emotion: string;
-  source_type?: "markdown" | "directory";
-}
+import type { CharacterSummary, ModelInfo as WireModelInfo } from "./generated/character";
+export type { CharacterSummary, AnimationInfo } from "./generated/character";
+
+export type Character = CharacterSummary;
 
 /** Wire shape returned by `chat_history` (matches Rust `SessionMessage`). */
 export interface SessionMessage {
@@ -113,19 +109,8 @@ export interface ModelMapping {
   };
 }
 
-export interface AnimationInfo {
-  name: string;
-  path: string;
-}
-
-export interface ModelInfo {
-  id: string;
-  type: "live2d" | "vrm";
-  model_file: string;
-  path: string;
-  mapping: ModelMapping | null;
-  animations?: AnimationInfo[];
-}
+/** Model response with an optional mapping attached locally by avatar previews. */
+export type ModelInfo = WireModelInfo & { mapping?: ModelMapping | null };
 
 export interface Voice {
   id: string;
@@ -142,7 +127,7 @@ export interface AgentConfig {
   preset: string;
   program: string;
   args: string[];
-  /** Approve agent tool permissions automatically (default) or ask in the chat UI. */
+  /** Approve agent tool permissions automatically when explicitly enabled; otherwise ask in the chat UI. */
   auto_approve_tools?: boolean;
 }
 

@@ -15,7 +15,8 @@
     "check:release-notes": "node scripts/release-notes.mjs --check",
     "release-notes": "node scripts/release-notes.mjs",
     "icons": "node scripts/generate-icons.mjs",
-    "record:onboarding": "node scripts/record-onboarding-demo.mjs"
+    "record:onboarding": "node scripts/record-onboarding-demo.mjs",
+    "types:generate": "node scripts/generate-ipc-types.mjs"
   },
   "dependencies": {
     "@fontsource/figtree": "^5.3.0",

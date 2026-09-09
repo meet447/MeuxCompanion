@@ -66,3 +66,9 @@ On Linux without a display, `npm run dev` exercises the frontend; full `npm run 
 ## Questions
 
 Use [GitHub Discussions](https://github.com/meet447/Meuxe/discussions) or an issue if something in this guide is unclear or outdated.
+
+Character and model IPC response types are generated from Rust into
+`src/types/generated/character.ts`. After changing those Rust structs, run
+`npm run types:generate`, commit the generated file, and run `npm run build`.
+`cargo test -p meuxe-core` rejects stale generated declarations. Keep view-only
+fields outside the generated wire types.
