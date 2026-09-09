@@ -53,17 +53,12 @@ Always end with a `<<<meuxe ... >>>` memory block (`{{}}` if nothing changed). N
     )
 }
 
-/// Allow tool use so the companion can help; stay in character via the prompt.
+/// Automatic approval never grants a persistent permission.
 pub fn pick_companion_permission(options: &[PermissionOption]) -> Option<PermissionOptionId> {
-    for kind in [
-        PermissionOptionKind::AllowAlways,
-        PermissionOptionKind::AllowOnce,
-    ] {
-        if let Some(opt) = options.iter().find(|o| o.kind == kind) {
-            return Some(opt.option_id.clone());
-        }
-    }
-    None
+    options
+        .iter()
+        .find(|option| option.kind == PermissionOptionKind::AllowOnce)
+        .map(|option| option.option_id.clone())
 }
 
 pub fn write_companion_home_context(
@@ -301,14 +296,14 @@ mod tests {
     }
 
     #[test]
-    fn pick_companion_permission_prefers_allow_always() {
+    fn pick_companion_permission_prefers_allow_once() {
         let options = vec![
             permission_option("reject-once", PermissionOptionKind::RejectOnce),
             permission_option("allow-always", PermissionOptionKind::AllowAlways),
             permission_option("allow-once", PermissionOptionKind::AllowOnce),
         ];
         let picked = pick_companion_permission(&options).unwrap();
-        assert_eq!(&*picked.0, "allow-always");
+        assert_eq!(&*picked.0, "allow-once");
     }
 
     #[test]
@@ -327,6 +322,7 @@ mod tests {
         let options = vec![
             permission_option("reject-once", PermissionOptionKind::RejectOnce),
             permission_option("reject-always", PermissionOptionKind::RejectAlways),
+            permission_option("allow-always", PermissionOptionKind::AllowAlways),
         ];
         assert!(pick_companion_permission(&options).is_none());
     }

@@ -94,7 +94,7 @@ export function AgentSection({
               selected={value.auto_approve_tools}
               onClick={() => patch("auto_approve_tools", true)}
               title="Allow automatically"
-              description="Smoother chats; the companion can help without interruptions."
+              description="Allow individual file and command requests without asking. Never grants lasting permission."
             />
             <ChoiceCard
               compact

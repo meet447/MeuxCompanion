@@ -88,7 +88,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   const [form, setForm] = useState<FormData>({
     user: { name: "", about: "" },
-    agent: { preset: "opencode", program: "", args: "", auto_approve_tools: true },
+    agent: { preset: "opencode", program: "", args: "", auto_approve_tools: false },
     tts: { provider: DEFAULT_TTS_PROVIDER, api_key: "", voice: DEFAULT_TTS_VOICE },
     companion: {
       name: "",

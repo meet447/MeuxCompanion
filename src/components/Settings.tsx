@@ -209,7 +209,7 @@ export function Settings({
   const [agentPreset, setAgentPreset] = useState("opencode");
   const [agentProgram, setAgentProgram] = useState("");
   const [agentArgs, setAgentArgs] = useState("");
-  const [autoApproveTools, setAutoApproveTools] = useState(true);
+  const [autoApproveTools, setAutoApproveTools] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -252,7 +252,7 @@ export function Settings({
         setAgentPreset(cfg.agent?.preset || "opencode");
         setAgentProgram(cfg.agent?.program || "");
         setAgentArgs((cfg.agent?.args || []).join(" "));
-        setAutoApproveTools(cfg.agent?.auto_approve_tools ?? true);
+        setAutoApproveTools(cfg.agent?.auto_approve_tools ?? false);
       })
       .catch((err) => console.error("Failed to load config:", err));
   }, []);
